@@ -50,7 +50,7 @@
 
 - [x] `@loop(interval, autostart=True)` — фоновые задачи, автоматически останавливаются при выгрузке
 - [x] Автоочистка: обработчики, которые модуль повесил через `self.client.add_event_handler`, снимаются при выгрузке
-- [ ] Шорткаты `self.get(key, default)` / `self.set(key, value)`
+- [x] Шорткаты `self.get(key, default)` / `self.set(key, value)`
 - [ ] Фильтры команд: `only_pm`, `only_groups`, `chats=[...]`, `no_reply` и т.п.
 - [ ] Метаданные в шапке модуля: `# meta developer:`, `# meta version:`, `# requires_uroboros: 0.2`. Если версия ядра не подходит, модуль не грузится и пользователь получает понятное сообщение
 - [ ] Библиотеки: общий код для нескольких модулей (`self.import_lib(url)`) с подсчётом ссылок

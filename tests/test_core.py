@@ -212,3 +212,12 @@ def test_unload_all_calls_on_unload_in_reverse_order(loader):
     run(loader.unload_all())
     assert loader.unloaded == ["Second", "First"]
     assert loader.modules == {} and loader.commands == {}
+
+
+def test_get_set_shortcuts(loader, db):
+    src = "from uroboros import Module\nclass Store(Module):\n    pass\n"
+    (inst,) = run(loader.install(src, "x"))
+    assert inst.get("missing", 5) == 5
+    inst.set("key", [1, 2])
+    assert inst.get("key") == [1, 2]
+    assert db.get("Store", "key") == [1, 2]

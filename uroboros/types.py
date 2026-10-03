@@ -108,6 +108,14 @@ class Module:
     def is_builtin(self) -> bool:
         return self._origin == "builtin"
 
+    def get(self, key: str, default: Any = None) -> Any:
+        """Значение из хранилища модуля (то же, что ``self.db.get``)."""
+        return self.db.get(key, default)
+
+    def set(self, key: str, value: Any) -> None:
+        """Записать значение в хранилище модуля (то же, что ``self.db.set``)."""
+        self.db.set(key, value)
+
     async def on_load(self) -> None:
         """Вызывается после загрузки модуля."""
 
