@@ -15,6 +15,48 @@ class CommandInfo:
     name: str
     aliases: tuple[str, ...]
     doc: str
+    only_pm: bool = False
+    only_groups: bool = False
+    only_channels: bool = False
+    chats: frozenset[int] | None = None
+    only_reply: bool = False
+    no_reply: bool = False
+    filter: Callable[[Any], bool] | None = None
+
+    def restrictions(self) -> list[str]:
+        """Ограничения команды словами — для .help."""
+        result = []
+        if self.only_pm:
+            result.append("только в личных сообщениях")
+        if self.only_groups:
+            result.append("только в группах")
+        if self.only_channels:
+            result.append("только в каналах")
+        if self.chats is not None:
+            result.append("только в выбранных чатах")
+        if self.only_reply:
+            result.append("ответом на сообщение")
+        if self.no_reply:
+            result.append("не ответом на сообщение")
+        return result
+
+    def rejection(self, message: Any) -> str | None:
+        """Почему команду нельзя выполнить для этого сообщения; None — можно."""
+        if self.only_pm and not message.is_private:
+            return "Команда работает только в личных сообщениях"
+        if self.only_groups and not message.is_group:
+            return "Команда работает только в группах"
+        if self.only_channels and not (message.is_channel and not message.is_group):
+            return "Команда работает только в каналах"
+        if self.chats is not None and message.chat_id not in self.chats:
+            return "Команда недоступна в этом чате"
+        if self.only_reply and not message.is_reply:
+            return "Команду нужно отправить ответом на сообщение"
+        if self.no_reply and message.is_reply:
+            return "Команду нельзя отправлять ответом на сообщение"
+        if self.filter is not None and not self.filter(message):
+            return "Команда недоступна для этого сообщения"
+        return None
 
 
 @dataclass(frozen=True)
@@ -29,12 +71,28 @@ def command(
     *,
     aliases: list[str] | tuple[str, ...] = (),
     doc: str | None = None,
+    only_pm: bool = False,
+    only_groups: bool = False,
+    only_channels: bool = False,
+    chats: list[int] | tuple[int, ...] | None = None,
+    only_reply: bool = False,
+    no_reply: bool = False,
+    filter: Callable[[Any], bool] | None = None,
 ):
     """Помечает метод как команду ``<префикс><name>``.
 
     Без имени берётся имя метода (суффикс ``cmd`` отбрасывается).
     Описание — ``doc`` или докстринг метода.
+
+    Фильтры ограничивают, где команда работает: ``only_pm``, ``only_groups``,
+    ``only_channels``, ``chats`` (список id чатов), ``only_reply``, ``no_reply`` и
+    произвольный ``filter(message) -> bool``. Если сообщение не подходит, пользователь
+    получает ответ с причиной, а команда не вызывается.
     """
+    if sum((only_pm, only_groups, only_channels)) > 1:
+        raise ValueError("only_pm, only_groups и only_channels взаимоисключающие")
+    if only_reply and no_reply:
+        raise ValueError("only_reply и no_reply взаимоисключающие")
 
     def decorator(func):
         cmd_name = (name or func.__name__.removesuffix("cmd")).lower()
@@ -45,6 +103,13 @@ def command(
                 name=cmd_name,
                 aliases=tuple(alias.lower() for alias in aliases),
                 doc=(doc or func.__doc__ or "").strip(),
+                only_pm=only_pm,
+                only_groups=only_groups,
+                only_channels=only_channels,
+                chats=frozenset(chats) if chats is not None else None,
+                only_reply=only_reply,
+                no_reply=no_reply,
+                filter=filter,
             ),
         )
         return func

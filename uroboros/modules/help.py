@@ -48,7 +48,9 @@ class Help(Module):
         for cmd in self.loader.module_commands(module):
             aliases = f" <i>({', '.join(cmd.info.aliases)})</i>" if cmd.info.aliases else ""
             doc = f" {utils.escape_html(cmd.info.doc)}" if cmd.info.doc else ""
-            lines.append(f"<code>{prefix}{cmd.name}</code>{aliases}{doc}")
+            restrictions = cmd.info.restrictions()
+            limits = f" <i>[{utils.escape_html(', '.join(restrictions))}]</i>" if restrictions else ""
+            lines.append(f"<code>{prefix}{cmd.name}</code>{aliases}{doc}{limits}")
         text += utils.quote("\n".join(lines) or "Нет команд")
 
         if not module.is_builtin:

@@ -77,6 +77,10 @@ class Dispatcher:
 
     async def _run_command(self, command: Command, used_name: str, message: Message) -> None:
         try:
+            reason = command.info.rejection(message)
+            if reason is not None:
+                await utils.answer(message, f"❌ {utils.escape_html(reason)}")
+                return
             await command.func(message)
         except LoadError as e:
             await self._report(message, used_name, utils.quote(utils.escape_html(e)))
