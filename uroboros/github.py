@@ -44,6 +44,14 @@ def to_raw_url(spec: str) -> str | None:
     return None
 
 
+def repo_of(url: str) -> str | None:
+    """Из какого репозитория прямая ссылка: ``https://raw.githubusercontent.com/o/r/...`` → ``o/r``."""
+    if not url.startswith(RAW + "/"):
+        return None
+    parts = url[len(RAW) + 1 :].split("/")
+    return f"{parts[0]}/{parts[1]}" if len(parts) > 2 else None
+
+
 def module_url(repo: str, name: str) -> str:
     name = name if name.endswith(".py") else f"{name}.py"
     return f"{RAW}/{repo}/HEAD/{name}"

@@ -14,10 +14,14 @@ class Loader(Module):
     def _repos(self):
         return self.db.get("repos", [])
 
+    def _trusted(self, url):
+        repo = github.repo_of(url)
+        return repo is not None and repo.lower() in (r.lower() for r in self._repos())
+
     @command("dlm", access="owner")
     async def dlm(self, message):
-        """<ссылка | owner/repo/модуль | модуль> — установить модуль"""
-        spec = utils.get_args_raw(message).strip()
+        """[-f] <ссылка | owner/repo/модуль | модуль> — установить модуль; -f — без подтверждения"""
+        force, spec = split_force(utils.get_args_raw(message))
         if not spec:
             await utils.answer(
                 message, "❌ Укажите ссылку, путь <code>owner/repo/модуль</code> или имя модуля из репозитория"
@@ -38,7 +42,11 @@ class Loader(Module):
             data = await download.download(url)
         else:
             url, data = await self._find_in_repos(spec)
-        await self._install(message, download.decode(data), url)
+        source = download.decode(data)
+        if force or self._trusted(url):
+            await self._install(message, source, url)
+        else:
+            await self._confirm(message, source, url, f"dlm -f {spec}")
 
     async def _find_in_repos(self, name):
         repos = self._repos()
@@ -70,7 +78,8 @@ class Loader(Module):
 
     @command("lm", access="owner")
     async def lm(self, message):
-        """(ответом на файл или с файлом) — установить модуль из файла"""
+        """[-f] (ответом на файл или с файлом) — установить модуль из файла; -f — без подтверждения"""
+        force, _ = split_force(utils.get_args_raw(message))
         reply = await message.get_reply_message()
         source = reply if reply and reply.file else message if message.file else None
         if source is None:
@@ -79,10 +88,50 @@ class Loader(Module):
         if source.file.size and source.file.size > MAX_SIZE:
             raise LoadError("Файл модуля больше 2 МБ")
         data = await source.download_media(bytes)
-        await self._install(message, download.decode(data), f"file:{source.file.name or 'module.py'}")
+        origin = f"file:{source.file.name or 'module.py'}"
+        if force:
+            await self._install(message, download.decode(data), origin)
+        else:
+            await self._confirm(message, download.decode(data), origin, "lm -f")
+
+    async def _confirm(self, message, source, origin, force_hint):
+        """Модуль не из подключённого репозитория: показать, откуда он и какой длины, и спросить."""
+        text = (
+            "📦 <b>Установить модуль?</b>\n"
+            + utils.quote(
+                f"<b>Источник:</b> <code>{utils.escape_html(origin)}</code>\n"
+                f"<b>Строк:</b> <code>{len(source.splitlines())}</code>"
+            )
+            + "\n<i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
+            "ставьте только те, которым доверяете</i>"
+        )
+        if self.inline.available:
+            buttons = [
+                [{"text": "✅ Установить", "callback": self._install_confirmed, "args": (source, origin)}, CANCEL]
+            ]
+            try:
+                await self.inline.form(message, text, buttons)
+                return
+            except InlineError:
+                pass  # например, в чате запрещены inline-боты — подтверждение командой
+        prefix = utils.get_prefix(self.db.raw)
+        hint = f"<code>{utils.escape_html(prefix + force_hint)}</code>"
+        await utils.answer(message, text + f"\nУстановить: {hint}")
+
+    async def _install_confirmed(self, call, source, origin):
+        await call.edit("⏳ Установка...", None)
+        try:
+            instances = await self.loader.install(source, origin)
+        except LoadError as e:
+            await call.edit(f"❌ <b>Модуль не установлен</b>\n{utils.quote(utils.escape_html(e))}")
+            return
+        await call.edit(self._installed_text(instances))
 
     async def _install(self, message, source, origin):
         instances = await self.loader.install(source, origin)
+        await utils.answer(message, self._installed_text(instances))
+
+    def _installed_text(self, instances):
         prefix = utils.get_prefix(self.db.raw)
         parts = []
         for inst in instances:
@@ -94,7 +143,7 @@ class Loader(Module):
             if commands:
                 part += "\n" + utils.quote("\n".join(commands))
             parts.append(part)
-        await utils.answer(message, "\n".join(parts))
+        return "\n".join(parts)
 
     @command("uplm", access="owner")
     async def uplm(self, message):
@@ -213,3 +262,11 @@ class Loader(Module):
             return
         lines = [f'<a href="https://github.com/{r}">{utils.escape_html(r)}</a>' for r in repos]
         await utils.answer(message, "🔗 <b>Репозитории</b>\n" + utils.quote("\n".join(lines)))
+
+
+def split_force(raw):
+    """``"-f ссылка"`` → ``(True, "ссылка")``."""
+    parts = raw.strip().split(maxsplit=1)
+    if parts and parts[0] == "-f":
+        return True, parts[1] if len(parts) > 1 else ""
+    return False, raw.strip()

@@ -42,3 +42,25 @@ def test_uplm_updates_changed_modules(builtin_loader, monkeypatch):
     assert text.startswith("✅") and "обновлён" in text
     assert loader.get_command("one") is None
     assert loader.get_command("two") is not None
+
+
+def test_dlm_asks_before_installing_from_unknown_source(builtin_loader, monkeypatch):
+    loader = builtin_loader
+    url = "https://raw.githubusercontent.com/someone/mods/HEAD/demo.py"
+
+    async def fake_download(u):
+        assert u == url
+        return V1.encode()
+
+    monkeypatch.setattr(download, "download", fake_download)
+
+    text = run_command(loader, ".dlm someone/mods/demo")
+    lines = f"<code>{len(V1.splitlines())}</code>"
+    assert "Установить модуль?" in text and lines in text and "dlm -f someone/mods/demo" in text
+    assert loader.get_command("one") is None
+
+    assert run_command(loader, ".dlm -f someone/mods/demo").startswith("✅")
+    asyncio.run(loader.uninstall("Demo"))
+
+    loader.get_module("loader").db.set("repos", ["Someone/Mods"])
+    assert run_command(loader, ".dlm someone/mods/demo").startswith("✅")

@@ -112,3 +112,17 @@ def test_text_fallback_without_bot(env):
     env.loader.inline = None
     message = run(env, ".help")
     assert not message.deleted and message.edits[-1].startswith("📦 <b>Модули</b>")
+
+
+def test_dlm_confirmation_button(env, monkeypatch):
+    from uroboros import download
+
+    async def fake_download(url):
+        return b"from uroboros import Module\nclass Remote(Module):\n    pass\n"
+
+    monkeypatch.setattr(download, "download", fake_download)
+    run(env, ".dlm https://example.com/remote.py")
+    assert "Установить модуль?" in last_text(env) and env.loader.get_module("remote") is None
+    press(env.manager, "✅ Установить")
+    assert env.loader.get_module("remote") is not None
+    assert last_text(env).startswith("✅ Модуль <b>Remote</b> загружен")
