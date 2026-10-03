@@ -64,3 +64,26 @@ def test_dlm_asks_before_installing_from_unknown_source(builtin_loader, monkeypa
 
     loader.get_module("loader").db.set("repos", ["Someone/Mods"])
     assert run_command(loader, ".dlm someone/mods/demo").startswith("✅")
+
+
+def test_search_in_connected_repos(builtin_loader, monkeypatch):
+    from uroboros import github
+
+    loader = builtin_loader
+    listings = {"a/mods": ["weather", "WeatherPro", "notes"], "b/broken": None}
+    calls = []
+
+    def fake_list(repo):
+        calls.append(repo)
+        if listings[repo] is None:
+            raise OSError("rate limit")
+        return listings[repo]
+
+    monkeypatch.setattr(github, "list_modules", fake_list)
+    assert "Нет подключённых" in run_command(loader, ".search weather")
+
+    loader.get_module("loader").db.set("repos", ["a/mods", "b/broken"])
+    text = run_command(loader, ".search weather")
+    assert "Найдено</b> · 2" in text and "dlm a/mods/WeatherPro" in text and "b/broken" in text
+    assert "Ничего не найдено" in run_command(loader, ".search radio")
+    assert calls.count("a/mods") == 1  # список кешируется

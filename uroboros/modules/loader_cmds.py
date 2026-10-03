@@ -1,10 +1,13 @@
 import asyncio
+import time
 
 from uroboros import Module, command, download, github, utils
 from uroboros.errors import InlineError
 from uroboros.loader import LoadError
 
 MAX_SIZE = download.MAX_SIZE
+SEARCH_CACHE = 600
+SEARCH_LIMIT = 30
 CANCEL = {"text": "Отмена", "action": "close"}
 
 
@@ -74,6 +77,57 @@ class Loader(Module):
             message,
             f"📦 <b>{utils.escape_html(repo)}</b> · {len(names)}\n"
             + utils.quote("\n".join(lines), expandable=len(names) > 10),
+        )
+
+    async def _repo_modules(self, repo):
+        """Список модулей репозитория, кешируется на ``SEARCH_CACHE`` секунд."""
+        cache = self.__dict__.setdefault("_listing", {})
+        cached = cache.get(repo)
+        if cached and time.monotonic() - cached[0] < SEARCH_CACHE:
+            return cached[1]
+        names = await asyncio.to_thread(github.list_modules, repo)
+        cache[repo] = (time.monotonic(), names)
+        return names
+
+    @command("search")
+    async def search(self, message):
+        """<запрос> — найти модуль в подключённых репозиториях"""
+        query = utils.get_args_raw(message).strip().lower()
+        if not query:
+            await utils.answer(message, "❌ Что искать? Например: <code>search weather</code>")
+            return
+        repos = self._repos()
+        if not repos:
+            await utils.answer(message, "❌ Нет подключённых репозиториев, добавьте: <code>addrepo owner/repo</code>")
+            return
+
+        await utils.answer(message, "⏳ Поиск...")
+        words = query.split()
+        found, failed = [], []
+        for repo in repos:
+            try:
+                names = await self._repo_modules(repo)
+            except Exception:
+                failed.append(repo)
+                continue
+            found += [(repo, name) for name in names if all(word in name.lower() for word in words)]
+
+        prefix = utils.get_prefix(self.db.raw)
+        notes = f"\n<i>Не удалось получить список: {utils.escape_html(', '.join(failed))}</i>" if failed else ""
+        if not found:
+            await utils.answer(
+                message, f"❌ Ничего не найдено по запросу <code>{utils.escape_html(query)}</code>{notes}"
+            )
+            return
+        lines = [
+            f"<code>{utils.escape_html(prefix)}dlm {utils.escape_html(repo)}/{utils.escape_html(name)}</code>"
+            for repo, name in found[:SEARCH_LIMIT]
+        ]
+        if len(found) > SEARCH_LIMIT:
+            lines.append(f"… и ещё {len(found) - SEARCH_LIMIT}")
+        await utils.answer(
+            message,
+            f"📦 <b>Найдено</b> · {len(found)}\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10) + notes,
         )
 
     @command("lm", access="owner")
