@@ -56,16 +56,22 @@ class Dispatcher:
     async def _on_message(self, event: events.NewMessage.Event) -> None:
         message = event.message
 
-        if message.out and message.raw_text:
+        if message.raw_text:
             parsed = parse_command(message.raw_text, self.prefix)
             if parsed:
                 command = self.resolve(parsed[0])
-                if command is not None:
+                if command is not None and self.may_run(command, message):
                     await self._run_command(command, parsed[0], message)
 
         watchers = [w for w in self.loader.watchers if self._safe_match(w, message)]
         if watchers:
             await asyncio.gather(*(self._run_watcher(w, message) for w in watchers))
+
+    def may_run(self, command: Command, message: Message) -> bool:
+        """Свои сообщения — всегда; чужие — если отправителю хватает прав (``.security``)."""
+        if message.out:
+            return True
+        return self.loader.security.can_run(command, message.sender_id)
 
     @staticmethod
     def _safe_match(watcher, message) -> bool:

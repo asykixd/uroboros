@@ -5,7 +5,7 @@ from uroboros.inline.manager import TOKEN_ENV
 class InlineBot(Module):
     """Inline-бот: кнопки и формы"""
 
-    @command("inlinebot")
+    @command("inlinebot", access="owner")
     async def inlinebot(self, message):
         """[токен | new | on | off] — состояние inline-бота, свой токен, новый бот, включить или выключить"""
         manager = self.loader.inline

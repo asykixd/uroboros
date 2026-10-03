@@ -8,7 +8,7 @@ class Settings(Module):
     def _aliases(self):
         return self.db.raw.get(MAIN_OWNER, "aliases", {})
 
-    @command("setprefix")
+    @command("setprefix", access="owner")
     async def setprefix(self, message):
         """<префикс> — сменить префикс команд"""
         prefix = utils.get_args_raw(message).strip()
@@ -18,7 +18,7 @@ class Settings(Module):
         self.db.raw.set(MAIN_OWNER, "prefix", prefix)
         await utils.answer(message, f"✅ Префикс: <code>{utils.escape_html(prefix)}</code>")
 
-    @command("alias")
+    @command("alias", access="owner")
     async def alias(self, message):
         """<алиас> <команда> — добавить алиас"""
         args = utils.get_args(message)
@@ -38,7 +38,7 @@ class Settings(Module):
         self.db.raw.set(MAIN_OWNER, "aliases", aliases)
         await utils.answer(message, f"✅ Алиас <code>{utils.escape_html(alias)}</code> → <code>{cmd.name}</code>")
 
-    @command("unalias")
+    @command("unalias", access="owner")
     async def unalias(self, message):
         """<алиас> — удалить алиас"""
         alias = utils.get_args_raw(message).strip().lower()

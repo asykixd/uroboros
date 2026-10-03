@@ -1,5 +1,6 @@
 from uroboros import Module, command, utils
 from uroboros.errors import InlineError
+from uroboros.security import DEFAULT_LEVEL, LEVEL_NAMES
 
 PAGE_SIZE = 12
 ROW_SIZE = 3
@@ -8,7 +9,7 @@ ROW_SIZE = 3
 class Help(Module):
     """Справка по модулям и командам"""
 
-    @command("help", aliases=["modules"])
+    @command("help", aliases=["modules"], access="support")
     async def help(self, message):
         """[модуль или команда] — список модулей или справка по одному"""
         query = utils.get_args_raw(message).strip()
@@ -107,6 +108,9 @@ class Help(Module):
             aliases = f" <i>({', '.join(cmd.info.aliases)})</i>" if cmd.info.aliases else ""
             doc = f" {utils.escape_html(cmd.info.doc)}" if cmd.info.doc else ""
             restrictions = cmd.info.restrictions()
+            level = self.loader.security.required(cmd)
+            if level != DEFAULT_LEVEL:
+                restrictions.append(f"доступ: {LEVEL_NAMES[level]}")
             limits = f" <i>[{utils.escape_html(', '.join(restrictions))}]</i>" if restrictions else ""
             lines.append(f"<code>{prefix}{cmd.name}</code>{aliases}{doc}{limits}")
         bot = self.inline.bot_username

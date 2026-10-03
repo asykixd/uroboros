@@ -289,7 +289,10 @@ class InlineManager:
     ) -> InlineMessage:
         """Отправляет форму вместо своего сообщения ``message`` (или ответом на чужое)."""
         self._require()
-        unit = self.new_unit(text, buttons, stem=stem, photo=photo, always_allow=always_allow)
+        allowed = list(always_allow or ())
+        if not message.out and message.sender_id is not None:
+            allowed.append(message.sender_id)  # команду вызвал другой пользователь — кнопки и ему
+        unit = self.new_unit(text, buttons, stem=stem, photo=photo, always_allow=allowed)
         try:
             await self._send(unit, message)
         except BaseException:
@@ -522,11 +525,13 @@ class InlineManager:
     # --- обновления от бота ---
 
     def _allowed(self, unit: Unit | None, user_id: int) -> bool:
-        return user_id == self.owner_id or (unit is not None and user_id in unit.allowed)
+        if user_id == self.owner_id or (unit is not None and user_id in unit.allowed):
+            return True
+        return self.loader is not None and self.loader.security.is_owner(user_id)
 
     async def _on_inline_query(self, query: Any) -> None:
         results: list[Any] = []
-        if query.from_user.id == self.owner_id:
+        if self._allowed(None, query.from_user.id):
             try:
                 results = await self._inline_results(query)
             except Exception:
@@ -587,7 +592,7 @@ class InlineManager:
         return results
 
     async def _on_chosen(self, chosen: Any) -> None:
-        if chosen.from_user.id != self.owner_id:
+        if not self._allowed(None, chosen.from_user.id):
             return
         unit = self._units.get(chosen.result_id)
         if unit is not None:

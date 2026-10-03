@@ -55,6 +55,7 @@ async def run(config: Config) -> None:
     try:
         await login(client)
         me = await client.get_me()
+        loader.security.me_id = me.id
         log.info("Uroboros %s, аккаунт: %s (id %s)", __version__, me.first_name, me.id)
 
         await inline.start()

@@ -24,6 +24,7 @@ class CommandInfo:
     only_reply: bool = False
     no_reply: bool = False
     filter: Callable[[Any], bool] | None = None
+    access: str = "sudo"
 
     def restrictions(self) -> list[str]:
         """Ограничения команды словами — для .help."""
@@ -80,6 +81,7 @@ def command(
     only_reply: bool = False,
     no_reply: bool = False,
     filter: Callable[[Any], bool] | None = None,
+    access: str = "sudo",
 ):
     """Помечает метод как команду ``<префикс><name>``.
 
@@ -90,7 +92,14 @@ def command(
     ``only_channels``, ``chats`` (список id чатов), ``only_reply``, ``no_reply`` и
     произвольный ``filter(message) -> bool``. Если сообщение не подходит, пользователь
     получает ответ с причиной, а команда не вызывается.
+
+    ``access`` — кто может выполнять команду по умолчанию: ``owner``, ``sudo`` (и владельцы),
+    ``support`` (и выше) или ``everyone``. Пользователь меняет это через ``.security``.
     """
+    from .security import LEVELS
+
+    if access not in LEVELS:
+        raise ValueError(f"access — одно из: {', '.join(LEVELS)}")
     if sum((only_pm, only_groups, only_channels)) > 1:
         raise ValueError("only_pm, only_groups и only_channels взаимоисключающие")
     if only_reply and no_reply:
@@ -112,6 +121,7 @@ def command(
                 only_reply=only_reply,
                 no_reply=no_reply,
                 filter=filter,
+                access=access,
             ),
         )
         return func

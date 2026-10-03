@@ -26,7 +26,7 @@ async def aeval(code, env):
 class Eval(Module):
     """Выполнение Python-кода и shell-команд"""
 
-    @command("e", aliases=["eval"])
+    @command("e", aliases=["eval"], access="owner")
     async def e(self, message):
         """<код> — выполнить Python-код (доступны client, message, reply, db, loader)"""
         code = utils.get_args_raw(message)
@@ -64,7 +64,7 @@ class Eval(Module):
             text += f"\n✅ <b>Результат:</b>\n<pre>{utils.escape_html(output or 'None')}</pre>"
         await utils.answer(message, text)
 
-    @command("t", aliases=["terminal"])
+    @command("t", aliases=["terminal"], access="owner")
     async def t(self, message):
         """<команда> — выполнить shell-команду"""
         cmd = utils.get_args_raw(message)

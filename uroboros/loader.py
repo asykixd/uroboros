@@ -30,6 +30,7 @@ from .decorators import (
 from .errors import LoadError
 from .inline import Inline
 from .loops import LOOP_ATTR, Loop
+from .security import Security
 from .types import Library, Module, ModuleConfig, Strings
 
 if TYPE_CHECKING:
@@ -182,6 +183,7 @@ class Loader:
         self.modules_dir = modules_dir
         self.dispatcher: Dispatcher | None = None
         self.inline: InlineManager | None = None
+        self.security = Security(db)
 
         self.modules: dict[str, Module] = {}  # имя в нижнем регистре → модуль
         self.commands: dict[str, Command] = {}  # основное имя → команда

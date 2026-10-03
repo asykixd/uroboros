@@ -36,7 +36,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 - Шапка файла читается до `exec`: `# meta ключ: значение` → `inst._meta`, `# requires_uroboros: X` — проверка версии ядра.
 - `LoadError` (`errors.py`, реэкспорт из `loader`) — ошибка, текст которой показывается пользователю. Диспетчер выводит её без traceback. Скачивание — `download.py`.
 
-**Диспетчер (`dispatcher.py`).** Один обработчик `NewMessage`. Команды срабатывают только на исходящих сообщениях. Цепочка разрешения: префикс → пользовательские алиасы (БД, `uroboros.main`/`aliases`) → `Loader.get_command`, которая учитывает и алиасы из `@command(aliases=...)`. Вотчеры получают все сообщения параллельно, их исключения только логируются.
+**Диспетчер (`dispatcher.py`).** Один обработчик `NewMessage`. Команды срабатывают на исходящих сообщениях, а на входящих — только если отправителю хватает уровня (`security.py`: `owner` ⊃ `sudo` ⊃ `support` ⊃ `everyone`; группы и переопределения — в БД `uroboros.security`, уровень по умолчанию — `@command(access=...)`, `"sudo"`). Цепочка разрешения: префикс → пользовательские алиасы (БД, `uroboros.main`/`aliases`) → `Loader.get_command`, которая учитывает и алиасы из `@command(aliases=...)`. Вотчеры получают все сообщения параллельно, их исключения только логируются.
 
 **API модулей** (публичный — то, что экспортирует `uroboros/__init__.py`):
 - `Module` с `on_load`/`on_unload`.
@@ -52,14 +52,14 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 **Inline-бот (`inline/`).** aiogram 3 в том же процессе, `InlineManager` (`loader.inline`). Ошибка запуска бота не роняет юзербот: причина в `manager.error`, её показывает `.inlinebot`. Токен: `UROBOROS_BOT_TOKEN` → БД (`uroboros.inline`/`token`) → создание через @BotFather (`botfather.py`, там же включаются inline-режим и inline feedback). Форма: юзербот делает inline-запрос к своему боту с id формы и отправляет результат (`click`). `inline_message_id` бот узнаёт из `chosen_inline_result` или из первого нажатия. Кнопки ввода подставляют `@бот <id> `, текст приходит в `chosen_inline_result`, служебное сообщение `INPUT_MARKER` юзербот удаляет. Формы (`Unit`) живут в памяти и снимаются при выгрузке stem'а. Отвечает бот только владельцу и `always_allow`. Модули получают прокси `self.inline` (`inline.Inline`). Тесты подменяют бота и клиента заглушками из `tests/fake_inline.py`.
 
-**БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed), `uroboros.inline` (token, configured, disabled).
+**БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed), `uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands).
 
 **GitHub (`github.py`).** Преобразует blob-ссылки и короткие пути `owner/repo/path` в адреса `raw.githubusercontent.com/.../HEAD/...`, а списки модулей репозитория получает через GitHub contents API. В `.dlm` разбор идёт по порядку: `owner/repo` → показать список модулей; ссылка или путь → скачать; просто имя → искать в подключённых репозиториях (БД модуля Loader, ключ `repos`).
 
 ## Стиль сообщений бота
 
 Все ответы — HTML через `utils.answer`: свой исходящий текст он редактирует, если текст длиннее 4096 символов — отправляет файлом. Стиль сдержанный:
-- в начале сообщения ровно один эмодзи-статус: ✅ успех, ❌ ошибка, ⏳ процесс, 📦 модули, ⚙️ настройки, 🔗 алиасы и репозитории, 🗑 удаление;
+- в начале сообщения ровно один эмодзи-статус: ✅ успех, ❌ ошибка, ⏳ процесс, 📦 модули, ⚙️ настройки, 🔗 алиасы и репозитории, 🗑 удаление, 🔐 доступ;
 - без декоративных значков в каждой строке;
 - списки и подробности — в цитатах `utils.quote(...)`, длинное и traceback — в `utils.quote(..., expandable=True)`;
 - код — в `<pre>`.

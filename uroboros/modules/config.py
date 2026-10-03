@@ -12,7 +12,7 @@ class Config(Module):
     def _configurable(self):
         return [m for m in self.loader.modules.values() if isinstance(m.config, ModuleConfig) and len(m.config)]
 
-    @command("cfg", aliases=["config"])
+    @command("cfg", aliases=["config"], access="owner")
     async def cfg(self, message):
         """[модуль] [ключ] [значение] — посмотреть или изменить настройки"""
         raw = utils.get_args_raw(message).strip()
@@ -59,7 +59,7 @@ class Config(Module):
             return
         await utils.answer(message, "✅ <b>Сохранено</b>\n" + utils.quote(self._describe(config, key)))
 
-    @command("rcfg")
+    @command("rcfg", access="owner")
     async def rcfg(self, message):
         """<модуль> <ключ> — сбросить настройку на значение по умолчанию"""
         parts = utils.get_args(message)

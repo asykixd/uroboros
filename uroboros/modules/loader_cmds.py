@@ -14,7 +14,7 @@ class Loader(Module):
     def _repos(self):
         return self.db.get("repos", [])
 
-    @command("dlm")
+    @command("dlm", access="owner")
     async def dlm(self, message):
         """<ссылка | owner/repo/модуль | модуль> — установить модуль"""
         spec = utils.get_args_raw(message).strip()
@@ -68,7 +68,7 @@ class Loader(Module):
             + utils.quote("\n".join(lines), expandable=len(names) > 10),
         )
 
-    @command("lm")
+    @command("lm", access="owner")
     async def lm(self, message):
         """(ответом на файл или с файлом) — установить модуль из файла"""
         reply = await message.get_reply_message()
@@ -96,7 +96,7 @@ class Loader(Module):
             parts.append(part)
         await utils.answer(message, "\n".join(parts))
 
-    @command("uplm")
+    @command("uplm", access="owner")
     async def uplm(self, message):
         """[модуль] — обновить сторонние модули из источника"""
         name = utils.get_args_raw(message).strip()
@@ -134,7 +134,7 @@ class Loader(Module):
         title = "❌ <b>Не все модули обновились</b>" if failed else "✅ <b>Модули обновлены</b>"
         await utils.answer(message, title + "\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10))
 
-    @command("ulm")
+    @command("ulm", access="owner")
     async def ulm(self, message):
         """<модуль> — удалить модуль"""
         name = utils.get_args_raw(message).strip()
@@ -164,7 +164,7 @@ class Loader(Module):
     def _names(names):
         return ", ".join(f"<b>{utils.escape_html(name)}</b>" for name in names)
 
-    @command("reload")
+    @command("reload", access="owner")
     async def reload(self, message):
         """— перезагрузить все модули"""
         await utils.answer(message, "⏳ Перезагрузка модулей...")
@@ -177,7 +177,7 @@ class Loader(Module):
             ),
         )
 
-    @command("addrepo")
+    @command("addrepo", access="owner")
     async def addrepo(self, message):
         """<owner/repo | ссылка> — подключить репозиторий модулей с GitHub"""
         repo = github.parse_repo(utils.get_args_raw(message))
@@ -192,7 +192,7 @@ class Loader(Module):
         self.db.set("repos", repos)
         await utils.answer(message, f"✅ Репозиторий <b>{utils.escape_html(repo)}</b> подключён")
 
-    @command("delrepo")
+    @command("delrepo", access="owner")
     async def delrepo(self, message):
         """<owner/repo> — отключить репозиторий"""
         repo = github.parse_repo(utils.get_args_raw(message)) or ""

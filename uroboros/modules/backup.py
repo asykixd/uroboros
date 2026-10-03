@@ -7,7 +7,7 @@ from uroboros import Module, backup, command, utils
 class Backup(Module):
     """Бэкап и восстановление БД и модулей"""
 
-    @command("backup")
+    @command("backup", access="owner")
     async def backup_cmd(self, message):
         """— бэкап БД и модулей в «Избранное» (без сессии)"""
         data = await asyncio.to_thread(backup.create, self.db.raw, self.loader.modules_dir)
@@ -22,7 +22,7 @@ class Backup(Module):
         )
         await utils.answer(message, "✅ Бэкап отправлен в «Избранное»")
 
-    @command("restore")
+    @command("restore", access="owner")
     async def restore_cmd(self, message):
         """(ответом на бэкап) — восстановить БД и модули и перезапуститься"""
         reply = await message.get_reply_message()

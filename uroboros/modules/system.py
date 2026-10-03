@@ -29,7 +29,7 @@ class System(Module):
         with contextlib.suppress(Exception):
             await self.client.edit_message(chat_id, message_id, f"✅ Перезапущено за {time.time() - started:.1f} с")
 
-    @command("ping")
+    @command("ping", access="support")
     async def ping(self, message):
         """— задержка до Telegram"""
         start = time.perf_counter()
@@ -37,7 +37,7 @@ class System(Module):
         elapsed = (time.perf_counter() - start) * 1000
         await utils.answer(message, f"⏱ <b>ping:</b> <code>{elapsed:.0f}ms</code>")
 
-    @command("info")
+    @command("info", access="support")
     async def info(self, message):
         """— информация о юзерботе"""
         me = await self.client.get_me()
@@ -58,7 +58,7 @@ class System(Module):
             ),
         )
 
-    @command("logs")
+    @command("logs", access="owner")
     async def show_logs(self, message):
         """[уровень] — прислать логи файлом в «Избранное» (debug, info, warning, error, critical)"""
         arg = utils.get_args_raw(message).strip()
@@ -91,14 +91,14 @@ class System(Module):
         )
         await utils.answer(message, "📄 Логи отправлены в «Избранное»")
 
-    @command("restart")
+    @command("restart", access="owner")
     async def restart(self, message):
         """— перезапустить юзербот"""
         msg = await utils.answer(message, "🔄 Перезапуск...")
         self.db.set("restart", [msg.chat_id, msg.id, time.time()])
         await utils.restart(self.client)
 
-    @command("update")
+    @command("update", access="owner")
     async def update(self, message):
         """— обновиться из git и перезапуститься"""
         if not (REPO_DIR / ".git").exists():
