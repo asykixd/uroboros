@@ -53,6 +53,25 @@ class Database:
         self._conn.commit()
         self._cache.pop((owner, key), None)
 
+    def dump(self) -> dict[str, dict[str, Any]]:
+        """Всё содержимое: владелец → ключ → значение."""
+        result: dict[str, dict[str, Any]] = {}
+        for (owner, key), value in self._cache.items():
+            result.setdefault(owner, {})[key] = copy.deepcopy(value)
+        return result
+
+    def replace_all(self, data: dict[str, dict[str, Any]]) -> None:
+        """Заменяет всё содержимое одной транзакцией."""
+        rows = [
+            (owner, key, json.dumps(value, ensure_ascii=False))
+            for owner, keys in data.items()
+            for key, value in keys.items()
+        ]
+        with self._conn:
+            self._conn.execute("DELETE FROM kv")
+            self._conn.executemany("INSERT INTO kv (owner, key, value) VALUES (?, ?, ?)", rows)
+        self._cache = {(owner, key): json.loads(value) for owner, key, value in rows}
+
     def keys(self, owner: str) -> list[str]:
         return [key for o, key in self._cache if o == owner]
 

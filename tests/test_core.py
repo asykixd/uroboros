@@ -117,7 +117,7 @@ def test_module_config(db):
 
 def test_load_builtins(loader):
     run(loader.load_all())
-    for name in ("help", "loader", "settings", "config", "eval", "system"):
+    for name in ("help", "loader", "settings", "config", "eval", "system", "backup"):
         assert loader.get_module(name) is not None, name
         assert loader.get_module(name).is_builtin
     assert loader.get_command("ping") is not None
