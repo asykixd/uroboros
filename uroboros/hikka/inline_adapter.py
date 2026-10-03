@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import inspect
 import logging
+import re
 from types import SimpleNamespace
 from typing import Any
 
 from ..errors import InlineError
 
 log = logging.getLogger(__name__)
+
+
+def sanitise_text(text: Any) -> Any:
+    """Бот не понимает теги анимированных эмодзи Hikka-TL (``<emoji document_id=...>``) — убираем их."""
+    return re.sub(r"</?emoji.*?>", "", text) if isinstance(text, str) else text
 
 
 def _wrap_callback(func: Any) -> Any:
@@ -116,7 +122,7 @@ class HikkaCall:
         **_: Any,
     ) -> HikkaCall | bool:
         try:
-            await self._call.edit(text, convert_markup(reply_markup), photo=photo or gif)
+            await self._call.edit(sanitise_text(text), convert_markup(reply_markup), photo=photo or gif)
         except InlineError as e:
             log.warning("Не удалось изменить форму: %s", e)
             return False
@@ -150,7 +156,7 @@ class HikkaInlineMessage:
 
     async def edit(self, text: str | None = None, reply_markup: Any = None, *, photo: str | None = None, **_: Any):
         try:
-            await self._message.edit(text, convert_markup(reply_markup), photo=photo)
+            await self._message.edit(sanitise_text(text), convert_markup(reply_markup), photo=photo)
         except InlineError as e:
             log.warning("Не удалось изменить форму: %s", e)
             return False
@@ -198,6 +204,10 @@ class HikkaInline:
     def init_complete(self) -> bool:
         return self._inline.available
 
+    @staticmethod
+    def sanitise_text(text: str) -> str:
+        return sanitise_text(text)
+
     @property
     def _units(self) -> dict:
         """Формы как в Hikka: id → словарь. Модули проверяют ``uid in self.inline._units``."""
@@ -244,7 +254,7 @@ class HikkaInline:
         try:
             sent = await manager.form(
                 _target(message),
-                text,
+                sanitise_text(text),
                 convert_markup(reply_markup),
                 stem=self._inline._stem,
                 photo=photo or gif,

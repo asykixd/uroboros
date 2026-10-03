@@ -20,6 +20,27 @@ class UroborosClient(TelegramClient):
             self.limiter.check(module, len(request) if isinstance(request, list) else 1)
         return await super().__call__(request, ordered, flood_sleep_threshold)
 
+    # --- совместимость с Hikka-TL: модули Hikka передают параметры кеша (exp, force) ---
+
+    async def get_entity(self, entity, exp=None, force=False):
+        return await super().get_entity(entity)
+
+    async def force_get_entity(self, entity):
+        return await super().get_entity(entity)
+
+    async def get_perms_cached(self, entity, user=None, exp=None, force=False):
+        return await self.get_permissions(entity, user)
+
+    async def get_fullchannel(self, entity, exp=None, force=False):
+        from telethon.tl.functions.channels import GetFullChannelRequest
+
+        return await self(GetFullChannelRequest(entity))
+
+    async def get_fulluser(self, entity, exp=None, force=False):
+        from telethon.tl.functions.users import GetFullUserRequest
+
+        return await self(GetFullUserRequest(entity))
+
 
 def make_client(config: Config) -> UroborosClient:
     return UroborosClient(

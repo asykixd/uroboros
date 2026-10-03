@@ -115,3 +115,9 @@ def test_convert_inline_results():
         }
     )
     assert item["buttons"] == [[{"text": "u", "url": "https://e"}]] and item["photo"] == "g" and item["public"]
+
+
+def test_sanitise_text(env):
+    assert env.hikka.sanitise_text('<emoji document_id="1">🔥</emoji> текст') == "🔥 текст"
+    asyncio.run(env.hikka.form('<emoji document_id="1">🔥</emoji>', FakeMessage()))
+    assert env.bot.inline_answers[-1][0].input_message_content.message_text == "🔥"

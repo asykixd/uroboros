@@ -148,3 +148,18 @@ def test_command_of_frozen_module_reports(tmp_path):
     asyncio.run(loader.get_command("security").func(message))
     assert loader.ratelimit.settings["limit"] == 10 and "20 с" in message.edits[-1]
     db.close()
+
+
+def test_client_accepts_hikka_tl_cache_arguments(monkeypatch):
+    calls = []
+
+    async def fake_get_entity(self, entity):
+        calls.append(entity)
+        return entity
+
+    monkeypatch.setattr("telethon.TelegramClient.get_entity", fake_get_entity)
+    client = UroborosClient.__new__(UroborosClient)
+    assert asyncio.run(client.get_entity(5, exp=0)) == 5
+    assert asyncio.run(client.get_entity(6, exp=10, force=True)) == 6
+    assert asyncio.run(client.force_get_entity(7)) == 7
+    assert calls == [5, 6, 7]
