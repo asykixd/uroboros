@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import platform
 import sys
 import time
@@ -22,12 +23,8 @@ class System(Module):
             return
         self.db.delete("restart")
         chat_id, message_id, started = pending
-        try:
-            await self.client.edit_message(
-                chat_id, message_id, f"✅ Перезапущено за {time.time() - started:.1f} с"
-            )
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            await self.client.edit_message(chat_id, message_id, f"✅ Перезапущено за {time.time() - started:.1f} с")
 
     @command("ping")
     async def ping(self, message):
@@ -73,21 +70,35 @@ class System(Module):
             return
         await utils.answer(message, "⏳ Обновление...")
         proc = await asyncio.create_subprocess_exec(
-            "git", "-C", str(REPO_DIR), "pull", "--ff-only",
+            "git",
+            "-C",
+            str(REPO_DIR),
+            "pull",
+            "--ff-only",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
         output, _ = await proc.communicate()
         text = utils.escape_html(output.decode(errors="replace").strip())
         if proc.returncode != 0:
-            await utils.answer(message, "❌ <b>git pull завершился с ошибкой</b>\n" + utils.quote(f"<code>{text}</code>", expandable=True))
+            await utils.answer(
+                message,
+                "❌ <b>git pull завершился с ошибкой</b>\n" + utils.quote(f"<code>{text}</code>", expandable=True),
+            )
             return
         if "Already up to date" in text or "Уже актуально" in text:
             await utils.answer(message, "✅ Установлена последняя версия")
             return
 
         proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "-e", str(REPO_DIR),
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-q",
+            "--disable-pip-version-check",
+            "-e",
+            str(REPO_DIR),
         )
         await proc.wait()
         await self.restart(message)

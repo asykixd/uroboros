@@ -55,7 +55,7 @@ class Eval(Module):
         except Exception:
             title, output = "Ошибка", traceback.format_exc(limit=-3)
 
-        text = f"💻 <b>Код:</b>\n<pre><code class=\"language-python\">{utils.escape_html(code)}</code></pre>"
+        text = f'💻 <b>Код:</b>\n<pre><code class="language-python">{utils.escape_html(code)}</code></pre>'
         if stdout.getvalue():
             text += f"\n📤 <b>Вывод:</b>\n<pre>{utils.escape_html(stdout.getvalue())}</pre>"
         if title == "Ошибка":

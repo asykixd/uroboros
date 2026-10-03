@@ -44,12 +44,7 @@ def get_data_dir() -> Path:
 
 
 def _valid(api_id: str | None, api_hash: str | None) -> bool:
-    return bool(
-        api_id
-        and str(api_id).isdigit()
-        and api_hash
-        and re.fullmatch(r"[0-9a-f]{32}", api_hash)
-    )
+    return bool(api_id and str(api_id).isdigit() and api_hash and re.fullmatch(r"[0-9a-f]{32}", api_hash))
 
 
 def load_config() -> Config:

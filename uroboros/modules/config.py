@@ -6,10 +6,7 @@ class Config(Module):
     """Настройки модулей"""
 
     def _configurable(self):
-        return [
-            m for m in self.loader.modules.values()
-            if isinstance(m.config, ModuleConfig) and len(m.config)
-        ]
+        return [m for m in self.loader.modules.values() if isinstance(m.config, ModuleConfig) and len(m.config)]
 
     @command("cfg", aliases=["config"])
     async def cfg(self, message):

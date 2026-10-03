@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 COMMAND_ATTR = "_uroboros_command"
 WATCHER_ATTR = "_uroboros_watcher"

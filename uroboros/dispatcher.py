@@ -11,7 +11,7 @@ from telethon import events
 
 from . import utils
 from .database import MAIN_OWNER, Database
-from .loader import Command, LoadError, Loader
+from .loader import Command, Loader, LoadError
 
 if TYPE_CHECKING:
     from telethon import TelegramClient
@@ -24,7 +24,7 @@ def parse_command(text: str, prefix: str) -> tuple[str, str] | None:
     """``".ping 1 2"`` → ``("ping", "1 2")``; не команда → None."""
     if not prefix or not text.startswith(prefix):
         return None
-    body = text[len(prefix):]
+    body = text[len(prefix) :]
     if not body or body[0].isspace():
         return None
     parts = body.split(maxsplit=1)

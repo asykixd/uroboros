@@ -11,9 +11,7 @@ _NAME = r"[A-Za-z0-9_.-]+"
 
 _REPO_URL_RE = re.compile(rf"^(?:https?://)?(?:www\.)?github\.com/({_NAME})/({_NAME}?)(?:\.git)?/?$")
 _REPO_SHORT_RE = re.compile(rf"^({_NAME})/({_NAME})$")
-_FILE_URL_RE = re.compile(
-    rf"^(?:https?://)?(?:www\.)?github\.com/({_NAME})/({_NAME})/(?:blob|raw)/([^/]+)/(.+)$"
-)
+_FILE_URL_RE = re.compile(rf"^(?:https?://)?(?:www\.)?github\.com/({_NAME})/({_NAME})/(?:blob|raw)/([^/]+)/(.+)$")
 _FILE_SHORT_RE = re.compile(rf"^({_NAME})/({_NAME})/(.+)$")
 
 
@@ -62,7 +60,5 @@ def list_modules(repo: str) -> list[str]:
     return sorted(
         item["name"].removesuffix(".py")
         for item in items
-        if item.get("type") == "file"
-        and item["name"].endswith(".py")
-        and not item["name"].startswith("_")
+        if item.get("type") == "file" and item["name"].endswith(".py") and not item["name"].startswith("_")
     )

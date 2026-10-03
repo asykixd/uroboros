@@ -8,10 +8,11 @@ import itertools
 import logging
 import re
 import sys
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import COMMAND_ATTR, WATCHER_ATTR, CommandInfo, WatcherInfo
@@ -70,15 +71,20 @@ def make_stem(name: str) -> str:
 async def pip_install(packages: list[str]) -> None:
     log.info("Устанавливаю зависимости: %s", " ".join(packages))
     proc = await asyncio.create_subprocess_exec(
-        sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-q", *packages,
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--disable-pip-version-check",
+        "-q",
+        *packages,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
     output, _ = await proc.communicate()
     if proc.returncode != 0:
         raise LoadError(
-            f"Не удалось установить зависимости ({' '.join(packages)}):\n"
-            + output.decode(errors="replace")[-1000:]
+            f"Не удалось установить зависимости ({' '.join(packages)}):\n" + output.decode(errors="replace")[-1000:]
         )
     importlib.invalidate_caches()
 
@@ -119,9 +125,7 @@ class Loader:
             if path.name.startswith("_"):
                 continue
             try:
-                await self.load_source(
-                    path.read_text("utf-8"), origin="builtin", stem=path.stem, filename=str(path)
-                )
+                await self.load_source(path.read_text("utf-8"), origin="builtin", stem=path.stem, filename=str(path))
             except Exception:
                 log.exception("Не удалось загрузить встроенный модуль %s", path.stem)
 
@@ -131,9 +135,7 @@ class Loader:
                 log.warning("Файл модуля %s пропал, пропускаю", path)
                 continue
             try:
-                await self.load_source(
-                    path.read_text("utf-8"), origin=origin, stem=stem, filename=str(path)
-                )
+                await self.load_source(path.read_text("utf-8"), origin=origin, stem=stem, filename=str(path))
             except Exception:
                 log.exception("Не удалось загрузить модуль %s", stem)
 
@@ -189,10 +191,7 @@ class Loader:
         classes = [
             obj
             for obj in vars(pymod).values()
-            if isinstance(obj, type)
-            and issubclass(obj, Module)
-            and obj is not Module
-            and obj.__module__ == modname
+            if isinstance(obj, type) and issubclass(obj, Module) and obj is not Module and obj.__module__ == modname
         ]
         if not classes:
             sys.modules.pop(modname, None)
@@ -224,9 +223,7 @@ class Loader:
                 for name in (info.name, *info.aliases):
                     if name in taken:
                         sys.modules.pop(modname, None)
-                        raise LoadError(
-                            f"Команда {name} уже занята модулем {taken[name]}"
-                        )
+                        raise LoadError(f"Команда {name} уже занята модулем {taken[name]}")
                     taken[name] = inst.name
 
         for old_stem in replaced:

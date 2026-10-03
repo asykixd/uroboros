@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Iterator
+from collections.abc import Callable, Iterator
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from telethon import TelegramClient
@@ -85,7 +86,7 @@ class Module:
     """
 
     name: str = ""
-    strings: dict[str, str] = {}
+    strings: ClassVar[dict[str, str]] = {}
     config: ModuleConfig | None = None
 
     client: TelegramClient

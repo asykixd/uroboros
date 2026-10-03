@@ -7,10 +7,10 @@ from .decorators import command, watcher
 from .types import ConfigValue, Module, ModuleConfig
 
 __all__ = [
-    "__version__",
     "ConfigValue",
     "Module",
     "ModuleConfig",
+    "__version__",
     "command",
     "utils",
     "validators",

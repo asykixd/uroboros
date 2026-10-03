@@ -48,7 +48,9 @@ class Loader(Module):
         """<ссылка | owner/repo/модуль | модуль> — установить модуль"""
         spec = utils.get_args_raw(message).strip()
         if not spec:
-            await utils.answer(message, "❌ Укажите ссылку, путь <code>owner/repo/модуль</code> или имя модуля из репозитория")
+            await utils.answer(
+                message, "❌ Укажите ссылку, путь <code>owner/repo/модуль</code> или имя модуля из репозитория"
+            )
             return
 
         repo = github.parse_repo(spec)
@@ -141,7 +143,8 @@ class Loader(Module):
         await self.loader.reload_all()
         await utils.answer(
             message,
-            "✅ <b>Модули перезагружены</b>\n" + utils.quote(
+            "✅ <b>Модули перезагружены</b>\n"
+            + utils.quote(
                 f"Модулей: <code>{len(self.loader.modules)}</code> · команд: <code>{len(self.loader.commands)}</code>"
             ),
         )
@@ -180,5 +183,5 @@ class Loader(Module):
         if not repos:
             await utils.answer(message, "🔗 Репозитории не подключены")
             return
-        lines = [f"<a href=\"https://github.com/{r}\">{utils.escape_html(r)}</a>" for r in repos]
+        lines = [f'<a href="https://github.com/{r}">{utils.escape_html(r)}</a>' for r in repos]
         await utils.answer(message, "🔗 <b>Репозитории</b>\n" + utils.quote("\n".join(lines)))

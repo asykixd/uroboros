@@ -67,7 +67,8 @@ class Hello(Module):
 
     @watcher(only_incoming=True)
     async def watch(self, message):
-        ...  # вызывается на каждое входящее сообщение
+        # вызывается на каждое входящее сообщение
+        pass
 ```
 
 Внутри модуля доступны `self.client` (TelegramClient), `self.db` (`get`/`set`/`delete`),

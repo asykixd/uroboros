@@ -2,11 +2,10 @@ import asyncio
 
 import pytest
 
-from uroboros.database import LOADER_OWNER, Database
+from uroboros.database import LOADER_OWNER, Database, ModuleDB
 from uroboros.dispatcher import parse_command
-from uroboros.loader import LoadError, Loader, parse_requires
+from uroboros.loader import Loader, LoadError, parse_requires
 from uroboros.types import ConfigValue, ModuleConfig
-from uroboros.database import ModuleDB
 from uroboros.validators import Boolean, Integer, ValidationError
 
 DEMO = '''
@@ -50,6 +49,7 @@ def loader(db, tmp_path):
 
 # --- парсер команд ---
 
+
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
@@ -71,11 +71,14 @@ def test_parse_command_multichar_prefix():
 
 def test_parse_requires():
     assert parse_requires("# requires: requests  aiofiles\nimport x\n#requires: pillow") == [
-        "requests", "aiofiles", "pillow",
+        "requests",
+        "aiofiles",
+        "pillow",
     ]
 
 
 # --- БД и конфиг ---
+
 
 def test_database_roundtrip(tmp_path):
     path = tmp_path / "db.sqlite"
@@ -110,6 +113,7 @@ def test_module_config(db):
 
 
 # --- загрузчик ---
+
 
 def test_load_builtins(loader):
     run(loader.load_all())

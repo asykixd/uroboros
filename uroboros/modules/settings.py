@@ -36,9 +36,7 @@ class Settings(Module):
         aliases = self._aliases()
         aliases[alias] = cmd.name
         self.db.raw.set(MAIN_OWNER, "aliases", aliases)
-        await utils.answer(
-            message, f"✅ Алиас <code>{utils.escape_html(alias)}</code> → <code>{cmd.name}</code>"
-        )
+        await utils.answer(message, f"✅ Алиас <code>{utils.escape_html(alias)}</code> → <code>{cmd.name}</code>")
 
     @command("unalias")
     async def unalias(self, message):
