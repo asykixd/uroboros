@@ -57,7 +57,7 @@
 - [x] `strings` с подстановкой (`self.strings("key", **kw)`), HTML-экранирование по умолчанию
 - [x] Хелперы в `utils`: `get_user`, `get_target`, `get_chat_id`, `get_reply`, `run_sync`, `answer_file`
 - [x] Хук `on_dlmod` — однократная настройка при первой установке модуля
-- [ ] Документация по API в `docs/` и примеры модулей в `examples/`
+- [x] Документация по API в `docs/` и примеры модулей в `examples/`
 
 ## 0.3 — Inline-бот
 

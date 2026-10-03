@@ -33,7 +33,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 - Единица выгрузки — файл (stem): все классы-наследники `Module` из одного файла выгружаются вместе.
 - В `_load` порядок важен: сначала проверяются конфликты (нельзя заменить встроенный модуль, нельзя занять чужую команду), потом выгружаются заменяемые stem'ы, затем регистрация и `on_load`. Если `on_load` падает, весь stem откатывается.
 - `# requires:` → `pip install` только при `ImportError`, одна попытка.
-- `LoadError` — ошибка, текст которой показывается пользователю. Диспетчер выводит её без traceback.
+- Шапка файла читается до `exec`: `# meta ключ: значение` → `inst._meta`, `# requires_uroboros: X` — проверка версии ядра.
+- `LoadError` (`errors.py`, реэкспорт из `loader`) — ошибка, текст которой показывается пользователю. Диспетчер выводит её без traceback. Скачивание — `download.py`.
 
 **Диспетчер (`dispatcher.py`).** Один обработчик `NewMessage`. Команды срабатывают только на исходящих сообщениях. Цепочка разрешения: префикс → пользовательские алиасы (БД, `uroboros.main`/`aliases`) → `Loader.get_command`, которая учитывает и алиасы из `@command(aliases=...)`. Вотчеры получают все сообщения параллельно, их исключения только логируются.
 
@@ -41,9 +42,12 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 - `Module` с `on_load`/`on_unload`.
 - Декораторы `@command`, `@watcher`.
 - `ModuleConfig`/`ConfigValue` и `validators` — валидаторы принимают и строки, потому что `.cfg` передаёт значение текстом.
-- `utils`: `answer`, `get_args_raw`, `get_args`, `quote`, `escape_html`, `get_prefix`.
+- `@loop`, `Library`.
+- `utils`: `answer`, `answer_file`, `get_args_raw`, `get_args`, `get_reply`, `get_user`, `get_target`, `get_chat_id`, `run_sync`, `quote`, `escape_html`, `Html`, `get_prefix`.
 
-Загрузчик проставляет модулю `client`, `loader`, `db` (`ModuleDB`, owner = имя модуля) и привязывает `config` к БД (ключ `__config__`). API намеренно повторяет Hikka (`utils.answer`, `strings`, `config`), чтобы будущий адаптер совместимости был тонким.
+Загрузчик проставляет модулю `client`, `loader`, `db` (`ModuleDB`, owner = имя модуля), оборачивает `strings` в `Strings` (вызов `self.strings("key", **kw)` экранирует подстановки) и привязывает `config` к БД (ключ `__config__`). При выгрузке stem'а загрузчик останавливает `@loop`-задачи (`loops.py`), снимает обработчики Telethon, чьи функции объявлены в файле модуля, и выгружает библиотеки (`Library`, `self.import_lib`), у которых не осталось модулей-пользователей. Исходники библиотек кешируются в `data/modules/libs/`, ссылки — в БД (`uroboros.loader`/`libs`). `on_dlmod` вызывается в `Loader.install` только если stem ещё не был установлен.
+
+Документация для авторов модулей — `docs/modules.md`. Примеры из `examples/` загружаются в `tests/test_examples.py`: при изменении API их нужно обновлять. Пример с `# requires_uroboros: X` не загрузится, если `__version__` меньше X, поэтому версия на master — следующая (`0.2.0.dev0`), а не последняя выпущенная. API намеренно повторяет Hikka (`utils.answer`, `strings`, `config`), чтобы будущий адаптер совместимости был тонким.
 
 **БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed).
 

@@ -75,9 +75,10 @@ class Hello(Module):
         pass
 ```
 
-Внутри модуля доступны `self.client` (TelegramClient), `self.db` (`get`/`set`/`delete`),
-`self.config` и `self.loader`. Для оформления есть `utils.quote(text, expandable=True)` — цитата Telegram (свёрнутая при `expandable`). Строка `# requires:` перечисляет pip-пакеты:
-они ставятся автоматически, если при импорте модуля чего-то не хватает.
+Внутри модуля доступны `self.client` (TelegramClient), `self.get`/`self.set` (своё хранилище),
+`self.config`, `self.strings` и `self.loader`. Ещё есть фильтры команд, фоновые задачи `@loop`,
+библиотеки `self.import_lib(url)` и хелперы в `utils`. Подробно — в [docs/modules.md](docs/modules.md),
+примеры — в [examples/](examples).
 
 ## Тесты
 
