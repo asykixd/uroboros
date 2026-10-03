@@ -78,6 +78,8 @@ class Loop:
         if task is None:
             return
         task.cancel()
+        if task.get_loop() is not asyncio.get_running_loop():
+            return  # задача из другого (уже закрытого) цикла событий — ждать нечего
         await asyncio.gather(task, return_exceptions=True)
 
     async def __call__(self) -> Any:

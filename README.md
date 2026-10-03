@@ -44,7 +44,8 @@ Docker, служба systemd, автозапуск в Termux, Windows и под�
 | `.cfg [модуль] [ключ] [значение]` | настройки модулей (с inline-ботом — кнопками), `.rcfg` — сброс |
 | `.setprefix`, `.alias`, `.unalias`, `.aliases` | префикс и алиасы |
 | `.e <код>`, `.t <команда>` | Python eval и shell |
-| `.ping`, `.info`, `.restart`, `.update` | система |
+| `.ping`, `.info`, `.restart` | система |
+| `.update [-f \| channel stable\|beta \| notify on\|off]` | обновление: список изменений и подтверждение, канал, уведомления раз в сутки |
 | `.inlinebot [токен \| new \| on \| off]` | inline-бот: состояние, свой токен, новый бот |
 | `.owner`, `.sudo`, `.support [add\|del пользователь]` | группы доступа: кому можно вызывать команды |
 | `.security [команда уровень]` | права команд: `owner`, `sudo`, `support`, `everyone` |

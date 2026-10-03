@@ -2,18 +2,18 @@ import asyncio
 import contextlib
 import io
 import logging
-import os
 import platform
-import sys
 import time
-from pathlib import Path
 
 import telethon
 
 import uroboros
-from uroboros import Module, command, logs, utils
+from uroboros import Module, command, logs, loop, updater, utils
+from uroboros.errors import InlineError
 
-REPO_DIR = Path(uroboros.__file__).resolve().parent.parent
+CANCEL = {"text": "Отмена", "action": "close"}
+CHECK_EVERY = 24 * 3600
+DOCKER_UPDATE = "git pull &amp;&amp; docker compose up -d --build"
 
 
 class System(Module):
@@ -100,61 +100,131 @@ class System(Module):
 
     @command("update", access="owner")
     async def update(self, message):
-        """— обновиться из git и перезапуститься"""
-        if not (REPO_DIR / ".git").exists():
+        """[-f | channel stable|beta | notify on|off] — обновиться: список изменений и подтверждение"""
+        args = utils.get_args(message)
+        if args and args[0] == "channel":
+            await self._channel(message, args[1:])
+            return
+        if args and args[0] == "notify":
+            await self._notify(message, args[1:])
+            return
+        if updater.in_docker():
+            await utils.answer(message, f"❌ В Docker обновляйтесь образом: <code>{DOCKER_UPDATE}</code>")
+            return
+        if not updater.is_git_checkout():
             await utils.answer(message, "❌ Uroboros установлен не из git-репозитория")
             return
-        await utils.answer(message, "⏳ Обновление...")
-        code, old = await git("rev-parse", "HEAD")
-        if code == 0:
-            code, output = await git("pull", "--ff-only")
-        else:
-            output = old
-        if code != 0:
-            await utils.answer(message, "❌ <b>git pull завершился с ошибкой</b>\n" + code_quote(output))
+
+        await utils.answer(message, "⏳ Проверяю обновления...")
+        update = await updater.check(self._get_channel())
+        if update is None:
+            await utils.answer(message, f"✅ Установлена последняя версия <i>(канал {self._get_channel()})</i>")
             return
-        _, new = await git("rev-parse", "HEAD")
-        if new == old:
-            await utils.answer(message, "✅ Установлена последняя версия")
+        if args and args[0] == "-f":
+            await self._install(update, lambda text: utils.answer(message, text), message)
             return
 
-        # Новые зависимости ставятся до рестарта: если не встанут, бот после рестарта не запустится.
-        await utils.answer(message, "⏳ Установка зависимостей...")
-        code, output = await run_process(
-            sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "-e", str(REPO_DIR)
+        text = self._changelog(update)
+        if self.inline.available:
+            buttons = [[{"text": "✅ Обновить", "callback": self._install_pressed, "args": (update,)}, CANCEL]]
+            try:
+                await self.inline.form(message, text, buttons)
+                return
+            except InlineError:
+                pass  # например, в чате запрещены inline-боты
+        prefix = utils.get_prefix(self.db.raw)
+        await utils.answer(message, text + f"\nУстановить: <code>{utils.escape_html(prefix)}update -f</code>")
+
+    def _get_channel(self):
+        return self.db.get("channel", updater.DEFAULT_CHANNEL)
+
+    @staticmethod
+    def _changelog(update):
+        shown = update.commits[: updater.MAX_CHANGELOG]
+        lines = [
+            f"<code>{utils.escape_html(c.split(' ', 1)[0])}</code> {utils.escape_html(c.split(' ', 1)[-1])}"
+            for c in shown
+        ]
+        if len(update.commits) > len(shown):
+            lines.append("…")
+        count = f"{len(shown)}+" if len(update.commits) > len(shown) else str(len(shown))
+        return (
+            f"🆕 <b>Доступно обновление</b> · {utils.escape_html(update.label)} · изменений: {count}\n"
+            + utils.quote("\n".join(lines) or "без описания", expandable=len(lines) > 10)
         )
-        stage = "Не удалось установить зависимости"
-        if code == 0:
-            code, output = await run_process(sys.executable, "-c", "import uroboros.main")
-            stage = "Новая версия не запускается"
-        if code != 0:
-            rollback, rollback_output = await git("reset", "--keep", old)
-            text = f"❌ <b>{stage}</b>\n" + code_quote(output)
-            if rollback == 0:
+
+    async def _install_pressed(self, call, update):
+        await call.edit("⏳ Обновление...", None)
+
+        async def report(text):
+            await call.edit(text, None)
+
+        await self._install(update, report, None)
+
+    async def _install(self, update, report, message):
+        await report("⏳ Обновление и установка зависимостей...")
+        try:
+            await updater.install(update)
+        except updater.InstallError as e:
+            text = f"❌ <b>{utils.escape_html(e.stage)}</b>\n" + code_quote(e.output)
+            if e.rolled_back:
                 text += "\nВернул прежнюю версию, бот продолжает работать"
             else:
                 text += "\n<b>Не удалось вернуть прежнюю версию</b>, не перезапускайте бот:\n" + code_quote(
-                    rollback_output
+                    e.rollback_output
                 )
-            await utils.answer(message, text)
+            await report(text)
             return
-        await self.restart(message)
+        if message is not None:
+            await self.restart(message)
+        else:
+            await report("🔄 Обновлено, перезапуск...")
+            await utils.restart(self.client)
 
+    async def _channel(self, message, args):
+        if args:
+            if args[0] not in updater.CHANNELS:
+                await utils.answer(
+                    message, "❌ Каналы: <code>stable</code> (релизы) и <code>beta</code> (ветка master)"
+                )
+                return
+            self.db.set("channel", args[0])
+        channel = self._get_channel()
+        about = "релизы (теги)" if channel == "stable" else "каждый коммит в master"
+        await utils.answer(message, f"⚙️ Канал обновлений: <b>{channel}</b> — {about}")
 
-async def run_process(*args: str) -> tuple[int, str]:
-    """Запускает процесс и возвращает код выхода и весь вывод."""
-    proc = await asyncio.create_subprocess_exec(
-        *args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},  # git не должен ждать логин в консоли
-    )
-    output, _ = await proc.communicate()
-    return proc.returncode, output.decode(errors="replace").strip()
+    async def _notify(self, message, args):
+        if args and args[0] in ("on", "off"):
+            self.db.set("notify", args[0] == "on")
+        state = "включены" if self.db.get("notify", True) else "выключены"
+        await utils.answer(message, f"⚙️ Уведомления о новой версии раз в сутки {state}")
 
-
-async def git(*args: str) -> tuple[int, str]:
-    return await run_process("git", "-C", str(REPO_DIR), *args)
+    @loop(interval=3600, wait_before=True)
+    async def check_updates(self):
+        """Раз в сутки проверяет обновления и пишет о новой версии в «Избранное»."""
+        if (
+            self.client is None
+            or not self.db.get("notify", True)
+            or updater.in_docker()
+            or not updater.is_git_checkout()
+            or time.time() - self.db.get("last_check", 0) < CHECK_EVERY
+        ):
+            return
+        self.db.set("last_check", time.time())
+        try:
+            update = await updater.check(self._get_channel())
+        except updater.UpdateError as e:
+            logging.getLogger(__name__).info("Проверка обновлений не удалась: %s", e)
+            return
+        if update is None or self.db.get("notified") == update.sha:
+            return
+        self.db.set("notified", update.sha)
+        prefix = utils.get_prefix(self.db.raw)
+        text = self._changelog(update) + (
+            f"\nУстановить: <code>{utils.escape_html(prefix)}update</code> · "
+            f"отключить уведомления: <code>{utils.escape_html(prefix)}update notify off</code>"
+        )
+        await self.client.send_message("me", text, parse_mode="html")
 
 
 def code_quote(output: str) -> str:
