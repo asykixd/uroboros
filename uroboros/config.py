@@ -30,6 +30,10 @@ class Config:
         return self.data_dir / "modules"
 
     @property
+    def lock_path(self) -> Path:
+        return self.data_dir / "uroboros.lock"
+
+    @property
     def log_path(self) -> Path:
         return self.data_dir / "uroboros.log"
 

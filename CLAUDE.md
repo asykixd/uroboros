@@ -21,7 +21,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 Тесты не ходят в сеть и не требуют Telegram: `Loader` создаётся с `client=None` и `Database(":memory:")`, корутины гоняются через `asyncio.run` (pytest-asyncio не используется).
 
-`api_id`/`api_hash` можно передать через `UROBOROS_API_ID`/`UROBOROS_API_HASH`, они приоритетнее `config.json`. Данные рантайма лежат в `./data` (путь меняется через `UROBOROS_DATA`): `config.json` (api_id/api_hash), сессия `uroboros.session`, `uroboros.db`, `modules/`, `uroboros.log`. Это доступ к аккаунту: не коммитить и не читать без нужды.
+`api_id`/`api_hash` можно передать через `UROBOROS_API_ID`/`UROBOROS_API_HASH`, они приоритетнее `config.json`. Данные рантайма лежат в `./data` (путь меняется через `UROBOROS_DATA`): `config.json` (api_id/api_hash), сессия `uroboros.session`, `uroboros.db`, `modules/`, `uroboros.log`, `uroboros.lock` (блокировка от второго экземпляра). Это доступ к аккаунту: не коммитить и не читать без нужды.
 
 ## Архитектура
 

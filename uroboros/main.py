@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 import signal
+import sys
 
 from . import __version__, utils
 from .client import login, make_client
@@ -13,6 +14,7 @@ from .config import Config, load_config
 from .database import Database
 from .dispatcher import Dispatcher
 from .loader import Loader
+from .lock import InstanceLock
 
 log = logging.getLogger("uroboros")
 
@@ -77,11 +79,23 @@ async def run(config: Config) -> None:
 
 def main() -> None:
     config = load_config()
+    lock = InstanceLock(config.lock_path)
+    if not lock.acquire():
+        pid = lock.owner_pid()
+        sys.exit(
+            f"Uroboros уже запущен с данными {config.data_dir}"
+            + (f" (PID {pid})" if pid else "")
+            + ". Два экземпляра с одной сессией мешают друг другу."
+        )
+
     setup_logging(config)
     try:
         asyncio.run(run(config))
     except KeyboardInterrupt:
         return
+    finally:
+        # До перезапуска: на Windows новый процесс стартует, пока жив старый.
+        lock.release()
     if utils.restart_requested():
         log.info("Перезапуск...")
         utils.exec_restart()
