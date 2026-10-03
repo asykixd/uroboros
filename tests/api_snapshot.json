@@ -1,0 +1,201 @@
+{
+ "uroboros": {
+  "ConfigValue": {
+   "init": "(self, key: 'str', default: 'Any' = None, doc: 'str' = '', validator: 'Callable[[Any], Any] | None' = None)",
+   "methods": {
+    "validate": "(self, value: 'Any') -> 'Any'"
+   },
+   "properties": []
+  },
+  "InlineError": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "Library": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {
+    "on_load": "(self) -> 'None'",
+    "on_unload": "(self) -> 'None'"
+   },
+   "properties": []
+  },
+  "LoadError": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "Module": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {
+    "get": "(self, key: 'str', default: 'Any' = None) -> 'Any'",
+    "import_lib": "(self, url: 'str', *, reload: 'bool' = False) -> 'Any'",
+    "on_dlmod": "(self) -> 'None'",
+    "on_load": "(self) -> 'None'",
+    "on_unload": "(self) -> 'None'",
+    "set": "(self, key: 'str', value: 'Any') -> 'None'"
+   },
+   "properties": [
+    "is_builtin"
+   ]
+  },
+  "ModuleConfig": {
+   "init": "(self, *values: 'ConfigValue')",
+   "methods": {
+    "reset": "(self, key: 'str') -> 'None'",
+    "value": "(self, key: 'str') -> 'ConfigValue'"
+   },
+   "properties": []
+  },
+  "StopLoop": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "callback_handler": "(prefix: 'str | None' = None)",
+  "command": "(name: 'str | None' = None, *, aliases: 'list[str] | tuple[str, ...]' = (), doc: 'str | None' = None, only_pm: 'bool' = False, only_groups: 'bool' = False, only_channels: 'bool' = False, chats: 'list[int] | tuple[int, ...] | None' = None, only_reply: 'bool' = False, no_reply: 'bool' = False, filter: 'Callable[[Any], bool] | None' = None, access: 'str' = 'sudo')",
+  "inline_handler": "(name: 'str | None' = None, *, doc: 'str | None' = None)",
+  "loop": "(interval: 'float', *, autostart: 'bool' = True, wait_before: 'bool' = False)",
+  "watcher": "(*, only_outgoing: 'bool' = False, only_incoming: 'bool' = False, filter: 'Callable[[Any], bool] | None' = None)"
+ },
+ "uroboros.errors": {
+  "InlineError": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "LoadError": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  }
+ },
+ "uroboros.inline": {
+  "Inline": {
+   "init": "(self, loader: 'Loader', module: 'Module | None')",
+   "methods": {
+    "form": "(self, message: 'Any', text: 'str', buttons: 'Any' = None, *, photo: 'str | None' = None, always_allow: 'list[int] | tuple[int, ...]' = ()) -> 'InlineMessage'",
+    "gallery": "(self, message: 'Any', photos: 'list[str] | Callable[[], Awaitable[str]]', caption: 'str | list[str]' = '', *, buttons: 'Any' = None, always_allow: 'list[int] | tuple[int, ...]' = ()) -> 'InlineMessage'",
+    "list": "(self, message: 'Any', pages: 'list[str]', *, buttons: 'Any' = None, always_allow: 'list[int] | tuple[int, ...]' = ()) -> 'InlineMessage'",
+    "markup": "(self, buttons: 'Any', *, always_allow: 'list[int] | tuple[int, ...]' = ()) -> 'Any'"
+   },
+   "properties": [
+    "_manager",
+    "_stem",
+    "available",
+    "bot",
+    "bot_id",
+    "bot_username"
+   ]
+  },
+  "InlineCall": {
+   "init": "(self, manager: 'InlineManager', unit: 'Unit', query: 'Any' = None, *, data: 'str | None' = None)",
+   "methods": {
+    "answer": "(self, text: 'str | None' = None, *, show_alert: 'bool' = False) -> 'None'"
+   },
+   "properties": []
+  },
+  "InlineMessage": {
+   "init": "(self, manager: 'InlineManager', unit: 'Unit')",
+   "methods": {
+    "delete": "(self) -> 'None'",
+    "edit": "(self, text: 'str | None' = None, buttons: 'Any' = KEEP, *, photo: 'str | None' = None) -> 'None'",
+    "unload": "(self) -> 'None'"
+   },
+   "properties": [
+    "id",
+    "inline_message_id"
+   ]
+  },
+  "InlineQuery": {
+   "init": "(self, query: 'Any', args: 'str')",
+   "methods": {},
+   "properties": []
+  }
+ },
+ "uroboros.inline.types": {
+  "ACTION_KEYS": [
+   "callback",
+   "url",
+   "input",
+   "data",
+   "action",
+   "copy",
+   "switch_inline_query",
+   "switch_inline_query_current_chat"
+  ],
+  "KEEP": "KEEP"
+ },
+ "uroboros.utils": {
+  "Html": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "answer": "(message: 'Message', text: 'str', **kwargs) -> 'Message'",
+  "answer_file": "(message: 'Message', file: 'Any', caption: 'str | None' = None, **kwargs) -> 'Message'",
+  "escape_html": "(text: 'object') -> 'str'",
+  "exec_restart": "() -> 'None'",
+  "format_duration": "(seconds: 'float') -> 'str'",
+  "get_args": "(message: 'Message') -> 'list[str]'",
+  "get_args_raw": "(message: 'Message') -> 'str'",
+  "get_chat_id": "(message: 'Message') -> 'int'",
+  "get_prefix": "(db: 'Database') -> 'str'",
+  "get_reply": "(message: 'Message') -> 'Message | None'",
+  "get_target": "(message: 'Message', arg: 'str | None' = None) -> 'Any'",
+  "get_user": "(message: 'Message') -> 'Any'",
+  "quote": "(text: 'str', *, expandable: 'bool' = False) -> 'str'",
+  "restart": "(client: 'TelegramClient') -> 'None'",
+  "restart_args": "() -> 'list[str]'",
+  "restart_requested": "() -> 'bool'",
+  "run_sync": "(func: 'Callable[..., T]', *args: 'Any', **kwargs: 'Any') -> 'T'"
+ },
+ "uroboros.validators": {
+  "Any": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "Boolean": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "Choice": {
+   "init": "(self, options: 'Iterable[Any]')",
+   "methods": {},
+   "properties": []
+  },
+  "Float": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "Integer": {
+   "init": "(self, minimum: 'int | None' = None, maximum: 'int | None' = None)",
+   "methods": {},
+   "properties": []
+  },
+  "Iterable": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "String": {
+   "init": "(self, min_len: 'int | None' = None, max_len: 'int | None' = None)",
+   "methods": {},
+   "properties": []
+  },
+  "ValidationError": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "Validator": {
+   "init": "(self, /, *args, **kwargs)",
+   "methods": {},
+   "properties": []
+  },
+  "annotations": "_Feature"
+ }
+}
