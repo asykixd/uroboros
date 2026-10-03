@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import COMMAND_ATTR, WATCHER_ATTR, CommandInfo, WatcherInfo
+from .loops import LOOP_ATTR, Loop
 from .types import Module, ModuleConfig
 
 if TYPE_CHECKING:
@@ -248,6 +249,9 @@ class Loader:
                 raise LoadError(f"Ошибка при запуске модуля {inst.name}: {e!r}") from e
 
         for inst in instances:
+            for task in inst._loops:
+                if task.info.autostart:
+                    task.start()
             log.info("Загружен модуль %s (%s)", inst.name, origin)
         return instances, replaced
 
@@ -289,6 +293,11 @@ class Loader:
                 self.command_aliases[alias] = info.name
         for info, func in self._collect(inst, WATCHER_ATTR):
             self.watchers.append(Watcher(info, func, inst))
+        inst._loops = []
+        for info, func in self._collect(inst, LOOP_ATTR):
+            task = Loop(func, info, inst.name)
+            setattr(inst, func.__name__, task)  # self.<метод> — управление задачей
+            inst._loops.append(task)
 
     # --- выгрузка ---
 
@@ -296,6 +305,8 @@ class Loader:
         """Выгружает все модули, загруженные из одного файла."""
         removed = [m for m in self.modules.values() if m._stem == stem]
         for inst in removed:
+            for task in inst._loops:
+                await task.wait_stopped()
             try:
                 await inst.on_unload()
             except Exception:

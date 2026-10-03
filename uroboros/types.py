@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
     from .database import ModuleDB
     from .loader import Loader
+    from .loops import Loop
 
 CONFIG_KEY = "__config__"
 
@@ -96,6 +97,7 @@ class Module:
     # Служебное: из какого файла модуль и откуда он установлен.
     _stem: str
     _origin: str
+    _loops: list[Loop]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
