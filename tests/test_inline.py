@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -404,3 +405,18 @@ def test_start_disabled(monkeypatch):
     assert started == [] and "off" in manager.error
     asyncio.run(manager.enable())
     assert started == ["new-token"] and manager.error is None
+
+
+def test_counter_example(env):
+    source = (Path(__file__).parent.parent / "examples" / "counter.py").read_text("utf-8")
+    asyncio.run(env.loader.install(source, "file:counter.py"))
+    asyncio.run(env.loader.get_command("counter").func(FakeMessage()))
+    press(env.manager, "+")
+    press(env.manager, "+")
+    assert env.bot.edits()[-1]["text"] == "🔢 <b>Счёт:</b> <code>2</code>"
+    press(env.manager, "Сбросить")
+    press(env.manager, "✅ Да")
+    assert env.bot.edits()[-1]["text"] == "🔢 <b>Счёт:</b> <code>0</code>"
+
+    asyncio.run(env.manager._on_inline_query(SimpleNamespace(id="q", query="count 5", from_user=user())))
+    assert env.bot.inline_answers[-1][0].title == "Счётчик с 5"

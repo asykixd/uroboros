@@ -25,7 +25,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 ## Архитектура
 
-Поток запуска в `main.py`: `load_config` → `Database` → `TelegramClient.start` → `Loader.load_all` → `Dispatcher.install` → `run_until_disconnected`. Рестарт: `utils.restart()` выставляет флаг и отключает клиент, а `main()` после выхода из цикла выгружает модули и делает `os.execv`. На Windows `main()` сначала запускает надзирателя (`supervise`), который держит бота дочерним процессом и перезапускает его, когда тот выходит с кодом `RESTART_EXIT_CODE` (75).
+Поток запуска в `main.py`: `load_config` → `Database` → `TelegramClient.start` → `InlineManager.start` → `Loader.load_all` → `Dispatcher.install` → `run_until_disconnected`. Рестарт: `utils.restart()` выставляет флаг и отключает клиент, а `main()` после выхода из цикла выгружает модули и делает `os.execv`. На Windows `main()` сначала запускает надзирателя (`supervise`), который держит бота дочерним процессом и перезапускает его, когда тот выходит с кодом `RESTART_EXIT_CODE` (75).
 
 **Загрузчик (`loader.py`).** Модули загружаются не импортом, а через `exec` исходника в `ModuleType`:
 - Встроенные модули из `uroboros/modules/*.py` читаются как текст и получают имя `uroboros.modules.<stem>`.
@@ -43,13 +43,16 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 - Декораторы `@command`, `@watcher`.
 - `ModuleConfig`/`ConfigValue` и `validators` — валидаторы принимают и строки, потому что `.cfg` передаёт значение текстом.
 - `@loop`, `Library`.
+- `@inline_handler`, `@callback_handler`, `self.inline.form` / `list` / `gallery` (`InlineCall`, `InlineError`).
 - `utils`: `answer`, `answer_file`, `get_args_raw`, `get_args`, `get_reply`, `get_user`, `get_target`, `get_chat_id`, `run_sync`, `quote`, `escape_html`, `Html`, `get_prefix`.
 
-Загрузчик проставляет модулю `client`, `loader`, `db` (`ModuleDB`, owner = имя модуля), оборачивает `strings` в `Strings` (вызов `self.strings("key", **kw)` экранирует подстановки) и привязывает `config` к БД (ключ `__config__`). При выгрузке stem'а загрузчик останавливает `@loop`-задачи (`loops.py`), снимает обработчики Telethon, чьи функции объявлены в файле модуля, и выгружает библиотеки (`Library`, `self.import_lib`), у которых не осталось модулей-пользователей. Исходники библиотек кешируются в `data/modules/libs/`, ссылки — в БД (`uroboros.loader`/`libs`). `on_dlmod` вызывается в `Loader.install` только если stem ещё не был установлен.
+Загрузчик проставляет модулю `client`, `loader`, `inline`, `db` (`ModuleDB`, owner = имя модуля), оборачивает `strings` в `Strings` (вызов `self.strings("key", **kw)` экранирует подстановки) и привязывает `config` к БД (ключ `__config__`). При выгрузке stem'а загрузчик останавливает `@loop`-задачи (`loops.py`), снимает обработчики Telethon, чьи функции объявлены в файле модуля, и выгружает библиотеки (`Library`, `self.import_lib`), у которых не осталось модулей-пользователей. Исходники библиотек кешируются в `data/modules/libs/`, ссылки — в БД (`uroboros.loader`/`libs`). `on_dlmod` вызывается в `Loader.install` только если stem ещё не был установлен.
 
 Документация для авторов модулей — `docs/modules.md`. Примеры из `examples/` загружаются в `tests/test_examples.py`: при изменении API их нужно обновлять. Пример с `# requires_uroboros: X` не загрузится, если `__version__` меньше X, поэтому версия на master должна быть не меньше той, что требуют примеры. API намеренно повторяет Hikka (`utils.answer`, `strings`, `config`), чтобы будущий адаптер совместимости был тонким.
 
-**БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed).
+**Inline-бот (`inline/`).** aiogram 3 в том же процессе, `InlineManager` (`loader.inline`). Ошибка запуска бота не роняет юзербот: причина в `manager.error`, её показывает `.inlinebot`. Токен: `UROBOROS_BOT_TOKEN` → БД (`uroboros.inline`/`token`) → создание через @BotFather (`botfather.py`, там же включаются inline-режим и inline feedback). Форма: юзербот делает inline-запрос к своему боту с id формы и отправляет результат (`click`). `inline_message_id` бот узнаёт из `chosen_inline_result` или из первого нажатия. Кнопки ввода подставляют `@бот <id> `, текст приходит в `chosen_inline_result`, служебное сообщение `INPUT_MARKER` юзербот удаляет. Формы (`Unit`) живут в памяти и снимаются при выгрузке stem'а. Отвечает бот только владельцу и `always_allow`. Модули получают прокси `self.inline` (`inline.Inline`). Тесты подменяют бота и клиента заглушками из `tests/fake_inline.py`.
+
+**БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed), `uroboros.inline` (token, configured, disabled).
 
 **GitHub (`github.py`).** Преобразует blob-ссылки и короткие пути `owner/repo/path` в адреса `raw.githubusercontent.com/.../HEAD/...`, а списки модулей репозитория получает через GitHub contents API. В `.dlm` разбор идёт по порядку: `owner/repo` → показать список модулей; ссылка или путь → скачать; просто имя → искать в подключённых репозиториях (БД модуля Loader, ключ `repos`).
 
@@ -66,8 +69,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 План по версиям — в `ROADMAP.md` (сделанное отмечено `[x]`). Принципы оттуда, которые влияют на код:
 - ядро маленькое: встроенные модули (`uroboros/modules/`) пишутся только на публичном API, как сторонние;
 - только обычный Telethon 1.x — без форков и без перехода на Telethon 2 до его стабильного релиза;
-- новая зависимость должна ставиться в Termux без компиляции;
+- новая зависимость должна ставиться в Termux без компиляции (исключение — aiogram 3: `pydantic-core` там собирается через Rust, так решил пользователь);
 - до 1.0 каждый релиз — с dev-флагом: версия `X.Y.Z-dev` (в `pyproject.toml` и `uroboros/__init__.py`, pip нормализует её в `X.Y.Z.dev0`), тег `vX.Y.Z-dev`, на GitHub — pre-release. Без `-dev` выходит только 1.0 и дальше. Старые теги `v0.1.0b1`, `v0.1.0b2`, `v0.1.1b2` выпущены до этого правила.
 - сейчас релизы не делаются: только коммиты и push в `master`, без тегов и GitHub-релизов, пока пользователь не попросит. Когда попросит — релиз в конце этапа, а не после каждого коммита: зелёный CI → коммит с версией → аннотированный тег → `gh release create --prerelease` с заметками на русском. Номер версии подтверждать у пользователя.
 
-Ещё не сделано: inline-бот (aiogram 3), веб-панель первого входа, адаптер Hikka. Модули Hikka без адаптера не загрузятся.
+Ещё не сделано: доступ и безопасность (0.4), веб-панель первого входа, адаптер Hikka. Модули Hikka без адаптера не загрузятся.

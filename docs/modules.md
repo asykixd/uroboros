@@ -55,12 +55,14 @@ class Hello(Module):
 - `self.client` — `TelegramClient` (Telethon 1.x);
 - `self.db` — хранилище модуля;
 - `self.config` — настройки (если вы их объявили);
-- `self.loader` — загрузчик (список модулей, команды).
+- `self.loader` — загрузчик (список модулей, команды);
+- `self.inline` — формы с кнопками от inline-бота (см. [Inline-бот](#inline-бот)).
 
 `__init__` вызывается без аргументов, и в нём этих атрибутов ещё нет. Объявляйте там только `self.config`.
 
-При выгрузке ядро само останавливает фоновые задачи (`@loop`) и снимает обработчики,
-которые модуль повесил через `self.client.add_event_handler` или `@self.client.on(...)`.
+При выгрузке ядро само останавливает фоновые задачи (`@loop`), снимает обработчики,
+которые модуль повесил через `self.client.add_event_handler` или `@self.client.on(...)`,
+и отключает кнопки форм модуля.
 
 ## Команды
 
@@ -206,6 +208,96 @@ async def on_load(self):
 - Библиотека загружается один раз на всех. Она выгружается, когда выгружен последний модуль, который её подключил.
 - Исходник кешируется на диске, поэтому после рестарта сеть не нужна. `import_lib(url, reload=True)` скачивает библиотеку заново.
 - У библиотеки есть `self.client`, `self.loader` и своё хранилище `self.db`.
+
+## Inline-бот
+
+Вместе с юзерботом работает бот на aiogram 3. При первом запуске Uroboros сам создаёт
+его через @BotFather и включает inline-режим. Свой бот: `.inlinebot <токен>` или переменная
+`UROBOROS_BOT_TOKEN`. Через этого бота модули показывают сообщения с кнопками.
+
+```python
+@command("counter")
+async def counter(self, message):
+    """— счётчик с кнопками"""
+    await self.inline.form(message, "Счёт: 0", self._buttons(0))
+
+def _buttons(self, value):
+    return [
+        [{"text": "−", "callback": self._add, "args": (value, -1)},
+         {"text": "+", "callback": self._add, "args": (value, 1)}],
+        [{"text": "✍️ Задать", "input": "Новое значение", "handler": self._typed}],
+        [{"text": "Сбросить", "callback": self._add, "args": (0, 0), "confirm": "Сбросить счёт?"},
+         {"text": "✖ Закрыть", "action": "close"}],
+    ]
+
+async def _add(self, call, value, delta):
+    value += delta
+    await call.edit(f"Счёт: {value}", self._buttons(value))
+
+async def _typed(self, call, text):
+    if not text.lstrip("-").isdigit():
+        await call.edit("❌ Нужно целое число")
+        return
+    await call.edit(f"Счёт: {text}", self._buttons(int(text)))
+```
+
+`self.inline.form(message, text, buttons=None, *, photo=None, always_allow=())` отправляет форму
+вместо своего сообщения с командой и возвращает `InlineMessage` с методами `edit(text, buttons)`,
+`delete()` и `unload()`. `photo` — ссылка на картинку, тогда `text` становится подписью.
+
+Кнопка — словарь с `text` и одним действием:
+
+| Ключ | Что делает кнопка |
+|---|---|
+| `"callback": self.method` | вызывает `method(call, *args, **kwargs)`, аргументы — в `"args"` и `"kwargs"` |
+| `"confirm": "Точно?"` | вместе с `callback`: сначала спрашивает «Да / Отмена» |
+| `"url": "https://..."` | открывает ссылку |
+| `"input": "подсказка", "handler": self.method` | ввод текста: подставляет в поле ввода `@бот <id> `, пользователь дописывает значение и выбирает вариант. Вызывается `method(call, text, *args)` |
+| `"data": "строка"` | обычная callback-кнопка для `@callback_handler` (до 64 байт) |
+| `"action": "close"` | удаляет форму |
+
+`buttons` — список рядов, один ряд (список словарей) или одна кнопка.
+
+`call` (`InlineCall`) — нажатие: `await call.edit(text, buttons)` меняет форму (`buttons=None`
+убирает кнопки, без аргумента — оставляет прежние), `await call.answer("текст", show_alert=False)`
+показывает подсказку, `call.delete()` удаляет форму, `call.from_user` — кто нажал,
+`call.query` — исходный `CallbackQuery` aiogram. Если колбэк бросит `LoadError`, пользователь увидит
+её текст во всплывающем окне.
+
+Ещё два вида форм:
+
+- `await self.inline.list(message, pages)` — страницы текста, листаются кнопками ◀ ▶;
+- `await self.inline.gallery(message, photos, caption="")` — картинки по ссылкам. `photos` — список
+  ссылок (◀ ▶) или async-функция, которая возвращает новую ссылку (кнопка «Ещё»).
+
+Кнопки нажимает только владелец аккаунта; другим пользователям можно разрешить через
+`always_allow=[id, ...]`. Формы живут в памяти: после рестарта старые кнопки отвечают «Кнопка устарела».
+
+Если бот не запущен (нет токена, выключен через `.inlinebot off`), `form` бросает `InlineError`
+из `uroboros.errors` — пользователь увидит причину. Проверить заранее: `self.inline.available`.
+Так же `InlineError` приходит, если в чате запрещены inline-боты: встроенные команды в этом случае
+отвечают обычным текстом. Для всего остального есть `self.inline.bot` — экземпляр `aiogram.Bot`.
+
+### Inline-команды и колбэки
+
+```python
+from uroboros import callback_handler, inline_handler
+
+@inline_handler()
+async def echo_inline_handler(self, query):
+    """<текст> — повторить"""
+    return {"title": "Эхо", "description": query.args, "message": utils.escape_html(query.args or "…")}
+
+@callback_handler("vote:")
+async def vote(self, call):
+    await call.answer(f"Голос: {call.data.removeprefix('vote:')}")
+```
+
+- `@inline_handler(name=None)` отвечает на `@бот <name> аргументы` (без имени — имя метода без
+  `_inline_handler`). `query.args` — текст после имени. Вернуть можно словарь или список словарей
+  с ключами `title`, `description`, `message` (HTML), `buttons`, `photo`. Пустой запрос `@бот`
+  показывает список inline-команд.
+- `@callback_handler(prefix=None)` получает нажатия кнопок с `"data"`, которые начинаются с `prefix`.
 
 ## utils
 

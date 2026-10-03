@@ -189,9 +189,12 @@ class InlineManager:
                 try:
                     await botfather.setup_inline(self.client, me.username)
                     self.db.set(OWNER, "configured", me.id)
+                except InlineError as e:
+                    # BotFather отказал (например, бот чужой) — не повторяем при каждом запуске.
+                    self.db.set(OWNER, "configured", me.id)
+                    log.warning("Не удалось настроить @%s через @BotFather: %s", me.username, e)
                 except Exception as e:
-                    detail = str(e) if isinstance(e, LoadError) else repr(e)
-                    log.warning("Не удалось настроить @%s через @BotFather: %s", me.username, detail)
+                    log.warning("Не удалось настроить @%s через @BotFather: %r", me.username, e)
                 me = await bot.get_me()
             if not me.supports_inline_queries:
                 raise InlineError(f"У @{me.username} выключен inline-режим: включите его в @BotFather (/setinline)")
