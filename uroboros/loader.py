@@ -163,7 +163,7 @@ class Loader:
             (self.modules_dir / f"{old_stem}.py").unlink(missing_ok=True)
 
         self.modules_dir.mkdir(parents=True, exist_ok=True)
-        (self.modules_dir / f"{stem}.py").write_text(source, "utf-8")
+        (self.modules_dir / f"{stem}.py").write_bytes(source.encode("utf-8"))
         installed[stem] = origin
         self.db.set(LOADER_OWNER, "installed", installed)
         return instances

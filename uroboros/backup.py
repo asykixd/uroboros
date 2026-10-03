@@ -123,7 +123,7 @@ def restore(data: bytes, db: Database, modules_dir: Path) -> Restored:
         if path.stem not in modules:
             path.unlink()
     for stem, source in modules.items():
-        (modules_dir / f"{stem}.py").write_text(source, "utf-8")
+        (modules_dir / f"{stem}.py").write_bytes(source.encode("utf-8"))
 
     db.replace_all(dump)
     return Restored(keys=sum(len(keys) for keys in dump.values()), modules=sorted(modules))

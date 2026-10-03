@@ -151,7 +151,7 @@ class Loader(Module):
             try:
                 source = _decode(await _download(origin))
                 path = self.loader.modules_dir / f"{stem}.py"
-                if path.exists() and path.read_text("utf-8") == source:
+                if path.exists() and path.read_bytes() == source.encode("utf-8"):
                     lines.append(f"{label} — без изменений")
                     continue
                 await self.loader.install(source, origin)
