@@ -37,3 +37,4 @@ ignore = ["RUF001", "RUF002", "RUF003", "SIM108"]
 [tool.ruff.lint.per-file-ignores]
 # В модулях strings — обычный словарь класса, как в Hikka.
 "examples/*" = ["RUF012"]
+"tests/hikka/*" = ["RUF012"]

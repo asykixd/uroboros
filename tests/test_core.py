@@ -251,22 +251,6 @@ def test_failing_on_dlmod_cancels_install(loader, db):
     assert db.get(LOADER_OWNER, "installed", {}) == {}
 
 
-@pytest.mark.parametrize(
-    "header",
-    [
-        "from .. import loader, utils",
-        "from ..inline.types import InlineCall",
-        "from hikkatl.types import Message",
-        "import hikka",
-        "@loader.tds",
-    ],
-)
-def test_hikka_modules_get_clear_error(loader, header):
-    src = f"{header}\nraise SystemExit('код не должен выполняться')\n"
-    with pytest.raises(LoadError, match="Hikka"):
-        run(loader.install(src, "x"))
-
-
 def test_hikka_check_ignores_normal_modules(loader):
     src = "# from .. import loader — в комментарии не считается\n" + DEMO.replace("Demo", "Normal").replace(
         '"hi", aliases=["hello"]', '"normal"'

@@ -135,6 +135,9 @@ class Module:
         """Записать значение в хранилище модуля (то же, что ``self.db.set``)."""
         self.db.set(key, value)
 
+    def _bind(self, loader: Loader) -> None:
+        """Служебный хук: загрузчик проставил атрибуты (адаптер Hikka здесь их подменяет)."""
+
     async def import_lib(self, url: str, *, reload: bool = False) -> Any:
         """Подключает библиотеку по ссылке (GitHub-ссылки понимаются).
 
@@ -181,6 +184,9 @@ class Library:
         super().__init_subclass__(**kwargs)
         if not cls.__dict__.get("name"):
             cls.name = cls.__name__
+
+    def _bind(self, loader: Loader) -> None:
+        """Служебный хук, как у ``Module``."""
 
     async def on_load(self) -> None:
         """Вызывается после загрузки библиотеки."""

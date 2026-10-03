@@ -28,6 +28,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.exceptions import TelegramBadRequest, TelegramUnauthorizedError
 from aiogram.types import (
+    CopyTextButton,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     InlineQueryResultArticle,
@@ -258,6 +259,7 @@ class InlineManager:
         always_allow: Any = (),
         title: str | None = None,
         description: str | None = None,
+        public: bool = False,
     ) -> Unit:
         limit = MAX_CAPTION if photo else MAX_TEXT
         if len(text) > limit:
@@ -274,6 +276,7 @@ class InlineManager:
             title=title,
             description=description,
             allowed=frozenset(always_allow or ()),
+            public=public,
         )
         self._units[unit.id] = unit
         return unit
@@ -287,13 +290,15 @@ class InlineManager:
         stem: str | None = None,
         photo: str | None = None,
         always_allow: Any = (),
+        public: bool = False,
     ) -> InlineMessage:
         """Отправляет форму вместо своего сообщения ``message`` (или ответом на чужое)."""
         self._require()
         allowed = list(always_allow or ())
-        if not message.out and message.sender_id is not None:
-            allowed.append(message.sender_id)  # команду вызвал другой пользователь — кнопки и ему
-        unit = self.new_unit(text, buttons, stem=stem, photo=photo, always_allow=allowed)
+        sender = getattr(message, "sender_id", None)
+        if not message.out and sender is not None:
+            allowed.append(sender)  # команду вызвал другой пользователь — кнопки и ему
+        unit = self.new_unit(text, buttons, stem=stem, photo=photo, always_allow=allowed, public=public)
         try:
             await self._send(unit, message)
         except BaseException:
@@ -304,7 +309,7 @@ class InlineManager:
     async def _send(self, unit: Unit, message: Any) -> None:
         from telethon.errors import BotInlineDisabledError, BotResponseTimeoutError, ChatSendInlineForbiddenError
 
-        reply_to = message.reply_to_msg_id if message.out else message.id
+        reply_to = message.reply_to_msg_id if message.out else getattr(message, "id", None)
         try:
             results = await self.client.inline_query(self.bot_username, unit.id)
             if not results:
@@ -489,6 +494,13 @@ class InlineManager:
                     line.append(InlineKeyboardButton(text=text, url=button["url"]))
                 elif "data" in button:
                     line.append(InlineKeyboardButton(text=text, callback_data=str(button["data"])))
+                elif "copy" in button:
+                    line.append(InlineKeyboardButton(text=text, copy_text=CopyTextButton(text=str(button["copy"]))))
+                elif "switch_inline_query" in button:
+                    line.append(InlineKeyboardButton(text=text, switch_inline_query=str(button["switch_inline_query"])))
+                elif "switch_inline_query_current_chat" in button:
+                    query = str(button["switch_inline_query_current_chat"])
+                    line.append(InlineKeyboardButton(text=text, switch_inline_query_current_chat=query))
                 elif "input" in button:
                     key = _new_id()
                     self._inputs[key] = (unit, button)
@@ -526,20 +538,21 @@ class InlineManager:
     # --- обновления от бота ---
 
     def _allowed(self, unit: Unit | None, user_id: int) -> bool:
-        if user_id == self.owner_id or (unit is not None and user_id in unit.allowed):
+        if user_id == self.owner_id or (unit is not None and (unit.public or user_id in unit.allowed)):
             return True
         return self.loader is not None and self.loader.security.is_owner(user_id)
 
     async def _on_inline_query(self, query: Any) -> None:
-        results: list[Any] = []
+        results: list[Any] | None = []
         if self._allowed(None, query.from_user.id):
             try:
                 results = await self._inline_results(query)
             except Exception:
                 log.exception("Ошибка при ответе на inline-запрос %r", query.query)
-        await self.bot.answer_inline_query(query.id, results, cache_time=0, is_personal=True)
+        if results is not None:
+            await self.bot.answer_inline_query(query.id, results, cache_time=0, is_personal=True)
 
-    async def _inline_results(self, query: Any) -> list[Any]:
+    async def _inline_results(self, query: Any) -> list[Any] | None:
         text = query.query.strip()
         unit = self._units.get(text)
         if unit is not None:
@@ -575,8 +588,11 @@ class InlineManager:
                 if name.startswith(key.lower())
             ][:50]
 
+        inline_query = InlineQuery(query, rest.strip())
         with module_context(handler.module):
-            raw = await handler.func(InlineQuery(query, rest.strip()))
+            raw = await handler.func(inline_query)
+        if inline_query.answered:
+            return None  # обработчик ответил сам
         if raw is None:
             return []
         items = [raw] if isinstance(raw, dict) else list(raw)
@@ -587,6 +603,7 @@ class InlineManager:
                 item.get("buttons"),
                 stem=handler.module._stem,
                 photo=item.get("photo"),
+                public=bool(item.get("public")),
                 title=item.get("title"),
                 description=item.get("description"),
             )

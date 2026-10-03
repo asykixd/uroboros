@@ -15,6 +15,10 @@ log = logging.getLogger(__name__)
 LOOP_ATTR = "_uroboros_loop"
 
 
+class StopLoop(Exception):
+    """Брошенное из фоновой задачи останавливает её."""
+
+
 @dataclass(frozen=True)
 class LoopInfo:
     interval: float
@@ -53,6 +57,8 @@ class Loop:
     def running(self) -> bool:
         return self._task is not None and not self._task.done()
 
+    status = running  # имя из Hikka
+
     def start(self, interval: float | None = None) -> None:
         """Запускает задачу (если уже идёт — только меняет интервал)."""
         if interval is not None:
@@ -85,6 +91,8 @@ class Loop:
             try:
                 with module_context(self.module):
                     await self.func()
+            except StopLoop:
+                return
             except ModuleFrozen:
                 pass  # о заморозке уже сообщили; задача продолжит после разморозки
             except Exception:

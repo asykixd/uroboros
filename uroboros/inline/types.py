@@ -16,7 +16,16 @@ if TYPE_CHECKING:
     from .manager import InlineManager
 
 # Ключи кнопки, которые определяют её действие; ровно один на кнопку.
-ACTION_KEYS = ("callback", "url", "input", "data", "action")
+ACTION_KEYS = (
+    "callback",
+    "url",
+    "input",
+    "data",
+    "action",
+    "copy",
+    "switch_inline_query",
+    "switch_inline_query_current_chat",
+)
 ACTIONS = ("close",)
 
 Buttons = list[list[dict[str, Any]]]
@@ -73,6 +82,7 @@ class Unit:
     title: str | None = None  # для inline-результатов
     description: str | None = None
     allowed: frozenset[int] = frozenset()  # кроме владельца
+    public: bool = False  # кнопки может нажимать кто угодно
     inline_message_id: str | None = None
     bot_message: tuple[int, int] | None = None  # (chat_id, message_id), если сообщение отправил сам бот
     user_message: tuple[int, int] | None = None  # то же сообщение со стороны юзербота
@@ -141,10 +151,14 @@ class InlineCall(InlineMessage):
 
 
 class InlineQuery:
-    """Inline-запрос ``@бот имя аргументы`` для ``@inline_handler``."""
+    """Inline-запрос ``@бот имя аргументы`` для ``@inline_handler``.
+
+    Если обработчик сам ответил через ``query.query.answer(...)``, он ставит ``answered = True``.
+    """
 
     def __init__(self, query: Any, args: str):
         self.query = query
         self.text = query.query
         self.args = args
         self.from_user = query.from_user
+        self.answered = False

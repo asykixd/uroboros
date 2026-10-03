@@ -15,7 +15,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
-from . import __version__, download, github
+from . import __version__, download, github, hikka
 from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import (
     CALLBACK_ATTR,
@@ -28,6 +28,7 @@ from .decorators import (
     WatcherInfo,
 )
 from .errors import LoadError
+from .hikka import aliases as hikka_aliases
 from .inline import Inline
 from .loops import LOOP_ATTR, Loop
 from .ratelimit import RateLimiter, module_context
@@ -124,24 +125,6 @@ def version_tuple(version: str) -> tuple[int, ...]:
     if not match:
         raise ValueError(version)
     return tuple(int(part or 0) for part in match.groups())
-
-
-# Признаки модулей Hikka/FTG: относительный импорт ядра, их форк Telethon, @loader.tds.
-HIKKA_RE = re.compile(
-    r"^\s*from\s+\.\.(?:\s+import\b|\w)"
-    r"|^\s*(?:from|import)\s+(?:hikkatl|hikka|telethon_hikka)\b"
-    r"|^\s*@loader\.tds\b",
-    re.MULTILINE,
-)
-
-
-def check_not_hikka(source: str) -> None:
-    """Модули Hikka/FTG без адаптера падают на непонятной ошибке — останавливаем их заранее."""
-    if HIKKA_RE.search(source):
-        raise LoadError(
-            "Это модуль Hikka/FTG, Uroboros пока не умеет их загружать. "
-            "Совместимость с модулями Hikka запланирована в версии 0.6"
-        )
 
 
 def check_core_version(source: str) -> None:
@@ -299,12 +282,16 @@ class Loader:
         filename: str | None = None,
     ) -> tuple[list[Module], set[str]]:
         builtin = origin == "builtin"
+        package = None
         if builtin:
             modname = f"uroboros.modules.{stem}"
+        elif hikka.is_hikka(source):
+            hikka.check_supported(source)
+            package = hikka.PACKAGE
+            modname = f"{package}.{stem or 'module'}_{next(self._counter)}"
         else:
             modname = f"uroboros.ext.{stem or 'module'}_{next(self._counter)}"
 
-        check_not_hikka(source)
         check_core_version(source)
         check_requires(source)
         meta = parse_meta(source)
@@ -313,7 +300,9 @@ class Loader:
         except SyntaxError as e:
             raise LoadError(f"Синтаксическая ошибка: {e}") from e
 
-        pymod = await self._exec(code, modname, source)
+        pymod = await self._exec(code, modname, source, package)
+        if package is not None:
+            meta = {**hikka.module_meta(pymod), **meta}
         classes = [
             obj
             for obj in vars(pymod).values()
@@ -378,6 +367,7 @@ class Loader:
             inst.inline = Inline(self, inst)
             if isinstance(inst.config, ModuleConfig):
                 inst.config._bind(inst.db)
+            inst._bind(self)
             self._register(inst)
 
         for inst in instances:
@@ -397,11 +387,15 @@ class Loader:
             log.info("Загружен модуль %s (%s)", inst.name, origin)
         return instances, replaced
 
-    async def _exec(self, code, modname: str, source: str) -> ModuleType:
+    async def _exec(self, code, modname: str, source: str, package: str | None = None) -> ModuleType:
+        if package is not None:
+            hikka_aliases.install()
         installed_requirements = False
         while True:
             pymod = ModuleType(modname)
             pymod.__file__ = code.co_filename
+            if package is not None:
+                pymod.__package__ = package  # чтобы работал from .. import loader
             sys.modules[modname] = pymod
             try:
                 exec(code, pymod.__dict__)
@@ -480,15 +474,21 @@ class Loader:
         return source
 
     async def _load_lib(self, source: str, url: str) -> tuple[Any, str]:
-        check_not_hikka(source)
+        package = None
+        base = lib_file_name(url).removesuffix(".py")
+        if hikka.is_hikka(source):
+            hikka.check_supported(source)
+            package = hikka.PACKAGE
+            modname = f"{package}.lib_{base}_{next(self._counter)}"
+        else:
+            modname = f"uroboros.lib.{base}_{next(self._counter)}"
         check_core_version(source)
         check_requires(source)
-        modname = f"uroboros.lib.{lib_file_name(url).removesuffix('.py')}_{next(self._counter)}"
         try:
             code = compile(source, f"<{url}>", "exec")
         except SyntaxError as e:
             raise LoadError(f"Синтаксическая ошибка в библиотеке {url}: {e}") from e
-        pymod = await self._exec(code, modname, source)
+        pymod = await self._exec(code, modname, source, package)
 
         classes = [
             obj
@@ -506,6 +506,7 @@ class Loader:
         lib.loader = self
         lib.db = ModuleDB(self.db, f"lib.{lib.name}")
         lib.inline = Inline(self, None)
+        lib._bind(self)
         try:
             await lib.on_load()
         except Exception as e:
