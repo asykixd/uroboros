@@ -4,6 +4,7 @@ import json
 import zipfile
 
 import pytest
+from conftest import FakeMessage
 
 from uroboros import backup
 from uroboros.database import LOADER_OWNER, MAIN_OWNER, Database
@@ -77,3 +78,32 @@ def test_bad_archives_are_rejected(db, tmp_path, files, error):
 def test_not_a_zip(db, tmp_path):
     with pytest.raises(backup.BackupError, match="не zip"):
         backup.restore(b"hello", db, tmp_path)
+
+
+def test_restore_command_writes_db_in_main_thread(builtin_loader):
+    loader = builtin_loader
+    asyncio.run(loader.install(MODULE, "https://example.com/demo.py"))
+    data = backup.create(loader.db, loader.modules_dir)
+
+    class Reply:
+        class file:
+            size = len(data)
+
+        async def download_media(self, _):
+            return data
+
+    message = FakeMessage(".restore")
+
+    async def get_reply_message():
+        return Reply()
+
+    message.get_reply_message = get_reply_message
+    restarted = []
+
+    async def fake_restart(msg):
+        restarted.append(msg)
+
+    loader.get_module("System").restart = fake_restart
+    asyncio.run(loader.get_command("restore").func(message))
+    assert message.edits[-1].startswith("✅")
+    assert restarted == [message]

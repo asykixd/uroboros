@@ -117,13 +117,19 @@ def parse(data: bytes) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
 def restore(data: bytes, db: Database, modules_dir: Path) -> Restored:
     """Заменяет БД и модули содержимым архива. Модули подхватятся после перезапуска."""
     dump, modules = parse(data)
+    return apply(dump, modules, db, modules_dir)
 
+
+def apply(dump: dict[str, dict[str, Any]], modules: dict[str, str], db: Database, modules_dir: Path) -> Restored:
+    """Записывает уже проверенный архив. Вызывать из потока, где открыта БД (SQLite к нему привязан).
+
+    Сначала БД: если она не запишется, файлы модулей останутся нетронутыми.
+    """
+    db.replace_all(dump)
     modules_dir.mkdir(parents=True, exist_ok=True)
     for path in modules_dir.glob("*.py"):
         if path.stem not in modules:
             path.unlink()
     for stem, source in modules.items():
         (modules_dir / f"{stem}.py").write_bytes(source.encode("utf-8"))
-
-    db.replace_all(dump)
     return Restored(keys=sum(len(keys) for keys in dump.values()), modules=sorted(modules))

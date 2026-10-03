@@ -35,7 +35,9 @@ class Backup(Module):
 
         await utils.answer(message, "⏳ Восстановление...")
         data = await reply.download_media(bytes)
-        restored = await asyncio.to_thread(backup.restore, data, self.db.raw, self.loader.modules_dir)
+        # Разбор архива — в потоке, запись — здесь: соединение SQLite привязано к основному потоку.
+        dump, modules = await asyncio.to_thread(backup.parse, data)
+        restored = backup.apply(dump, modules, self.db.raw, self.loader.modules_dir)
         modules = ", ".join(restored.modules) or "нет"
         await utils.answer(
             message,
