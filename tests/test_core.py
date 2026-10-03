@@ -196,3 +196,19 @@ def test_failing_on_load_is_unloaded(loader):
         run(loader.install(src, "x"))
     assert loader.get_module("bad") is None
     assert loader.get_command("bad") is None
+
+
+def test_unload_all_calls_on_unload_in_reverse_order(loader):
+    src = (
+        "from uroboros import Module\n"
+        "class {name}(Module):\n"
+        "    async def on_unload(self):\n"
+        "        self.loader.unloaded.append(self.name)\n"
+    )
+    loader.unloaded = []
+    run(loader.load_all())
+    run(loader.install(src.format(name="First"), "a"))
+    run(loader.install(src.format(name="Second"), "b"))
+    run(loader.unload_all())
+    assert loader.unloaded == ["Second", "First"]
+    assert loader.modules == {} and loader.commands == {}

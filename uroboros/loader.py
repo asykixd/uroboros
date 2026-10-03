@@ -328,7 +328,9 @@ class Loader:
         return removed
 
     async def unload_all(self) -> None:
-        for stem in {m._stem for m in self.modules.values()}:
+        """Выгружает всё в порядке, обратном загрузке: сначала сторонние, потом встроенные."""
+        stems = list(dict.fromkeys(m._stem for m in self.modules.values()))
+        for stem in reversed(stems):
             await self.unload_stem(stem)
 
     async def reload_all(self) -> None:
