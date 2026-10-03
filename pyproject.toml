@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uroboros"
+version = "0.1.0b1"
+description = "Модульный юзербот для Telegram"
+readme = "README.md"
+license = "AGPL-3.0-only"
+requires-python = ">=3.10"
+dependencies = ["telethon>=1.40,<2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+uroboros = "uroboros.main:main"
+
+[tool.setuptools.packages.find]
+include = ["uroboros*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
