@@ -1,4 +1,5 @@
 # meta developer: @uroboros
+# requires_uroboros: 0.3
 """Inline-форма: кнопки, ввод текста, подтверждение и inline-команда."""
 
 from uroboros import Module, command, inline_handler
