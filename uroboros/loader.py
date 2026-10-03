@@ -311,6 +311,7 @@ class Loader:
                 await inst.on_unload()
             except Exception:
                 log.exception("Ошибка в on_unload модуля %s", inst.name)
+            self._remove_event_handlers(inst)
 
             for name, cmd in list(self.commands.items()):
                 if cmd.module is inst:
@@ -321,6 +322,20 @@ class Loader:
             self.modules.pop(inst.name.lower(), None)
             sys.modules.pop(type(inst).__module__, None)
         return removed
+
+    def _remove_event_handlers(self, inst: Module) -> None:
+        """Снимает обработчики, которые модуль повесил через ``client.add_event_handler``.
+
+        Обработчик считается принадлежащим модулю, если это его метод или функция
+        (в том числе замыкание или lambda), объявленная в файле модуля.
+        """
+        if self.client is None:
+            return
+        modname = type(inst).__module__
+        for callback, _ in self.client.list_event_handlers():
+            func = getattr(callback, "__func__", callback)
+            if getattr(callback, "__self__", None) is inst or getattr(func, "__module__", None) == modname:
+                self.client.remove_event_handler(callback)
 
     async def uninstall(self, name: str) -> list[Module]:
         """Удаляет сторонний модуль (и всё, что лежит в том же файле)."""
