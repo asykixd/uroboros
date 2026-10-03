@@ -13,6 +13,7 @@ from telethon.errors import FloodWaitError
 from . import utils
 from .database import MAIN_OWNER, Database
 from .loader import Command, Loader, LoadError
+from .ratelimit import ModuleFrozen, module_context
 
 if TYPE_CHECKING:
     from telethon import TelegramClient
@@ -87,7 +88,8 @@ class Dispatcher:
             if reason is not None:
                 await utils.answer(message, f"❌ {utils.escape_html(reason)}")
                 return
-            await command.func(message)
+            with module_context(command.module):
+                await command.func(message)
         except LoadError as e:
             await self._report(message, used_name, utils.quote(utils.escape_html(e)))
         except FloodWaitError as e:
@@ -117,7 +119,10 @@ class Dispatcher:
     @staticmethod
     async def _run_watcher(watcher, message: Message) -> None:
         try:
-            await watcher.func(message)
+            with module_context(watcher.module):
+                await watcher.func(message)
+        except ModuleFrozen:
+            pass  # о заморозке уже сообщили, вотчер просто пропускает сообщения
         except FloodWaitError as e:
             log.warning("Вотчер модуля %s: флуд-лимит Telegram, ждать %d с", watcher.module.name, e.seconds)
         except Exception:

@@ -39,6 +39,7 @@ from telethon import events
 
 from ..database import Database
 from ..errors import InlineError, LoadError
+from ..ratelimit import module_context
 from . import botfather
 from .types import KEEP, InlineCall, InlineMessage, InlineQuery, Unit, normalize_buttons
 
@@ -574,7 +575,8 @@ class InlineManager:
                 if name.startswith(key.lower())
             ][:50]
 
-        raw = await handler.func(InlineQuery(query, rest.strip()))
+        with module_context(handler.module):
+            raw = await handler.func(InlineQuery(query, rest.strip()))
         if raw is None:
             return []
         items = [raw] if isinstance(raw, dict) else list(raw)
@@ -609,7 +611,8 @@ class InlineManager:
             return
         call = InlineCall(self, unit)
         try:
-            await button["handler"](call, value, *button.get("args", ()), **button.get("kwargs", {}))
+            with module_context(self._module_of(unit.stem)):
+                await button["handler"](call, value, *button.get("args", ()), **button.get("kwargs", {}))
         except Exception:
             log.exception("Ошибка в обработчике ввода «%s»", button["text"])
 
@@ -688,9 +691,15 @@ class InlineManager:
 
         await call.edit(question, [[{"text": "✅ Да", "callback": yes}, {"text": "Отмена", "callback": no}]])
 
+    def _module_of(self, stem: str | None) -> Any:
+        if stem is None or self.loader is None:
+            return None
+        return next((m for m in self.loader.modules.values() if m._stem == stem), None)
+
     async def _guard(self, call: InlineCall, coro: Awaitable[Any], where: str) -> None:
         try:
-            await coro
+            with module_context(self._module_of(call.unit.stem)):
+                await coro
         except LoadError as e:
             await call.answer(str(e)[:200], show_alert=True)
         except Exception:

@@ -30,6 +30,7 @@ from .decorators import (
 from .errors import LoadError
 from .inline import Inline
 from .loops import LOOP_ATTR, Loop
+from .ratelimit import RateLimiter, module_context
 from .security import Security
 from .types import Library, Module, ModuleConfig, Strings
 
@@ -201,6 +202,7 @@ class Loader:
         self.dispatcher: Dispatcher | None = None
         self.inline: InlineManager | None = None
         self.security = Security(db)
+        self.ratelimit = RateLimiter(db)
 
         self.modules: dict[str, Module] = {}  # имя в нижнем регистре → модуль
         self.commands: dict[str, Command] = {}  # основное имя → команда
@@ -270,7 +272,8 @@ class Loader:
         if stem not in installed:
             for inst in instances:
                 try:
-                    await inst.on_dlmod()
+                    with module_context(inst):
+                        await inst.on_dlmod()
                 except Exception as e:
                     log.exception("Ошибка в on_dlmod модуля %s", inst.name)
                     await self.unload_stem(stem)
@@ -379,7 +382,8 @@ class Loader:
 
         for inst in instances:
             try:
-                await inst.on_load()
+                with module_context(inst):
+                    await inst.on_load()
             except Exception as e:
                 log.exception("Ошибка в on_load модуля %s", inst.name)
                 await self.unload_stem(stem)
@@ -437,7 +441,7 @@ class Loader:
             self.callback_handlers.append(CallbackHandler(info, func, inst))
         inst._loops = []
         for info, func in self._collect(inst, LOOP_ATTR):
-            task = Loop(func, info, inst.name)
+            task = Loop(func, info, inst)
             setattr(inst, func.__name__, task)  # self.<метод> — управление задачей
             inst._loops.append(task)
 
@@ -535,7 +539,8 @@ class Loader:
             for task in inst._loops:
                 await task.wait_stopped()
             try:
-                await inst.on_unload()
+                with module_context(inst):
+                    await inst.on_unload()
             except Exception:
                 log.exception("Ошибка в on_unload модуля %s", inst.name)
             self._remove_event_handlers(inst)

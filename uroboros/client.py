@@ -6,10 +6,23 @@ from telethon import TelegramClient
 
 from . import __version__
 from .config import Config
+from .ratelimit import RateLimiter, current_module
 
 
-def make_client(config: Config) -> TelegramClient:
-    return TelegramClient(
+class UroborosClient(TelegramClient):
+    """TelegramClient, который считает запросы сторонних модулей (защита от флуда)."""
+
+    limiter: RateLimiter | None = None
+
+    async def __call__(self, request, ordered=False, flood_sleep_threshold=None):
+        module = current_module.get()
+        if module is not None and self.limiter is not None:
+            self.limiter.check(module, len(request) if isinstance(request, list) else 1)
+        return await super().__call__(request, ordered, flood_sleep_threshold)
+
+
+def make_client(config: Config) -> UroborosClient:
+    return UroborosClient(
         str(config.session_path),
         config.api_id,
         config.api_hash,

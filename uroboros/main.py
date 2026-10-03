@@ -18,6 +18,7 @@ from .dispatcher import Dispatcher
 from .inline import InlineManager
 from .loader import Loader
 from .lock import InstanceLock
+from .ratelimit import current_module
 
 log = logging.getLogger("uroboros")
 
@@ -35,6 +36,25 @@ def handle_sigterm(client) -> None:
         loop.add_signal_handler(signal.SIGTERM, lambda: loop.create_task(client.disconnect()))
 
 
+def notify_frozen(client, name: str, settings: dict) -> None:
+    async def send() -> None:
+        current_module.set(None)  # уведомление — запрос ядра, а не замороженного модуля
+        text = (
+            f"❄️ <b>Модуль {utils.escape_html(name)} заморожен</b>\n"
+            + utils.quote(
+                f"Больше {settings['limit']} запросов к Telegram за {settings['window']} с. "
+                f"Его запросы блокируются {settings['freeze']} с, чтобы аккаунт не получил ограничений."
+            )
+            + "\n<i>Настройка: .security flood</i>"
+        )
+        try:
+            await client.send_message("me", text, parse_mode="html")
+        except Exception:
+            log.exception("Не удалось сообщить о заморозке модуля %s", name)
+
+    asyncio.get_running_loop().create_task(send())
+
+
 async def shutdown(loader: Loader) -> None:
     """Выгружает модули, чтобы отработали их on_unload. Зависший модуль не держит выход."""
     try:
@@ -49,6 +69,8 @@ async def run(config: Config) -> None:
     db = Database(config.db_path)
     client = make_client(config)
     loader = Loader(client, db, config.modules_dir)
+    client.limiter = loader.ratelimit
+    loader.ratelimit.on_freeze = lambda name, settings: notify_frozen(client, name, settings)
     inline = InlineManager(client, db)
     inline.loader = loader
     loader.inline = inline

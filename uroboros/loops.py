@@ -8,6 +8,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from .ratelimit import ModuleFrozen, module_context
+
 log = logging.getLogger(__name__)
 
 LOOP_ATTR = "_uroboros_loop"
@@ -39,11 +41,12 @@ def loop(interval: float, *, autostart: bool = True, wait_before: bool = False):
 
 
 class Loop:
-    def __init__(self, func: Callable[[], Awaitable[Any]], info: LoopInfo, module_name: str):
+    def __init__(self, func: Callable[[], Awaitable[Any]], info: LoopInfo, module: Any):
         self.func = func
         self.info = info
         self.interval = info.interval
-        self.module_name = module_name
+        self.module = module
+        self.module_name = getattr(module, "name", str(module))
         self._task: asyncio.Task | None = None
 
     @property
@@ -80,7 +83,10 @@ class Loop:
             await asyncio.sleep(self.interval)
         while True:
             try:
-                await self.func()
+                with module_context(self.module):
+                    await self.func()
+            except ModuleFrozen:
+                pass  # о заморозке уже сообщили; задача продолжит после разморозки
             except Exception:
                 log.exception("Ошибка в фоновой задаче %s.%s", self.module_name, self.func.__name__)
             await asyncio.sleep(self.interval)
