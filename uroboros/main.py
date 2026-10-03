@@ -15,6 +15,7 @@ from .client import login, make_client
 from .config import Config, load_config
 from .database import Database
 from .dispatcher import Dispatcher
+from .inline import InlineManager
 from .loader import Loader
 from .lock import InstanceLock
 
@@ -48,11 +49,15 @@ async def run(config: Config) -> None:
     db = Database(config.db_path)
     client = make_client(config)
     loader = Loader(client, db, config.modules_dir)
+    inline = InlineManager(client, db)
+    inline.loader = loader
+    loader.inline = inline
     try:
         await login(client)
         me = await client.get_me()
         log.info("Uroboros %s, аккаунт: %s (id %s)", __version__, me.first_name, me.id)
 
+        await inline.start()
         dispatcher = Dispatcher(client, db, loader)
         await loader.load_all()
         dispatcher.install()
@@ -62,6 +67,7 @@ async def run(config: Config) -> None:
         await client.run_until_disconnected()
     finally:
         await shutdown(loader)
+        await inline.stop()
         await client.disconnect()
         db.close()
         log.info("Остановлен")

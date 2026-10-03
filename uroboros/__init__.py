@@ -3,7 +3,7 @@
 __version__ = "0.2.0-dev"
 
 from . import utils, validators
-from .decorators import command, watcher
+from .decorators import callback_handler, command, inline_handler, watcher
 from .loops import loop
 from .types import ConfigValue, Library, Module, ModuleConfig
 
@@ -13,7 +13,9 @@ __all__ = [
     "Module",
     "ModuleConfig",
     "__version__",
+    "callback_handler",
     "command",
+    "inline_handler",
     "loop",
     "utils",
     "validators",

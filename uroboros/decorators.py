@@ -1,4 +1,4 @@
-"""Декораторы для методов модуля: команды и вотчеры."""
+"""Декораторы для методов модуля: команды, вотчеры, обработчики inline-бота."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from typing import Any
 
 COMMAND_ATTR = "_uroboros_command"
 WATCHER_ATTR = "_uroboros_watcher"
+INLINE_ATTR = "_uroboros_inline"
+CALLBACK_ATTR = "_uroboros_callback"
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,50 @@ def watcher(
 
     def decorator(func):
         setattr(func, WATCHER_ATTR, WatcherInfo(only_outgoing, only_incoming, filter))
+        return func
+
+    return decorator
+
+
+@dataclass(frozen=True)
+class InlineHandlerInfo:
+    name: str
+    doc: str
+
+
+@dataclass(frozen=True)
+class CallbackHandlerInfo:
+    prefix: str | None
+
+
+def inline_handler(name: str | None = None, *, doc: str | None = None):
+    """Помечает метод как обработчик inline-запроса ``@бот <name> аргументы``.
+
+    Без имени берётся имя метода (суффикс ``_inline_handler`` отбрасывается).
+    Метод получает ``InlineQuery`` (``query.args`` — текст после имени) и возвращает
+    результат или список результатов: словари с ``title``, ``description``, ``message``
+    (HTML), ``buttons`` и ``photo``. Отвечает бот только владельцу аккаунта.
+    """
+
+    def decorator(func):
+        handler_name = (name or func.__name__.removesuffix("_inline_handler")).lower()
+        if not handler_name or any(ch.isspace() for ch in handler_name):
+            raise ValueError("Имя inline-обработчика — одно слово")
+        setattr(func, INLINE_ATTR, InlineHandlerInfo(handler_name, (doc or func.__doc__ or "").strip()))
+        return func
+
+    return decorator
+
+
+def callback_handler(prefix: str | None = None):
+    """Помечает метод как обработчик нажатий кнопок с ``"data"`` (и кнопок в сообщениях бота).
+
+    ``prefix`` — только для ``data``, которые с него начинаются. Метод получает ``InlineCall``,
+    ``call.data`` — данные кнопки. Нажатия принимаются только от владельца аккаунта.
+    """
+
+    def decorator(func):
+        setattr(func, CALLBACK_ATTR, CallbackHandlerInfo(prefix))
         return func
 
     return decorator

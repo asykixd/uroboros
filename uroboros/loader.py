@@ -17,8 +17,18 @@ from typing import TYPE_CHECKING, Any
 
 from . import __version__, download, github
 from .database import LOADER_OWNER, Database, ModuleDB
-from .decorators import COMMAND_ATTR, WATCHER_ATTR, CommandInfo, WatcherInfo
+from .decorators import (
+    CALLBACK_ATTR,
+    COMMAND_ATTR,
+    INLINE_ATTR,
+    WATCHER_ATTR,
+    CallbackHandlerInfo,
+    CommandInfo,
+    InlineHandlerInfo,
+    WatcherInfo,
+)
 from .errors import LoadError
+from .inline import Inline
 from .loops import LOOP_ATTR, Loop
 from .types import Library, Module, ModuleConfig, Strings
 
@@ -26,6 +36,7 @@ if TYPE_CHECKING:
     from telethon import TelegramClient
 
     from .dispatcher import Dispatcher
+    from .inline import InlineManager
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +71,23 @@ class Watcher:
         if self.info.only_incoming and message.out:
             return False
         return self.info.filter is None or bool(self.info.filter(message))
+
+
+@dataclass
+class InlineHandler:
+    info: InlineHandlerInfo
+    func: Handler
+    module: Module
+
+
+@dataclass
+class CallbackHandler:
+    info: CallbackHandlerInfo
+    func: Handler
+    module: Module
+
+    def matches(self, data: str) -> bool:
+        return self.info.prefix is None or data.startswith(self.info.prefix)
 
 
 def parse_requires(source: str) -> list[str]:
@@ -153,11 +181,14 @@ class Loader:
         self.db = db
         self.modules_dir = modules_dir
         self.dispatcher: Dispatcher | None = None
+        self.inline: InlineManager | None = None
 
         self.modules: dict[str, Module] = {}  # имя в нижнем регистре → модуль
         self.commands: dict[str, Command] = {}  # основное имя → команда
         self.command_aliases: dict[str, str] = {}  # алиас из @command → основное имя
         self.watchers: list[Watcher] = []
+        self.inline_handlers: dict[str, InlineHandler] = {}  # имя → обработчик @бот <имя>
+        self.callback_handlers: list[CallbackHandler] = []
         self.libs: dict[str, LoadedLib] = {}  # url → библиотека
         self._counter = itertools.count()
 
@@ -298,6 +329,18 @@ class Loader:
                         raise LoadError(f"Команда {name} уже занята модулем {taken[name]}")
                     taken[name] = inst.name
 
+        taken_inline = {
+            name: handler.module.name
+            for name, handler in self.inline_handlers.items()
+            if handler.module._stem not in replaced
+        }
+        for inst in instances:
+            for info, _ in self._collect(inst, INLINE_ATTR):
+                if info.name in taken_inline:
+                    sys.modules.pop(modname, None)
+                    raise LoadError(f"Inline-команда {info.name} уже занята модулем {taken_inline[info.name]}")
+                taken_inline[info.name] = inst.name
+
         for old_stem in replaced:
             await self.unload_stem(old_stem)
 
@@ -309,6 +352,7 @@ class Loader:
             inst.client = self.client
             inst.loader = self
             inst.db = ModuleDB(self.db, inst.name)
+            inst.inline = Inline(self, inst)
             if isinstance(inst.config, ModuleConfig):
                 inst.config._bind(inst.db)
             self._register(inst)
@@ -367,6 +411,10 @@ class Loader:
                 self.command_aliases[alias] = info.name
         for info, func in self._collect(inst, WATCHER_ATTR):
             self.watchers.append(Watcher(info, func, inst))
+        for info, func in self._collect(inst, INLINE_ATTR):
+            self.inline_handlers[info.name] = InlineHandler(info, func, inst)
+        for info, func in self._collect(inst, CALLBACK_ATTR):
+            self.callback_handlers.append(CallbackHandler(info, func, inst))
         inst._loops = []
         for info, func in self._collect(inst, LOOP_ATTR):
             task = Loop(func, info, inst.name)
@@ -432,6 +480,7 @@ class Loader:
         lib.client = self.client
         lib.loader = self
         lib.db = ModuleDB(self.db, f"lib.{lib.name}")
+        lib.inline = Inline(self, None)
         try:
             await lib.on_load()
         except Exception as e:
@@ -476,8 +525,12 @@ class Loader:
                     for alias in cmd.info.aliases:
                         self.command_aliases.pop(alias, None)
             self.watchers = [w for w in self.watchers if w.module is not inst]
+            self.inline_handlers = {n: h for n, h in self.inline_handlers.items() if h.module is not inst}
+            self.callback_handlers = [h for h in self.callback_handlers if h.module is not inst]
             self.modules.pop(inst.name.lower(), None)
             sys.modules.pop(type(inst).__module__, None)
+        if self.inline is not None:
+            self.inline.release(stem)
         await self._release_libs(stem)
         return removed
 

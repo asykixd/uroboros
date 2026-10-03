@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from telethon import TelegramClient
 
     from .database import ModuleDB
+    from .inline import Inline
     from .loader import Loader
     from .loops import Loop
 
@@ -99,7 +100,7 @@ class Strings(dict):
 class Module:
     """Базовый класс модулей.
 
-    Атрибуты ``client``, ``db``, ``loader`` проставляет загрузчик перед ``on_load``.
+    Атрибуты ``client``, ``db``, ``loader``, ``inline`` проставляет загрузчик перед ``on_load``.
     """
 
     name: str = ""
@@ -109,6 +110,7 @@ class Module:
     client: TelegramClient
     db: ModuleDB
     loader: Loader
+    inline: Inline
 
     # Служебное: из какого файла модуль и откуда он установлен.
     _stem: str
@@ -173,6 +175,7 @@ class Library:
     client: TelegramClient
     db: ModuleDB
     loader: Loader
+    inline: Inline
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
