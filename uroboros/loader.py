@@ -79,6 +79,24 @@ def version_tuple(version: str) -> tuple[int, ...]:
     return tuple(int(part or 0) for part in match.groups())
 
 
+# Признаки модулей Hikka/FTG: относительный импорт ядра, их форк Telethon, @loader.tds.
+HIKKA_RE = re.compile(
+    r"^\s*from\s+\.\.(?:\s+import\b|\w)"
+    r"|^\s*(?:from|import)\s+(?:hikkatl|hikka|telethon_hikka)\b"
+    r"|^\s*@loader\.tds\b",
+    re.MULTILINE,
+)
+
+
+def check_not_hikka(source: str) -> None:
+    """Модули Hikka/FTG без адаптера падают на непонятной ошибке — останавливаем их заранее."""
+    if HIKKA_RE.search(source):
+        raise LoadError(
+            "Это модуль Hikka/FTG, Uroboros пока не умеет их загружать. "
+            "Совместимость с модулями Hikka запланирована в версии 0.6"
+        )
+
+
 def check_core_version(source: str) -> None:
     match = REQUIRES_CORE_RE.search(source)
     if not match:
@@ -233,6 +251,7 @@ class Loader:
         else:
             modname = f"uroboros.ext.{stem or 'module'}_{next(self._counter)}"
 
+        check_not_hikka(source)
         check_core_version(source)
         meta = parse_meta(source)
         try:
@@ -389,6 +408,7 @@ class Loader:
         return source
 
     async def _load_lib(self, source: str, url: str) -> tuple[Any, str]:
+        check_not_hikka(source)
         check_core_version(source)
         modname = f"uroboros.lib.{lib_file_name(url).removesuffix('.py')}_{next(self._counter)}"
         try:
