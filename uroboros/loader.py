@@ -14,6 +14,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
+from . import __version__
 from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import COMMAND_ATTR, WATCHER_ATTR, CommandInfo, WatcherInfo
 from .loops import LOOP_ATTR, Loop
@@ -28,6 +29,8 @@ log = logging.getLogger(__name__)
 
 BUILTIN_DIR = Path(__file__).parent / "modules"
 REQUIRES_RE = re.compile(r"^\s*#\s*requires:\s*(.+)$", re.MULTILINE)
+META_RE = re.compile(r"^\s*#\s*meta\s+(\w+)\s*:\s*(.+?)\s*$", re.MULTILINE)
+REQUIRES_CORE_RE = re.compile(r"^\s*#\s*requires_uroboros\s*:\s*(?:>=)?\s*(\S+)\s*$", re.MULTILINE)
 
 Handler = Callable[[Any], Awaitable[Any]]
 
@@ -63,6 +66,31 @@ class Watcher:
 
 def parse_requires(source: str) -> list[str]:
     return [pkg for match in REQUIRES_RE.findall(source) for pkg in match.split()]
+
+
+def parse_meta(source: str) -> dict[str, str]:
+    """``# meta developer: @me`` → ``{"developer": "@me"}``."""
+    return {key.lower(): value for key, value in META_RE.findall(source)}
+
+
+def version_tuple(version: str) -> tuple[int, ...]:
+    """``"0.2"`` → ``(0, 2, 0)``, ``"0.1.1b2"`` → ``(0, 1, 1)``: суффиксы бет не учитываются."""
+    match = re.match(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", version.strip())
+    if not match:
+        raise ValueError(version)
+    return tuple(int(part or 0) for part in match.groups())
+
+
+def check_core_version(source: str) -> None:
+    match = REQUIRES_CORE_RE.search(source)
+    if not match:
+        return
+    try:
+        required = version_tuple(match[1])
+    except ValueError:
+        raise LoadError(f"Непонятная версия в requires_uroboros: {match[1]}") from None
+    if version_tuple(__version__) < required:
+        raise LoadError(f"Модулю нужен Uroboros {match[1]} или новее, установлен {__version__}. Обновитесь: .update")
 
 
 def make_stem(name: str) -> str:
@@ -183,6 +211,8 @@ class Loader:
         else:
             modname = f"uroboros.ext.{stem or 'module'}_{next(self._counter)}"
 
+        check_core_version(source)
+        meta = parse_meta(source)
         try:
             code = compile(source, filename or f"<{origin}>", "exec")
         except SyntaxError as e:
@@ -233,6 +263,7 @@ class Loader:
         for inst in instances:
             inst._stem = stem
             inst._origin = origin
+            inst._meta = meta
             inst.client = self.client
             inst.loader = self
             inst.db = ModuleDB(self.db, inst.name)

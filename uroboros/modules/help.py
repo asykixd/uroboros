@@ -54,5 +54,10 @@ class Help(Module):
         text += utils.quote("\n".join(lines) or "Нет команд")
 
         if not module.is_builtin:
+            meta = module._meta
+            if meta.get("version"):
+                text += f"\n<b>Версия:</b> <code>{utils.escape_html(meta['version'])}</code>"
+            if meta.get("developer"):
+                text += f"\n<b>Автор:</b> {utils.escape_html(meta['developer'])}"
             text += f"\n<b>Источник:</b> <code>{utils.escape_html(module._origin)}</code>"
         await utils.answer(message, text)

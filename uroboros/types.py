@@ -97,6 +97,7 @@ class Module:
     # Служебное: из какого файла модуль и откуда он установлен.
     _stem: str
     _origin: str
+    _meta: dict[str, str]  # из шапки файла: # meta developer: ..., # meta version: ...
     _loops: list[Loop]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
