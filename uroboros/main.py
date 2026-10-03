@@ -25,6 +25,10 @@ log = logging.getLogger("uroboros")
 
 
 UNLOAD_TIMEOUT = 15
+NO_SESSION = (
+    "Нет сессии Telegram, а вход в консоли без терминала невозможен (служба, Termux:Boot). "
+    "Войдите один раз вручную: python -m uroboros"
+)
 
 
 def handle_sigterm(client) -> None:
@@ -85,12 +89,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 async def connect(args: argparse.Namespace) -> tuple[Config, UroborosClient]:
     """Клиент с готовой сессией. Нет сессии — вход через веб-панель или, с ``--cli``, в консоли."""
+    interactive = sys.stdin is not None and sys.stdin.isatty()
+    if args.cli and not interactive and load_config(prompt=False) is None:
+        raise SystemExit(NO_SESSION)
     config = load_config(prompt=args.cli)
     client = None
     if config is not None:
         client = make_client(config)
         await client.connect()
-        if args.cli or await client.is_user_authorized():
+        authorized = await client.is_user_authorized()
+        if authorized or args.cli:
+            if not authorized and not interactive:
+                await client.disconnect()
+                raise SystemExit(NO_SESSION)
             return config, client
     return await web.first_login(config, get_data_dir(), client, host=args.host, port=args.port)
 

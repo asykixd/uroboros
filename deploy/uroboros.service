@@ -1,0 +1,21 @@
+# systemd user service: ~/.config/systemd/user/uroboros.service
+#   systemctl --user enable --now uroboros
+#   journalctl --user -u uroboros -f
+# Чтобы служба работала без входа в систему: sudo loginctl enable-linger $USER
+[Unit]
+Description=Uroboros — юзербот для Telegram
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/uroboros
+# --cli: если сессии нет, служба не поднимает веб-панель, а падает с понятной ошибкой в журнале.
+ExecStart=%h/uroboros/.venv/bin/python -m uroboros --cli
+Environment=PYTHONUNBUFFERED=1
+StandardInput=null
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target

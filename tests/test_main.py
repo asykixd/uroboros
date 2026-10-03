@@ -1,4 +1,7 @@
 import asyncio
+from types import SimpleNamespace
+
+import pytest
 
 from uroboros import main
 from uroboros.config import Config
@@ -15,6 +18,9 @@ class Client:
 
     async def is_user_authorized(self):
         return self.authorized
+
+    async def disconnect(self):
+        pass
 
 
 def connect(monkeypatch, argv, config, authorized):
@@ -48,5 +54,12 @@ def test_no_credentials_opens_panel(monkeypatch):
 
 
 def test_cli_never_opens_panel(monkeypatch):
+    monkeypatch.setattr(main.sys, "stdin", SimpleNamespace(isatty=lambda: True))
     (_, client), calls = connect(monkeypatch, ["--cli"], CONFIG, authorized=False)
     assert calls == [] and not client.authorized
+
+
+def test_cli_without_terminal_explains_how_to_log_in(monkeypatch):
+    monkeypatch.setattr(main.sys, "stdin", SimpleNamespace(isatty=lambda: False))
+    with pytest.raises(SystemExit, match="Войдите один раз вручную"):
+        connect(monkeypatch, ["--cli"], CONFIG, authorized=False)

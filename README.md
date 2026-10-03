@@ -12,31 +12,20 @@
 
 ## Установка
 
+Linux, VPS, Termux и macOS:
+
 ```bash
-git clone https://github.com/asykixd/uroboros && cd uroboros
-python3 -m venv .venv
-.venv/bin/pip install -e .
-.venv/bin/python -m uroboros
+curl -fsSL https://raw.githubusercontent.com/asykixd/uroboros/master/install.sh | sh
 ```
 
 При первом запуске Uroboros пишет в консоль ссылку на веб-панель входа: откройте её в браузере, введите
 `api_id` и `api_hash` (их можно получить на https://my.telegram.org/apps), номер телефона, код и пароль 2FA —
-или отсканируйте QR-код в Telegram на телефоне. После входа панель выключается.
+или отсканируйте QR-код в Telegram на телефоне. После входа панель выключается. Вход в консоли — `--cli`.
 
-- Панель слушает только `127.0.0.1:8080`, в ссылке — одноразовый токен. Адрес и порт: `--host`, `--port`
-  (или `UROBOROS_WEB_HOST`, `UROBOROS_WEB_PORT`).
-- На VPS без браузера пробросьте порт со своего компьютера и откройте ссылку у себя:
-  `ssh -L 8080:127.0.0.1:8080 пользователь@сервер`.
-- Вход в консоли, как раньше: `python -m uroboros --cli`.
+Вместе с юзерботом запускается inline-бот для форм с кнопками: при первом запуске Uroboros создаёт его сам
+через @BotFather.
 
-Данные и сессия хранятся в `./data` (путь меняется переменной `UROBOROS_DATA`). `api_id`/`api_hash`
-можно передать через `UROBOROS_API_ID` / `UROBOROS_API_HASH`.
-
-Вместе с юзерботом запускается inline-бот для форм с кнопками. При первом запуске Uroboros создаёт его сам
-через @BotFather. Свой бот: `.inlinebot <токен>` или переменная `UROBOROS_BOT_TOKEN`; выключить — `.inlinebot off`.
-
-В Termux зависимость aiogram 3 тянет `pydantic-core`, который там собирается из исходников на Rust.
-Перед установкой выполните `pkg install rust`; сборка занимает несколько минут.
+Docker, служба systemd, автозапуск в Termux, Windows и подробности — в [docs/install.md](docs/install.md).
 
 ## Команды
 

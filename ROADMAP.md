@@ -126,10 +126,10 @@
 
 Цель: поставить и обновлять бота одной командой.
 
-- [ ] `install.sh` для Linux и Termux: зависимости, venv, первый запуск
-- [ ] systemd-unit (user service) для VPS; автозапуск в Termux через Termux:Boot
-- [ ] Docker-образ и `docker-compose.yml`, данные в volume
-- [ ] Инструкции для Windows и macOS
+- [x] `install.sh` для Linux и Termux: зависимости, venv, первый запуск
+- [x] systemd-unit (user service) для VPS; автозапуск в Termux через Termux:Boot
+- [x] Docker-образ и `docker-compose.yml`, данные в volume
+- [x] Инструкции для Windows и macOS ([docs/install.md](docs/install.md))
 - [ ] Каналы обновлений `stable` / `beta`; `.update` показывает changelog перед установкой
 - [ ] Уведомление о новой версии (раз в сутки, отключается)
 - [ ] Автобэкап БД в приватный чат или «Избранное» по расписанию

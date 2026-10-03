@@ -1,0 +1,15 @@
+# Запуск:     docker compose up -d && docker compose logs -f   (ссылка на веб-панель входа — в логах)
+# Обновление: git pull && docker compose up -d --build
+services:
+  uroboros:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    ports:
+      # Панель входа только с этой машины; с другой — через ssh -L 8080:127.0.0.1:8080
+      - "127.0.0.1:8080:8080"
+    environment:
+      - UROBOROS_API_ID
+      - UROBOROS_API_HASH
+      - UROBOROS_BOT_TOKEN
