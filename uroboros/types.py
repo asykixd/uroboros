@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from .utils import escape_html
+
 if TYPE_CHECKING:
     from telethon import TelegramClient
 
@@ -78,6 +80,20 @@ class ModuleConfig:
 
     def value(self, key: str) -> ConfigValue:
         return self._values[key]
+
+
+class Strings(dict):
+    """Строки модуля: ``self.strings["key"]`` — как есть, ``self.strings("key", **kw)`` — с подстановкой.
+
+    Подставляемые значения экранируются как HTML (кроме ``utils.Html``), сам шаблон — нет:
+    в нём можно писать разметку.
+    """
+
+    def __call__(self, key: str, /, **kwargs: Any) -> str:
+        template = self[key]
+        if not kwargs:
+            return template
+        return template.format(**{name: escape_html(value) for name, value in kwargs.items()})
 
 
 class Module:

@@ -30,7 +30,13 @@ RESTART_EXIT_CODE = 75
 SUPERVISED_ENV = "UROBOROS_SUPERVISED"
 
 
+class Html(str):
+    """Строка, которая уже является HTML: ``escape_html`` и ``strings`` её не экранируют."""
+
+
 def escape_html(text: object) -> str:
+    if isinstance(text, Html):
+        return text
     return html.escape(str(text), quote=False)
 
 

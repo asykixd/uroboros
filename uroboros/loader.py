@@ -20,7 +20,7 @@ from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import COMMAND_ATTR, WATCHER_ATTR, CommandInfo, WatcherInfo
 from .errors import LoadError
 from .loops import LOOP_ATTR, Loop
-from .types import Library, Module, ModuleConfig
+from .types import Library, Module, ModuleConfig, Strings
 
 if TYPE_CHECKING:
     from telethon import TelegramClient
@@ -276,6 +276,7 @@ class Loader:
             inst._stem = stem
             inst._origin = origin
             inst._meta = meta
+            inst.strings = Strings(inst.strings)
             inst.client = self.client
             inst.loader = self
             inst.db = ModuleDB(self.db, inst.name)
