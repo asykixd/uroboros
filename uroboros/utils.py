@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import functools
 import html
 import io
 import os
@@ -9,7 +12,8 @@ import re
 import shlex
 import sys
 import time
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from .config import DEFAULT_PREFIX
 from .database import MAIN_OWNER
@@ -19,6 +23,8 @@ if TYPE_CHECKING:
     from telethon.tl.custom import Message
 
     from .database import Database
+
+T = TypeVar("T")
 
 START_TIME = time.time()
 MAX_MESSAGE_LENGTH = 4096
@@ -96,6 +102,66 @@ async def answer(message: Message, text: str, **kwargs) -> Message:
         except MessageNotModifiedError:
             return message
     return await message.reply(text, **kwargs)
+
+
+async def answer_file(message: Message, file: Any, caption: str | None = None, **kwargs) -> Message:
+    """Отправляет файл в ответ на команду.
+
+    Если команда была ответом на сообщение, файл отвечает на то же сообщение.
+    Своё сообщение с командой удаляется, чтобы в чате остался только результат.
+    """
+    kwargs.setdefault("parse_mode", "html")
+    kwargs.setdefault("reply_to", message.reply_to_msg_id if message.out else message.id)
+    sent = await message.client.send_file(message.chat_id, file, caption=caption, **kwargs)
+    if message.out:
+        with contextlib.suppress(Exception):
+            await message.delete()
+    return sent
+
+
+async def get_reply(message: Message) -> Message | None:
+    """Сообщение, на которое ответили командой, или None."""
+    if not message.is_reply:
+        return None
+    return await message.get_reply_message()
+
+
+def get_chat_id(message: Message) -> int:
+    """Id чата в формате Telethon (для групп и каналов отрицательный, с -100)."""
+    return message.chat_id
+
+
+async def get_user(message: Message) -> Any:
+    """Отправитель сообщения (как ``utils.get_user`` в Hikka)."""
+    return await message.get_sender()
+
+
+async def get_target(message: Message, arg: str | None = None) -> Any:
+    """О ком команда: автор сообщения, на которое ответили, иначе пользователь из аргумента
+    (``@username``, ссылка или id), иначе собеседник в личке. Не нашли — None.
+    """
+    reply = await get_reply(message)
+    if reply is not None:
+        return await reply.get_sender()
+
+    arg = (get_args(message)[:1] or [""])[0] if arg is None else arg.strip()
+    if arg:
+        target: str | int = int(arg) if arg.lstrip("-").isdigit() else arg
+        from telethon.errors import BadRequestError
+
+        try:
+            return await message.client.get_entity(target)
+        except (ValueError, TypeError, BadRequestError):
+            return None  # нет такого пользователя
+
+    if message.is_private:
+        return await message.get_chat()
+    return None
+
+
+async def run_sync(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    """Выполняет блокирующую функцию в отдельном потоке, не останавливая бота."""
+    return await asyncio.to_thread(functools.partial(func, *args, **kwargs))
 
 
 def format_duration(seconds: float) -> str:
