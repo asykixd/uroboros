@@ -1,5 +1,7 @@
 import asyncio
 import contextlib
+import io
+import logging
 import platform
 import sys
 import time
@@ -8,7 +10,7 @@ from pathlib import Path
 import telethon
 
 import uroboros
-from uroboros import Module, command, utils
+from uroboros import Module, command, logs, utils
 
 REPO_DIR = Path(uroboros.__file__).resolve().parent.parent
 
@@ -54,6 +56,39 @@ class System(Module):
                 f"<b>Система:</b> <code>{utils.escape_html(platform.platform())}</code>"
             ),
         )
+
+    @command("logs")
+    async def show_logs(self, message):
+        """[уровень] — прислать логи файлом в «Избранное» (debug, info, warning, error, critical)"""
+        arg = utils.get_args_raw(message).strip()
+        level = logs.parse_level(arg) if arg else logging.NOTSET
+        if level is None:
+            await utils.answer(
+                message,
+                "❌ Уровни: <code>debug</code>, <code>info</code>, <code>warning</code>, "
+                "<code>error</code>, <code>critical</code>",
+            )
+            return
+        if not logs.log_files():
+            await utils.answer(message, "❌ Логи в файл не пишутся")
+            return
+
+        lines = await asyncio.to_thread(logs.read, level)
+        level_name = logging.getLevelName(level) if level else "все"
+        if not lines:
+            await utils.answer(message, f"📄 В логах нет записей уровня <code>{level_name}</code>")
+            return
+
+        file = io.BytesIO("\n".join(lines).encode())
+        file.name = "uroboros.log"
+        # В логах бывают тексты сообщений и пути — в чужой чат их не шлём.
+        await self.client.send_file(
+            "me",
+            file,
+            caption=f"📄 <b>Логи</b> · уровень <code>{level_name}</code> · строк: {len(lines)}",
+            parse_mode="html",
+        )
+        await utils.answer(message, "📄 Логи отправлены в «Избранное»")
 
     @command("restart")
     async def restart(self, message):

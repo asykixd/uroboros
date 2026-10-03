@@ -10,7 +10,7 @@ import signal
 import subprocess
 import sys
 
-from . import __version__, utils
+from . import __version__, logs, utils
 from .client import login, make_client
 from .config import Config, load_config
 from .database import Database
@@ -19,18 +19,6 @@ from .loader import Loader
 from .lock import InstanceLock
 
 log = logging.getLogger("uroboros")
-
-
-def setup_logging(config: Config) -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler(config.log_path, encoding="utf-8"),
-        ],
-    )
-    logging.getLogger("telethon").setLevel(logging.WARNING)
 
 
 UNLOAD_TIMEOUT = 15
@@ -112,7 +100,7 @@ def main() -> None:
             + ". Два экземпляра с одной сессией мешают друг другу."
         )
 
-    setup_logging(config)
+    logs.setup(config.log_path)
     try:
         asyncio.run(run(config))
     except KeyboardInterrupt:

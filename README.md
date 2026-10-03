@@ -40,6 +40,7 @@ python3 -m venv .venv
 | `.setprefix`, `.alias`, `.unalias`, `.aliases` | префикс и алиасы |
 | `.e <код>`, `.t <команда>` | Python eval и shell |
 | `.ping`, `.info`, `.restart`, `.update` | система |
+| `.logs [уровень]` | логи файлом в «Избранное» |
 
 ## Пишем модуль
 
