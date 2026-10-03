@@ -10,7 +10,7 @@ Uroboros — модульный юзербот для Telegram (Python ≥3.10 +
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установка для разработки
-.venv/bin/python -m uroboros                                 # запуск (интерактивный логин в консоли)
+.venv/bin/python -m uroboros                                 # запуск (без сессии — веб-панель входа, --cli — вход в консоли)
 .venv/bin/python -m pytest                                   # все тесты
 .venv/bin/python -m pytest tests/test_core.py::test_install_and_uninstall   # один тест
 ```
@@ -25,7 +25,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 ## Архитектура
 
-Поток запуска в `main.py`: `load_config` → `Database` → `TelegramClient.start` → `InlineManager.start` → `Loader.load_all` → `Dispatcher.install` → `run_until_disconnected`. Рестарт: `utils.restart()` выставляет флаг и отключает клиент, а `main()` после выхода из цикла выгружает модули и делает `os.execv`. На Windows `main()` сначала запускает надзирателя (`supervise`), который держит бота дочерним процессом и перезапускает его, когда тот выходит с кодом `RESTART_EXIT_CODE` (75).
+Поток запуска в `main.py`: `parse_args` → `connect` (нет сессии — `web.first_login`, aiohttp-панель с токеном в ссылке, выключается после входа; `--cli` — консоль) → `Database` → `TelegramClient.start` → `InlineManager.start` → `Loader.load_all` → `Dispatcher.install` → `run_until_disconnected`. Рестарт: `utils.restart()` выставляет флаг и отключает клиент, а `main()` после выхода из цикла выгружает модули и делает `os.execv`. На Windows `main()` сначала запускает надзирателя (`supervise`), который держит бота дочерним процессом и перезапускает его, когда тот выходит с кодом `RESTART_EXIT_CODE` (75).
 
 **Загрузчик (`loader.py`).** Модули загружаются не импортом, а через `exec` исходника в `ModuleType`:
 - Встроенные модули из `uroboros/modules/*.py` читаются как текст и получают имя `uroboros.modules.<stem>`.
@@ -75,4 +75,4 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 - до 1.0 каждый релиз — с dev-флагом: версия `X.Y.Z-dev` (в `pyproject.toml` и `uroboros/__init__.py`, pip нормализует её в `X.Y.Z.dev0`), тег `vX.Y.Z-dev`, на GitHub — pre-release. Без `-dev` выходит только 1.0 и дальше. Старые теги `v0.1.0b1`, `v0.1.0b2`, `v0.1.1b2` выпущены до этого правила.
 - сейчас релизы не делаются: только коммиты и push в `master`, без тегов и GitHub-релизов, пока пользователь не попросит. Когда попросит — релиз в конце этапа, а не после каждого коммита: зелёный CI → коммит с версией → аннотированный тег → `gh release create --prerelease` с заметками на русском. Номер версии подтверждать у пользователя.
 
-Ещё не сделано: доступ и безопасность (0.4), веб-панель первого входа, адаптер Hikka. Модули Hikka без адаптера не загрузятся.
+Ещё не сделано: проверка исходников модулей и защита во время работы (0.4), адаптер Hikka. Модули Hikka без адаптера не загрузятся.

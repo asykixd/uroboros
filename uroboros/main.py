@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import contextlib
 import logging
@@ -10,9 +11,9 @@ import signal
 import subprocess
 import sys
 
-from . import __version__, logs, utils
-from .client import login, make_client
-from .config import Config, load_config
+from . import __version__, logs, utils, web
+from .client import UroborosClient, login, make_client
+from .config import Config, get_data_dir, load_config
 from .database import Database
 from .dispatcher import Dispatcher
 from .inline import InlineManager
@@ -65,9 +66,38 @@ async def shutdown(loader: Loader) -> None:
         log.exception("Ошибка при выгрузке модулей")
 
 
-async def run(config: Config) -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="uroboros", description="Модульный юзербот для Telegram")
+    parser.add_argument("--cli", action="store_true", help="входить через консоль, а не через веб-панель")
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("UROBOROS_WEB_HOST", web.DEFAULT_HOST),
+        help="адрес веб-панели первого входа (по умолчанию 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("UROBOROS_WEB_PORT", web.DEFAULT_PORT)),
+        help="порт веб-панели (по умолчанию 8080)",
+    )
+    return parser.parse_args(argv)
+
+
+async def connect(args: argparse.Namespace) -> tuple[Config, UroborosClient]:
+    """Клиент с готовой сессией. Нет сессии — вход через веб-панель или, с ``--cli``, в консоли."""
+    config = load_config(prompt=args.cli)
+    client = None
+    if config is not None:
+        client = make_client(config)
+        await client.connect()
+        if args.cli or await client.is_user_authorized():
+            return config, client
+    return await web.first_login(config, get_data_dir(), client, host=args.host, port=args.port)
+
+
+async def run(args: argparse.Namespace) -> None:
+    config, client = await connect(args)
     db = Database(config.db_path)
-    client = make_client(config)
     loader = Loader(client, db, config.modules_dir)
     client.limiter = loader.ratelimit
     loader.ratelimit.on_freeze = lambda name, settings: notify_frozen(client, name, settings)
@@ -119,19 +149,20 @@ def main() -> None:
         supervise()
         return
 
-    config = load_config()
-    lock = InstanceLock(config.lock_path)
+    args = parse_args(sys.argv[1:])
+    data_dir = get_data_dir()
+    lock = InstanceLock(data_dir / "uroboros.lock")
     if not lock.acquire():
         pid = lock.owner_pid()
         sys.exit(
-            f"Uroboros уже запущен с данными {config.data_dir}"
+            f"Uroboros уже запущен с данными {data_dir}"
             + (f" (PID {pid})" if pid else "")
             + ". Два экземпляра с одной сессией мешают друг другу."
         )
 
-    logs.setup(config.log_path)
+    logs.setup(data_dir / "uroboros.log")
     try:
-        asyncio.run(run(config))
+        asyncio.run(run(args))
     except KeyboardInterrupt:
         return
     finally:
