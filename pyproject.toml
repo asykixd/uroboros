@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dependencies = ["telethon>=1.40,<2", "aiogram>=3.20,<4", "qrcode>=7.4"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6"]
 
 [project.scripts]
 uroboros = "uroboros.main:main"
