@@ -17,7 +17,8 @@ Uroboros загружает модули Hikka и FTG без правок: `.dlm
 - `inline.types` — `InlineCall`, `InlineQuery`, `InlineMessage`;
 - `version`, `main`, `security`, `types` — то немногое, на что ссылаются модули.
 
-`import hikkatl...` (форк Telethon из Hikka) отдаёт обычный Telethon.
+`import hikkatl...` (форк Telethon из Hikka) и `herokutl` (из Heroku) отдают обычный Telethon.
+Модули с `# scope: hikka_only` загружаются: эта пометка значит «нужен Hikka, а не FTG».
 
 Что переводится из Hikka:
 
@@ -39,8 +40,8 @@ Uroboros загружает модули Hikka и FTG без правок: `.dlm
 При загрузке такой модуль получает понятную ошибку, а не падает посреди работы:
 
 - внутренности Hikka: `from ..database`, `from ..tl_cache`, `from .._internal` и любые подмодули, кроме перечисленных выше;
-- `import hikka` и Pyrogram-клиент Hikka (`hikkapyro`, `pyrogram`), форк Heroku (`herokutl`);
-- модули с `# scope: hikka_only` и с `# scope: hikka_min` новее 1.6.3.
+- `import hikka` и Pyrogram-клиент Hikka (`hikkapyro`, `pyrogram`);
+- модули с `# scope: hikka_min` новее 1.6.3.
 
 Работают с ограничениями:
 

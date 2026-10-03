@@ -69,6 +69,14 @@ def get_chat_id(message: Any) -> int:
     return tl_utils.resolve_id(message.chat_id)[0]
 
 
+def get_display_name(entity: Any) -> str:
+    return tl_utils.get_display_name(entity)
+
+
+def register_placeholder(*args: Any, **kwargs: Any) -> None:
+    """Плейсхолдеры для .info из Hikka: в Uroboros их нет, регистрация ничего не делает."""
+
+
 def get_entity_id(entity: Any) -> int:
     return tl_utils.get_peer_id(entity)
 
@@ -345,6 +353,7 @@ _UNSUPPORTED = {
     "asset_channel": "служебные каналы Hikka",
     "dnd": "архивация и отключение уведомлений чата",
     "find_caller": "поиск вызывающего модуля",
+    "asset_forum_topic": "служебные темы форума Hikka",
 }
 
 

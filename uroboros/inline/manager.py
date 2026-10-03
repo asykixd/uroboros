@@ -281,6 +281,21 @@ class InlineManager:
         self._units[unit.id] = unit
         return unit
 
+    def markup(self, buttons: Any, *, stem: str | None = None, always_allow: Any = (), public: bool = False) -> Any:
+        """Клавиатура для сообщений, которые бот отправляет сам (``bot.send_message(..., reply_markup=...)``)."""
+        self._require()
+        self._prune()
+        unit = Unit(
+            id=_new_id(),
+            stem=stem,
+            text="",
+            buttons=normalize_buttons(buttons),
+            allowed=frozenset(always_allow or ()),
+            public=public,
+        )
+        self._units[unit.id] = unit
+        return self._markup(unit)
+
     async def form(
         self,
         message: Any,
@@ -645,6 +660,8 @@ class InlineManager:
             if query.inline_message_id:
                 unit.inline_message_id = query.inline_message_id
                 unit.ready.set()
+            elif getattr(query, "message", None) is not None and unit.bot_message is None:
+                unit.bot_message = (query.message.chat.id, query.message.message_id)
             await self._press(call, button)
             return
 

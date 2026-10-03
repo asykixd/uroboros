@@ -198,6 +198,17 @@ class HikkaInline:
     def init_complete(self) -> bool:
         return self._inline.available
 
+    def generate_markup(self, markup_obj: Any) -> Any:
+        from aiogram.types import InlineKeyboardMarkup
+
+        if not markup_obj or isinstance(markup_obj, str):
+            return None
+        if isinstance(markup_obj, InlineKeyboardMarkup):
+            return markup_obj
+        return self._inline.markup(convert_markup(markup_obj))
+
+    _generate_markup = generate_markup
+
     async def form(
         self,
         text: str,

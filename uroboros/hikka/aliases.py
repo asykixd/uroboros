@@ -1,4 +1,4 @@
-"""``import hikkatl...`` → обычный Telethon.
+"""``import hikkatl...`` (форк Telethon из Hikka) и ``herokutl...`` (из Heroku) → обычный Telethon.
 
 Уже загруженные подмодули Telethon регистрируются под вторым именем как есть (тот же объект).
 Остальные подгружает finder: он импортирует настоящий подмодуль и отдаёт его копию под
@@ -13,7 +13,7 @@ import importlib.util
 import sys
 from types import ModuleType
 
-ALIASES = {"hikkatl": "telethon"}
+ALIASES = {"hikkatl": "telethon", "herokutl": "telethon"}
 
 
 def _real_name(fullname: str) -> str | None:

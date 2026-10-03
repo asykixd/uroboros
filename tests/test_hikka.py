@@ -134,7 +134,6 @@ def test_unload_removes_everything(env):
         ("import hikka\n", "ядро Hikka"),
         ("from ..database import Database\n", r"\.\.database"),
         ("from .. import loader, database\n", "database"),
-        ("from .. import loader\n# scope: hikka_only\n", "только для Hikka"),
         ("from .. import loader\n# scope: hikka_min 9.0.0\n", "Hikka 9.0.0"),
         ("import pyrogram\nfrom .. import loader\n", "Pyrogram"),
     ],
@@ -226,3 +225,19 @@ def test_hikkatl_is_telethon():
     from hikkatl.tl.types import Message
 
     assert Message is telethon.tl.types.Message
+
+
+def test_hikka_only_scope_and_herokutl(tmp_path):
+    source = """# scope: hikka_only
+from herokutl.tl.types import Message
+from .. import loader, utils
+
+class OnlyMod(loader.Module):
+    strings = {"name": "Only"}
+
+    async def onlycmd(self, message: Message):
+        await utils.answer(message, "ok")
+"""
+    loader = Loader(None, Database(":memory:"), tmp_path)
+    (inst,) = asyncio.run(loader.install(source, "x"))
+    assert inst.name == "Only"

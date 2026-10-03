@@ -66,6 +66,13 @@ class Inline:
     def bot_id(self) -> int | None:
         return self._loader.inline.bot_id if self._loader.inline else None
 
+    def markup(self, buttons: Any, *, always_allow: list[int] | tuple[int, ...] = ()) -> Any:
+        """Клавиатура из кнопок Uroboros для ``self.inline.bot.send_message(..., reply_markup=...)``.
+
+        Колбэки работают так же, как в формах, и снимаются при выгрузке модуля.
+        """
+        return self._manager.markup(buttons, stem=self._stem, always_allow=always_allow)
+
     async def form(
         self,
         message: Any,

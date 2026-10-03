@@ -420,3 +420,24 @@ def test_counter_example(env):
 
     asyncio.run(env.manager._on_inline_query(SimpleNamespace(id="q", query="count 5", from_user=user())))
     assert env.bot.inline_answers[-1][0].title == "Счётчик с 5"
+
+
+def test_markup_for_bot_messages(env):
+    calls = []
+
+    async def cb(call):
+        calls.append(call.unit.bot_message)
+        await call.edit("изменено", None)
+
+    markup = env.manager.markup([{"text": "Бот", "callback": cb}])
+    key = markup.inline_keyboard[0][0].callback_data
+    query = SimpleNamespace(
+        id="cb",
+        data=key,
+        from_user=user(),
+        inline_message_id=None,
+        message=SimpleNamespace(chat=SimpleNamespace(id=77), message_id=9),
+    )
+    asyncio.run(env.manager._on_callback(query))
+    assert calls == [(77, 9)]
+    assert env.bot.edits()[-1]["chat_id"] == 77 and env.bot.edits()[-1]["message_id"] == 9
