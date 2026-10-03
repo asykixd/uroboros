@@ -125,6 +125,44 @@ class Loader(Module):
             parts.append(part)
         await utils.answer(message, "\n".join(parts))
 
+    @command("uplm")
+    async def uplm(self, message):
+        """[модуль] — обновить сторонние модули из источника"""
+        name = utils.get_args_raw(message).strip()
+        installed = self.loader.installed()
+        if name:
+            inst = self.loader.get_module(name)
+            if inst is None or inst.is_builtin:
+                await utils.answer(message, f"❌ Нет стороннего модуля <code>{utils.escape_html(name)}</code>")
+                return
+            installed = {inst._stem: installed.get(inst._stem, inst._origin)}
+        if not installed:
+            await utils.answer(message, "📦 Сторонних модулей нет")
+            return
+
+        await utils.answer(message, "⏳ Обновление модулей...")
+        names = {m._stem: m.name for m in self.loader.modules.values()}
+        lines, failed = [], False
+        for stem, origin in installed.items():
+            label = f"<b>{utils.escape_html(names.get(stem, stem))}</b>"
+            if not origin.startswith(("http://", "https://")):
+                lines.append(f"{label} — установлен из файла, пропущен")
+                continue
+            try:
+                source = _decode(await _download(origin))
+                path = self.loader.modules_dir / f"{stem}.py"
+                if path.exists() and path.read_text("utf-8") == source:
+                    lines.append(f"{label} — без изменений")
+                    continue
+                await self.loader.install(source, origin)
+                lines.append(f"{label} — обновлён")
+            except LoadError as e:
+                failed = True
+                lines.append(f"{label} — ошибка: {utils.escape_html(e)}")
+
+        title = "❌ <b>Не все модули обновились</b>" if failed else "✅ <b>Модули обновлены</b>"
+        await utils.answer(message, title + "\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10))
+
     @command("ulm")
     async def ulm(self, message):
         """<модуль> — удалить модуль"""
