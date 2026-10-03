@@ -31,7 +31,7 @@
 
 Цель: перевести ядро из беты в состояние «можно держать запущенным неделями».
 
-- [ ] CI на GitHub Actions: pytest на Python 3.10–3.13, Linux, macOS и Windows
+- [x] CI на GitHub Actions: pytest на Python 3.10–3.13, Linux, macOS и Windows
 - [x] Линтер и форматтер (ruff), проверка в CI
 - [ ] Корректное завершение: `unload_all()` при выходе и рестарте, чтобы отработали `on_unload`
 - [ ] Обработка `FloodWaitError` в `utils.answer` и диспетчере: подождать или сообщить, но не падать
