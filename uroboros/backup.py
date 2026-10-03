@@ -16,7 +16,7 @@ from typing import Any
 
 from . import __version__
 from .database import LOADER_OWNER, Database
-from .loader import LoadError
+from .errors import LoadError
 
 MANIFEST = "manifest.json"
 DB_FILE = "db.json"

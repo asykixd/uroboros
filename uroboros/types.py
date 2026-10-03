@@ -117,6 +117,15 @@ class Module:
         """Записать значение в хранилище модуля (то же, что ``self.db.set``)."""
         self.db.set(key, value)
 
+    async def import_lib(self, url: str, *, reload: bool = False) -> Any:
+        """Подключает библиотеку по ссылке (GitHub-ссылки понимаются).
+
+        Возвращает экземпляр класса-наследника ``Library`` из файла, а если его нет —
+        сам Python-модуль. Исходник кешируется на диске: после рестарта сеть не нужна.
+        ``reload=True`` скачивает библиотеку заново.
+        """
+        return await self.loader.import_lib(url, self, reload=reload)
+
     async def on_load(self) -> None:
         """Вызывается после загрузки модуля."""
 
@@ -125,3 +134,29 @@ class Module:
 
         При остановке и перезапуске клиент к этому моменту уже может быть отключён.
         """
+
+
+class Library:
+    """Базовый класс библиотеки: общий код для нескольких модулей.
+
+    Модуль подключает её через ``await self.import_lib(url)`` и получает экземпляр.
+    Одна библиотека живёт в одном экземпляре на всех; когда выгружен последний
+    модуль, который её подключил, она выгружается сама.
+    """
+
+    name: str = ""
+
+    client: TelegramClient
+    db: ModuleDB
+    loader: Loader
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if not cls.__dict__.get("name"):
+            cls.name = cls.__name__
+
+    async def on_load(self) -> None:
+        """Вызывается после загрузки библиотеки."""
+
+    async def on_unload(self) -> None:
+        """Вызывается перед выгрузкой библиотеки."""

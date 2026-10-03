@@ -1,6 +1,8 @@
 import asyncio
 
-from conftest import FakeMessage, builtin_globals
+from conftest import FakeMessage
+
+from uroboros import download
 
 V1 = """
 from uroboros import Module, command
@@ -30,7 +32,7 @@ def test_uplm_updates_changed_modules(builtin_loader, monkeypatch):
     async def fake_download(url):
         return remote[url]
 
-    monkeypatch.setitem(builtin_globals("loader_cmds"), "_download", fake_download)
+    monkeypatch.setattr(download, "download", fake_download)
 
     text = run_command(loader, ".uplm")
     assert "без изменений" in text and "из файла, пропущен" in text

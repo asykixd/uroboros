@@ -1,40 +1,9 @@
 import asyncio
-import urllib.error
-import urllib.request
 
-from uroboros import Module, command, github, utils
+from uroboros import Module, command, download, github, utils
 from uroboros.loader import LoadError
 
-MAX_SIZE = 2 * 1024 * 1024
-
-
-def _fetch(url):
-    request = urllib.request.Request(url, headers={"User-Agent": "Uroboros"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        data = response.read(MAX_SIZE + 1)
-    if len(data) > MAX_SIZE:
-        raise LoadError("Файл модуля больше 2 МБ")
-    return data
-
-
-async def _download(url):
-    try:
-        return await asyncio.to_thread(_fetch, url)
-    except LoadError:
-        raise
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            raise LoadError(f"Не найдено: {url}") from e
-        raise LoadError(f"Не удалось скачать {url}: HTTP {e.code}") from e
-    except Exception as e:
-        raise LoadError(f"Не удалось скачать {url}: {e}") from e
-
-
-def _decode(data):
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError:
-        raise LoadError("Файл модуля не в UTF-8") from None
+MAX_SIZE = download.MAX_SIZE
 
 
 class Loader(Module):
@@ -64,10 +33,10 @@ class Loader(Module):
 
         await utils.answer(message, "⏳ Загрузка...")
         if url is not None:
-            data = await _download(url)
+            data = await download.download(url)
         else:
             url, data = await self._find_in_repos(spec)
-        await self._install(message, _decode(data), url)
+        await self._install(message, download.decode(data), url)
 
     async def _find_in_repos(self, name):
         repos = self._repos()
@@ -76,7 +45,7 @@ class Loader(Module):
         for repo in repos:
             url = github.module_url(repo, name)
             try:
-                return url, await _download(url)
+                return url, await download.download(url)
             except LoadError:
                 continue
         raise LoadError(f"Модуль {name} не найден в репозиториях: {', '.join(repos)}")
@@ -108,7 +77,7 @@ class Loader(Module):
         if source.file.size and source.file.size > MAX_SIZE:
             raise LoadError("Файл модуля больше 2 МБ")
         data = await source.download_media(bytes)
-        await self._install(message, _decode(data), f"file:{source.file.name or 'module.py'}")
+        await self._install(message, download.decode(data), f"file:{source.file.name or 'module.py'}")
 
     async def _install(self, message, source, origin):
         instances = await self.loader.install(source, origin)
@@ -149,7 +118,7 @@ class Loader(Module):
                 lines.append(f"{label} — установлен из файла, пропущен")
                 continue
             try:
-                source = _decode(await _download(origin))
+                source = download.decode(await download.download(origin))
                 path = self.loader.modules_dir / f"{stem}.py"
                 if path.exists() and path.read_bytes() == source.encode("utf-8"):
                     lines.append(f"{label} — без изменений")

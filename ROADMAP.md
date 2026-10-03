@@ -53,7 +53,7 @@
 - [x] Шорткаты `self.get(key, default)` / `self.set(key, value)`
 - [x] Фильтры команд: `only_pm`, `only_groups`, `chats=[...]`, `no_reply` и т.п.
 - [x] Метаданные в шапке модуля: `# meta developer:`, `# meta version:`, `# requires_uroboros: 0.2`. Если версия ядра не подходит, модуль не грузится и пользователь получает понятное сообщение
-- [ ] Библиотеки: общий код для нескольких модулей (`self.import_lib(url)`) с подсчётом ссылок
+- [x] Библиотеки: общий код для нескольких модулей (`self.import_lib(url)`) с подсчётом ссылок
 - [ ] `strings` с подстановкой (`self.strings("key", **kw)`), HTML-экранирование по умолчанию
 - [ ] Хелперы в `utils`: `get_user`, `get_chat_id`, `get_reply`, `run_sync`, `answer_file`
 - [ ] Хук `on_dlmod` — однократная настройка при первой установке модуля

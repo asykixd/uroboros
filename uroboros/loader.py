@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib
 import itertools
 import logging
@@ -14,11 +15,12 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
-from . import __version__
+from . import __version__, download, github
 from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import COMMAND_ATTR, WATCHER_ATTR, CommandInfo, WatcherInfo
+from .errors import LoadError
 from .loops import LOOP_ATTR, Loop
-from .types import Module, ModuleConfig
+from .types import Library, Module, ModuleConfig
 
 if TYPE_CHECKING:
     from telethon import TelegramClient
@@ -33,10 +35,6 @@ META_RE = re.compile(r"^\s*#\s*meta\s+(\w+)\s*:\s*(.+?)\s*$", re.MULTILINE)
 REQUIRES_CORE_RE = re.compile(r"^\s*#\s*requires_uroboros\s*:\s*(?:>=)?\s*(\S+)\s*$", re.MULTILINE)
 
 Handler = Callable[[Any], Awaitable[Any]]
-
-
-class LoadError(Exception):
-    """Ошибка, текст которой можно показать пользователю."""
 
 
 @dataclass
@@ -93,6 +91,19 @@ def check_core_version(source: str) -> None:
         raise LoadError(f"Модулю нужен Uroboros {match[1]} или новее, установлен {__version__}. Обновитесь: .update")
 
 
+@dataclass
+class LoadedLib:
+    obj: Any  # экземпляр Library или Python-модуль
+    modname: str
+    users: set[str]  # stem'ы модулей, которые её подключили
+
+
+def lib_file_name(url: str) -> str:
+    """Имя файла кеша: читаемое начало и хеш ссылки, чтобы не было коллизий."""
+    base = make_stem(url.rstrip("/").rsplit("/", 1)[-1].removesuffix(".py"))[:40]
+    return f"{base}_{hashlib.sha256(url.encode()).hexdigest()[:10]}.py"
+
+
 def make_stem(name: str) -> str:
     return re.sub(r"[^a-z0-9_]", "_", name.lower()) or "module"
 
@@ -129,6 +140,7 @@ class Loader:
         self.commands: dict[str, Command] = {}  # основное имя → команда
         self.command_aliases: dict[str, str] = {}  # алиас из @command → основное имя
         self.watchers: list[Watcher] = []
+        self.libs: dict[str, LoadedLib] = {}  # url → библиотека
         self._counter = itertools.count()
 
     # --- поиск ---
@@ -277,7 +289,8 @@ class Loader:
             except Exception as e:
                 log.exception("Ошибка в on_load модуля %s", inst.name)
                 await self.unload_stem(stem)
-                raise LoadError(f"Ошибка при запуске модуля {inst.name}: {e!r}") from e
+                detail = str(e) if isinstance(e, LoadError) else repr(e)
+                raise LoadError(f"Ошибка при запуске модуля {inst.name}: {detail}") from e
 
         for inst in instances:
             for task in inst._loops:
@@ -330,6 +343,88 @@ class Loader:
             setattr(inst, func.__name__, task)  # self.<метод> — управление задачей
             inst._loops.append(task)
 
+    # --- библиотеки ---
+
+    @property
+    def libs_dir(self) -> Path:
+        return self.modules_dir / "libs"
+
+    async def import_lib(self, url: str, user: Module, *, reload: bool = False) -> Any:
+        url = github.to_raw_url(url) or url
+        entry = self.libs.get(url)
+        if entry is not None and not reload:
+            entry.users.add(user._stem)
+            return entry.obj
+
+        source = await self._lib_source(url, refresh=reload)
+        obj, modname = await self._load_lib(source, url)
+        users = {user._stem}
+        if entry is not None:
+            users |= entry.users
+            await self._unload_lib(url)
+        self.libs[url] = LoadedLib(obj, modname, users)
+        return obj
+
+    async def _lib_source(self, url: str, *, refresh: bool) -> str:
+        cache = self.db.get(LOADER_OWNER, "libs", {})
+        path = self.libs_dir / cache.get(url, lib_file_name(url))
+        if path.exists() and not refresh:
+            return path.read_bytes().decode("utf-8")
+        source = await download.download_source(url)
+        self.libs_dir.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(source.encode("utf-8"))
+        cache[url] = path.name
+        self.db.set(LOADER_OWNER, "libs", cache)
+        return source
+
+    async def _load_lib(self, source: str, url: str) -> tuple[Any, str]:
+        check_core_version(source)
+        modname = f"uroboros.lib.{lib_file_name(url).removesuffix('.py')}_{next(self._counter)}"
+        try:
+            code = compile(source, f"<{url}>", "exec")
+        except SyntaxError as e:
+            raise LoadError(f"Синтаксическая ошибка в библиотеке {url}: {e}") from e
+        pymod = await self._exec(code, modname, source)
+
+        classes = [
+            obj
+            for obj in vars(pymod).values()
+            if isinstance(obj, type) and issubclass(obj, Library) and obj is not Library and obj.__module__ == modname
+        ]
+        if not classes:
+            return pymod, modname
+        if len(classes) > 1:
+            sys.modules.pop(modname, None)
+            raise LoadError(f"В библиотеке {url} больше одного класса Library")
+
+        lib = classes[0]()
+        lib.client = self.client
+        lib.loader = self
+        lib.db = ModuleDB(self.db, f"lib.{lib.name}")
+        try:
+            await lib.on_load()
+        except Exception as e:
+            sys.modules.pop(modname, None)
+            raise LoadError(f"Ошибка при запуске библиотеки {lib.name}: {e!r}") from e
+        log.info("Загружена библиотека %s (%s)", lib.name, url)
+        return lib, modname
+
+    async def _unload_lib(self, url: str) -> None:
+        entry = self.libs.pop(url)
+        if isinstance(entry.obj, Library):
+            try:
+                await entry.obj.on_unload()
+            except Exception:
+                log.exception("Ошибка в on_unload библиотеки %s", entry.obj.name)
+        sys.modules.pop(entry.modname, None)
+
+    async def _release_libs(self, stem: str) -> None:
+        """Модуль выгружен: библиотеки, которые больше никому не нужны, выгружаются тоже."""
+        for url, entry in list(self.libs.items()):
+            entry.users.discard(stem)
+            if not entry.users:
+                await self._unload_lib(url)
+
     # --- выгрузка ---
 
     async def unload_stem(self, stem: str) -> list[Module]:
@@ -352,6 +447,7 @@ class Loader:
             self.watchers = [w for w in self.watchers if w.module is not inst]
             self.modules.pop(inst.name.lower(), None)
             sys.modules.pop(type(inst).__module__, None)
+        await self._release_libs(stem)
         return removed
 
     def _remove_event_handlers(self, inst: Module) -> None:
