@@ -8,6 +8,8 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from aiogram.exceptions import TelegramBadRequest
+
 from ..errors import InlineError
 
 if TYPE_CHECKING:
@@ -133,8 +135,6 @@ class InlineCall(InlineMessage):
         if self.answered:
             return
         self.answered = True
-        from aiogram.exceptions import TelegramBadRequest
-
         # Через 15 секунд после нажатия Telegram уже не принимает ответ — это не ошибка модуля.
         with contextlib.suppress(TelegramBadRequest):
             await self._manager.bot.answer_callback_query(self.query.id, text=text, show_alert=show_alert)

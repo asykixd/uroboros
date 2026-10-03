@@ -24,6 +24,17 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.exceptions import TelegramBadRequest, TelegramUnauthorizedError
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InlineQueryResultArticle,
+    InlineQueryResultPhoto,
+    InputMediaPhoto,
+    InputTextMessageContent,
+)
 from telethon import events
 
 from ..database import Database
@@ -155,9 +166,6 @@ class InlineManager:
 
     @staticmethod
     def _make_bot(token: str) -> Any:
-        from aiogram import Bot
-        from aiogram.client.default import DefaultBotProperties
-
         try:
             return Bot(token, default=DefaultBotProperties(parse_mode="HTML", link_preview_is_disabled=True))
         except Exception as e:  # aiogram проверяет формат токена при создании
@@ -172,16 +180,12 @@ class InlineManager:
 
     @staticmethod
     async def _get_me(bot: Any) -> Any:
-        from aiogram.exceptions import TelegramUnauthorizedError
-
         try:
             return await bot.get_me()
         except TelegramUnauthorizedError:
             raise TokenRejected("Токен бота недействителен: бот удалён или токен отозван") from None
 
     async def _run(self, token: str) -> None:
-        from aiogram import Dispatcher
-
         bot = self._make_bot(token)
         try:
             me = await self._get_me(bot)
@@ -413,9 +417,6 @@ class InlineManager:
         unit.text, unit.buttons = new_text, new_buttons
         markup = self._markup(unit)
 
-        from aiogram.exceptions import TelegramBadRequest
-        from aiogram.types import InputMediaPhoto
-
         try:
             if photo is not None:
                 unit.photo = photo
@@ -474,8 +475,6 @@ class InlineManager:
     # --- разметка ---
 
     def _markup(self, unit: Unit) -> Any:
-        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
         self._forget_keys(unit)
         rows = []
         for row in unit.buttons:
@@ -500,8 +499,6 @@ class InlineManager:
         return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
     def _result(self, unit: Unit) -> Any:
-        from aiogram.types import InlineQueryResultArticle, InlineQueryResultPhoto, InputTextMessageContent
-
         markup = self._markup(unit)
         if unit.photo:
             return InlineQueryResultPhoto(
@@ -537,8 +534,6 @@ class InlineManager:
         await self.bot.answer_inline_query(query.id, results, cache_time=0, is_personal=True)
 
     async def _inline_results(self, query: Any) -> list[Any]:
-        from aiogram.types import InlineQueryResultArticle, InputTextMessageContent
-
         text = query.query.strip()
         unit = self._units.get(text)
         if unit is not None:

@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import io
 import logging
+import os
 import platform
 import sys
 import time
@@ -104,36 +105,57 @@ class System(Module):
             await utils.answer(message, "❌ Uroboros установлен не из git-репозитория")
             return
         await utils.answer(message, "⏳ Обновление...")
-        proc = await asyncio.create_subprocess_exec(
-            "git",
-            "-C",
-            str(REPO_DIR),
-            "pull",
-            "--ff-only",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        output, _ = await proc.communicate()
-        text = utils.escape_html(output.decode(errors="replace").strip())
-        if proc.returncode != 0:
-            await utils.answer(
-                message,
-                "❌ <b>git pull завершился с ошибкой</b>\n" + utils.quote(f"<code>{text}</code>", expandable=True),
-            )
+        code, old = await git("rev-parse", "HEAD")
+        if code == 0:
+            code, output = await git("pull", "--ff-only")
+        else:
+            output = old
+        if code != 0:
+            await utils.answer(message, "❌ <b>git pull завершился с ошибкой</b>\n" + code_quote(output))
             return
-        if "Already up to date" in text or "Уже актуально" in text:
+        _, new = await git("rev-parse", "HEAD")
+        if new == old:
             await utils.answer(message, "✅ Установлена последняя версия")
             return
 
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "-q",
-            "--disable-pip-version-check",
-            "-e",
-            str(REPO_DIR),
+        # Новые зависимости ставятся до рестарта: если не встанут, бот после рестарта не запустится.
+        await utils.answer(message, "⏳ Установка зависимостей...")
+        code, output = await run_process(
+            sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "-e", str(REPO_DIR)
         )
-        await proc.wait()
+        stage = "Не удалось установить зависимости"
+        if code == 0:
+            code, output = await run_process(sys.executable, "-c", "import uroboros.main")
+            stage = "Новая версия не запускается"
+        if code != 0:
+            rollback, rollback_output = await git("reset", "--keep", old)
+            text = f"❌ <b>{stage}</b>\n" + code_quote(output)
+            if rollback == 0:
+                text += "\nВернул прежнюю версию, бот продолжает работать"
+            else:
+                text += "\n<b>Не удалось вернуть прежнюю версию</b>, не перезапускайте бот:\n" + code_quote(
+                    rollback_output
+                )
+            await utils.answer(message, text)
+            return
         await self.restart(message)
+
+
+async def run_process(*args: str) -> tuple[int, str]:
+    """Запускает процесс и возвращает код выхода и весь вывод."""
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},  # git не должен ждать логин в консоли
+    )
+    output, _ = await proc.communicate()
+    return proc.returncode, output.decode(errors="replace").strip()
+
+
+async def git(*args: str) -> tuple[int, str]:
+    return await run_process("git", "-C", str(REPO_DIR), *args)
+
+
+def code_quote(output: str) -> str:
+    return utils.quote(f"<code>{utils.escape_html(output[-3000:])}</code>", expandable=True)
