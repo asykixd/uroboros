@@ -9,6 +9,7 @@ from conftest import FakeMessage
 from uroboros import backup
 from uroboros.database import LOADER_OWNER, MAIN_OWNER, Database
 from uroboros.loader import Loader
+from uroboros.validators import ValidationError
 
 MODULE = "from uroboros import Module\nclass Demo(Module):\n    pass\n"
 
@@ -107,3 +108,31 @@ def test_restore_command_writes_db_in_main_thread(builtin_loader):
     asyncio.run(loader.get_command("restore").func(message))
     assert message.edits[-1].startswith("✅")
     assert restarted == [message]
+
+
+def test_autobackup_schedule(builtin_loader):
+    import time
+
+    module = builtin_loader.get_module("backup")
+    sent = []
+
+    class Client:
+        async def send_file(self, chat, file, **kwargs):
+            sent.append((chat, file.name))
+
+    module.client = Client()
+    asyncio.run(module.autobackup())
+    assert sent == []  # по умолчанию выключен
+
+    module.config["interval"] = "6"
+    module.config["chat"] = "-1001234"
+    asyncio.run(module.autobackup())
+    asyncio.run(module.autobackup())  # следующий — только через 6 часов
+    assert len(sent) == 1 and sent[0][0] == -1001234 and sent[0][1].endswith(".zip")
+
+    module.db.set("last_auto", time.time() - 6 * 3600 - 1)
+    asyncio.run(module.autobackup())
+    assert len(sent) == 2
+
+    with pytest.raises(ValidationError):
+        module.config["chat"] = "куда-то"

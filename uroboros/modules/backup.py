@@ -1,26 +1,71 @@
 import asyncio
 import io
+import logging
+import time
 
-from uroboros import Module, backup, command, utils
+from uroboros import ConfigValue, Module, ModuleConfig, backup, command, loop, utils, validators
+
+log = logging.getLogger(__name__)
+
+
+def chat_value(value):
+    """``me`` или id чата (число, для групп и каналов — с ``-100``)."""
+    text = str(value).strip()
+    if text.lower() in ("me", "self", "избранное"):
+        return "me"
+    if text.lstrip("-").isdigit():
+        return int(text)
+    raise validators.ValidationError("Нужно me или id чата")
+
+
+chat_value.doc = "me или id чата"
 
 
 class Backup(Module):
     """Бэкап и восстановление БД и модулей"""
 
-    @command("backup", access="owner")
-    async def backup_cmd(self, message):
-        """— бэкап БД и модулей в «Избранное» (без сессии)"""
+    def __init__(self):
+        self.config = ModuleConfig(
+            ConfigValue(
+                "interval",
+                0,
+                "Автобэкап раз в столько часов, 0 — выключен",
+                validators.Integer(minimum=0, maximum=24 * 30),
+            ),
+            ConfigValue("chat", "me", "Куда отправлять автобэкап", chat_value),
+        )
+
+    async def _send(self, chat, title):
         data = await asyncio.to_thread(backup.create, self.db.raw, self.loader.modules_dir)
         file = io.BytesIO(data)
         file.name = backup.file_name()
         prefix = utils.get_prefix(self.db.raw)
         await self.client.send_file(
-            "me",
+            chat,
             file,
-            caption=f"📦 <b>Бэкап Uroboros</b>\nВосстановить: ответьте на файл <code>{prefix}restore</code>",
+            caption=f"📦 <b>{title}</b>\nВосстановить: ответьте на файл <code>{prefix}restore</code>",
             parse_mode="html",
         )
+
+    @command("backup", access="owner")
+    async def backup_cmd(self, message):
+        """— бэкап БД и модулей в «Избранное» (без сессии); автобэкап — .cfg backup"""
+        await self._send("me", "Бэкап Uroboros")
         await utils.answer(message, "✅ Бэкап отправлен в «Избранное»")
+
+    @loop(interval=600, wait_before=True)
+    async def autobackup(self):
+        """Автобэкап по расписанию из настроек модуля."""
+        hours = self.config["interval"]
+        if not hours or self.client is None:
+            return
+        if time.time() - self.db.get("last_auto", 0) < hours * 3600:
+            return
+        self.db.set("last_auto", time.time())
+        try:
+            await self._send(self.config["chat"], "Автобэкап Uroboros")
+        except Exception:
+            log.exception("Автобэкап не отправлен в %s", self.config["chat"])
 
     @command("restore", access="owner")
     async def restore_cmd(self, message):
