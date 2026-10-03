@@ -1,9 +1,11 @@
 import asyncio
 
 from uroboros import Module, command, download, github, utils
+from uroboros.errors import InlineError
 from uroboros.loader import LoadError
 
 MAX_SIZE = download.MAX_SIZE
+CANCEL = {"text": "Отмена", "action": "close"}
 
 
 class Loader(Module):
@@ -139,9 +141,28 @@ class Loader(Module):
         if not name:
             await utils.answer(message, "❌ Укажите имя модуля")
             return
+        inst = self.loader.get_module(name)
+        if inst is not None and not inst.is_builtin and self.inline.available:
+            same_file = [m.name for m in self.loader.modules.values() if m._stem == inst._stem]
+            text = f"🗑 <b>Удалить {self._names(same_file)}?</b>"
+            if len(same_file) > 1:
+                text += "\n<i>Они в одном файле и удаляются вместе</i>"
+            buttons = [[{"text": "🗑 Удалить", "callback": self._ulm_confirmed, "args": (inst.name,)}, CANCEL]]
+            try:
+                await self.inline.form(message, text, buttons)
+                return
+            except InlineError:
+                pass  # например, в чате запрещены inline-боты — удаляем без подтверждения
         removed = await self.loader.uninstall(name)
-        names = ", ".join(f"<b>{utils.escape_html(m.name)}</b>" for m in removed)
-        await utils.answer(message, f"🗑 Удалено: {names}")
+        await utils.answer(message, f"🗑 Удалено: {self._names(m.name for m in removed)}")
+
+    async def _ulm_confirmed(self, call, name):
+        removed = await self.loader.uninstall(name)
+        await call.edit(f"🗑 Удалено: {self._names(m.name for m in removed)}", None)
+
+    @staticmethod
+    def _names(names):
+        return ", ".join(f"<b>{utils.escape_html(name)}</b>" for name in names)
 
     @command("reload")
     async def reload(self, message):
