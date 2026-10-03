@@ -1,0 +1,24 @@
+name: Совместимость с Hikka
+
+# Скрипт исполняет чужие модули — запускаем его только на одноразовом runner'е GitHub, не локально.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Сколько модулей брать из каждого репозитория (пусто — все)"
+        required: false
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e .
+      - run: python scripts/hikka_compat.py ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hikka-compat
+          path: docs/hikka-compat.md

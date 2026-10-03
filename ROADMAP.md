@@ -110,16 +110,17 @@
 
 Цель: большинство популярных модулей Hikka/FTG работают без правок.
 
-- [ ] Распознавать модули Hikka: `from .. import loader, utils`, `from hikkatl`, `@loader.tds`
-- [ ] Шимы в `sys.modules`: `hikkatl` → `telethon`, `loader`, `utils`, `..inline.types`
-- [ ] `loader.Module`, `loader.command`, `loader.watcher`, `loader.loop`, `loader.tds`, суффикс `xxxcmd`, `client_ready(client, db)`
-- [ ] `loader.ModuleConfig` / `ConfigValue` / `validators` в формате Hikka
-- [ ] `strings` / `strings_ru`, `self.get` / `self.set`, `self.allmodules`, `self.lookup`
-- [ ] `utils.*` Hikka: `answer`, `get_args*`, `escape_html`, `get_user`, `run_sync`, `get_link`, …
-- [ ] `self.inline.form` и `@loader.inline_handler` поверх inline-бота из 0.3
-- [ ] Декораторы прав Hikka (`@loader.owner`, `@loader.sudo`) поверх системы доступа из 0.4
-- [ ] Набор проверки совместимости: автоматически загрузить N популярных модулей из hikariatama/ftg и других репозиториев и вести таблицу, что работает
-- [ ] Список того, что не поддерживается (возможности Hikka-TL, внутренности Hikka), с понятной ошибкой при загрузке
+- [x] Распознавать модули Hikka: `from .. import loader, utils`, `from hikkatl`, `@loader.tds`
+- [x] Шимы в `sys.modules`: `hikkatl` → `telethon`, `loader`, `utils`, `..inline.types`
+- [x] `loader.Module`, `loader.command`, `loader.watcher`, `loader.loop`, `loader.tds`, суффикс `xxxcmd`, `client_ready(client, db)`
+- [x] `loader.ModuleConfig` / `ConfigValue` / `validators` в формате Hikka
+- [x] `strings` / `strings_ru`, `self.get` / `self.set`, `self.allmodules`, `self.lookup`
+- [x] `utils.*` Hikka: `answer`, `get_args*`, `escape_html`, `get_user`, `run_sync`, `get_link`, …
+- [x] `self.inline.form` и `@loader.inline_handler` поверх inline-бота из 0.3
+- [x] Декораторы прав Hikka (`@loader.owner`, `@loader.sudo`) поверх системы доступа из 0.4
+- [x] Набор проверки совместимости: `scripts/hikka_compat.py` загружает модули из hikariatama/ftg и других репозиториев и пишет таблицу (`docs/hikka-compat.md`)
+- [ ] Прогнать набор совместимости в изоляции (GitHub Actions) и разобрать частые ошибки
+- [x] Список того, что не поддерживается (возможности Hikka-TL, внутренности Hikka), с понятной ошибкой при загрузке ([docs/hikka.md](docs/hikka.md))
 
 ## 0.7 — Установка и эксплуатация
 
