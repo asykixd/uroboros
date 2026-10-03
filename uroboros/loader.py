@@ -95,6 +95,23 @@ def parse_requires(source: str) -> list[str]:
     return [pkg for match in REQUIRES_RE.findall(source) for pkg in match.split()]
 
 
+# Имя пакета, необязательные extras и ограничения версии: requests, pillow>=10, httpx[http2]==0.27.*
+REQUIREMENT_RE = re.compile(
+    r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?"
+    r"(?:\[[A-Za-z0-9._-]+(?:,[A-Za-z0-9._-]+)*\])?"
+    r"(?:(?:==|!=|>=|<=|~=|>|<)[A-Za-z0-9.*+!_-]+(?:,(?:==|!=|>=|<=|~=|>|<)[A-Za-z0-9.*+!_-]+)*)?$"
+)
+
+
+def check_requires(source: str) -> None:
+    """В ``# requires:`` — только имена пакетов с версиями: без ссылок, путей и опций pip."""
+    bad = [pkg for pkg in parse_requires(source) if not REQUIREMENT_RE.match(pkg)]
+    if bad:
+        raise LoadError(
+            f"В # requires: допустимы только имена пакетов с версиями (например pillow>=10), а не: {', '.join(bad)}"
+        )
+
+
 def parse_meta(source: str) -> dict[str, str]:
     """``# meta developer: @me`` → ``{"developer": "@me"}``."""
     return {key.lower(): value for key, value in META_RE.findall(source)}
@@ -286,6 +303,7 @@ class Loader:
 
         check_not_hikka(source)
         check_core_version(source)
+        check_requires(source)
         meta = parse_meta(source)
         try:
             code = compile(source, filename or f"<{origin}>", "exec")
@@ -460,6 +478,7 @@ class Loader:
     async def _load_lib(self, source: str, url: str) -> tuple[Any, str]:
         check_not_hikka(source)
         check_core_version(source)
+        check_requires(source)
         modname = f"uroboros.lib.{lib_file_name(url).removesuffix('.py')}_{next(self._counter)}"
         try:
             code = compile(source, f"<{url}>", "exec")

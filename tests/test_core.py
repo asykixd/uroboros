@@ -2,9 +2,10 @@ import asyncio
 
 import pytest
 
+from uroboros import download
 from uroboros.database import LOADER_OWNER, Database, ModuleDB
 from uroboros.dispatcher import parse_command
-from uroboros.loader import Loader, LoadError, parse_requires
+from uroboros.loader import Loader, LoadError, check_requires, parse_requires
 from uroboros.types import ConfigValue, ModuleConfig
 from uroboros.validators import Boolean, Integer, ValidationError
 
@@ -271,3 +272,22 @@ def test_hikka_check_ignores_normal_modules(loader):
         '"hi", aliases=["hello"]', '"normal"'
     )
     run(loader.install(src, "x"))
+
+
+@pytest.mark.parametrize("spec", ["requests", "pillow>=10", "httpx[http2]==0.27.*", "a-b.c_d", "x>=1,<2", "Py~=3.1"])
+def test_requires_accepts_package_names(spec):
+    check_requires(f"# requires: {spec}\n")
+
+
+@pytest.mark.parametrize(
+    "spec",
+    ["git+https://github.com/x/y", "-e", "--index-url=https://evil", "./local", "https://x/y.whl", "pkg@https://x"],
+)
+def test_requires_rejects_urls_and_options(spec):
+    with pytest.raises(LoadError, match="только имена пакетов"):
+        check_requires(f"# requires: {spec}\n")
+
+
+def test_download_requires_https():
+    with pytest.raises(LoadError, match="только по https"):
+        asyncio.run(download.download("http://example.com/mod.py"))
