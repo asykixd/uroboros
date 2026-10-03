@@ -8,6 +8,7 @@ import traceback
 from typing import TYPE_CHECKING
 
 from telethon import events
+from telethon.errors import FloodWaitError
 
 from . import utils
 from .database import MAIN_OWNER, Database
@@ -79,6 +80,14 @@ class Dispatcher:
             await command.func(message)
         except LoadError as e:
             await self._report(message, used_name, utils.quote(utils.escape_html(e)))
+        except FloodWaitError as e:
+            # Короткие ожидания (до flood_sleep_threshold) Telethon выжидает сам, сюда доходят длинные.
+            log.warning("Команда %s: флуд-лимит Telegram, ждать %d с", used_name, e.seconds)
+            await self._report(
+                message,
+                used_name,
+                utils.quote(f"Telegram ограничил частоту запросов, повторите через {utils.format_duration(e.seconds)}"),
+            )
         except Exception:
             log.exception("Ошибка в команде %s", used_name)
             tb = traceback.format_exc(limit=-5)
@@ -90,6 +99,8 @@ class Dispatcher:
         text = f"❌ <b>Ошибка в команде</b> <code>{utils.escape_html(self.prefix + used_name)}</code>\n{body}"
         try:
             await utils.answer(message, text)
+        except FloodWaitError as e:
+            log.warning("Не удалось сообщить об ошибке: флуд-лимит Telegram, ждать %d с", e.seconds)
         except Exception:
             log.exception("Не удалось отправить сообщение об ошибке")
 
@@ -97,5 +108,7 @@ class Dispatcher:
     async def _run_watcher(watcher, message: Message) -> None:
         try:
             await watcher.func(message)
+        except FloodWaitError as e:
+            log.warning("Вотчер модуля %s: флуд-лимит Telegram, ждать %d с", watcher.module.name, e.seconds)
         except Exception:
             log.exception("Ошибка в вотчере модуля %s", watcher.module.name)

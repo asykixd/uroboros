@@ -62,7 +62,8 @@ def _strip_html(text: str) -> str:
 async def answer(message: Message, text: str, **kwargs) -> Message:
     """Отвечает на команду: редактирует своё сообщение или отвечает на чужое.
 
-    Слишком длинный текст отправляется файлом.
+    Слишком длинный текст отправляется файлом. Короткий флуд-лимит Telethon выжидает сам
+    (``flood_sleep_threshold``), длинный приходит как ``FloodWaitError`` — диспетчер сообщит о нём.
     """
     kwargs.setdefault("parse_mode", "html")
     kwargs.setdefault("link_preview", False)
