@@ -198,6 +198,25 @@ class HikkaInline:
     def init_complete(self) -> bool:
         return self._inline.available
 
+    @property
+    def _units(self) -> dict:
+        """Формы как в Hikka: id → словарь. Модули проверяют ``uid in self.inline._units``."""
+        manager = self._inline._loader.inline
+        if manager is None:
+            return {}
+        return {
+            unit.id: {
+                "uid": unit.id,
+                "text": unit.text,
+                "buttons": unit.buttons,
+                "photo": unit.photo,
+                "inline_message_id": unit.inline_message_id,
+                "always_allow": list(unit.allowed),
+                "disable_security": unit.public,
+            }
+            for unit in manager._units.values()
+        }
+
     def generate_markup(self, markup_obj: Any) -> Any:
         from aiogram.types import InlineKeyboardMarkup
 

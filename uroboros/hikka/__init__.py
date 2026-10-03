@@ -29,7 +29,18 @@ HIKKA_RE = re.compile(
 )
 
 # Что из ядра Hikka можно импортировать: ``from .. import X`` и ``from ..X import ...``.
-SUPPORTED = {"loader", "utils", "validators", "security", "version", "main", "types", "inline", "inline.types"}
+SUPPORTED = {
+    "loader",
+    "utils",
+    "validators",
+    "security",
+    "version",
+    "main",
+    "types",
+    "database",
+    "inline",
+    "inline.types",
+}
 
 UNSUPPORTED_IMPORTS = {
     "hikka": "ядро Hikka целиком (import hikka)",

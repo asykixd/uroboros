@@ -132,8 +132,8 @@ def test_unload_removes_everything(env):
     ("source", "error"),
     [
         ("import hikka\n", "ядро Hikka"),
-        ("from ..database import Database\n", r"\.\.database"),
-        ("from .. import loader, database\n", "database"),
+        ("from ..tl_cache import CustomTelegramClient\n", r"\.\.tl_cache"),
+        ("from .. import loader, translations\n", "translations"),
         ("from .. import loader\n# scope: hikka_min 9.0.0\n", "Hikka 9.0.0"),
         ("import pyrogram\nfrom .. import loader\n", "Pyrogram"),
     ],
@@ -149,7 +149,7 @@ def test_unknown_utils_give_clear_error():
     from uroboros.hikka import utils
 
     with pytest.raises(AttributeError, match="не поддерживается Uroboros"):
-        utils.asset_channel  # noqa: B018
+        utils.find_caller  # noqa: B018
 
 
 def test_ftg_legacy_config_and_client_ready_without_args(tmp_path):
@@ -241,3 +241,73 @@ class OnlyMod(loader.Module):
     loader = Loader(None, Database(":memory:"), tmp_path)
     (inst,) = asyncio.run(loader.install(source, "x"))
     assert inst.name == "Only"
+
+
+def test_database_and_types_shims(tmp_path):
+    source = """
+from .. import loader, utils
+from ..database import Database
+from ..types import JSONSerializable, Module
+
+
+class TypedMod(loader.Module):
+    strings = {"name": "Typed"}
+
+    async def client_ready(self, client, db: Database):
+        self.ok = isinstance(db, Database) and issubclass(type(self), Module)
+
+    async def typedcmd(self, message):
+        pass
+"""
+    loader = Loader(None, Database(":memory:"), tmp_path)
+    (inst,) = asyncio.run(loader.install(source, "x"))
+    assert inst.ok
+
+
+def test_inline_units_view(env):
+    install(env)
+    run(env, ".form")
+    (unit_id,) = env.manager._units
+    inst = env.loader.get_module("Demo")
+    assert unit_id in inst.inline._units and inst.inline._units[unit_id]["text"] == "Форма"
+
+
+class ChannelClient:
+    def __init__(self, dialogs=()):
+        self.dialogs = list(dialogs)
+        self.requests = []
+        self.folders = []
+
+    async def iter_dialogs(self):
+        for dialog in self.dialogs:
+            yield dialog
+
+    async def __call__(self, request):
+        self.requests.append(type(request).__name__)
+        if type(request).__name__ == "CreateChannelRequest":
+            return SimpleNamespace(chats=[SimpleNamespace(id=500, title=request.title)])
+        return None
+
+    async def edit_folder(self, peer, folder):
+        self.folders.append((peer.id, folder))
+
+
+def test_asset_channel(monkeypatch):
+    from uroboros.hikka import utils as hutils
+
+    monkeypatch.setattr(hutils, "_FLOOD_PAUSE", 0)
+    hutils._channels.clear()
+    existing = SimpleNamespace(title="NekoSpy", entity=SimpleNamespace(id=7, creator=True))
+    client = ChannelClient([existing])
+    peer, created = asyncio.run(hutils.asset_channel(client, "NekoSpy", "логи"))
+    assert peer.id == 7 and not created and client.requests == []
+
+    hutils._channels.clear()
+    client = ChannelClient([SimpleNamespace(title="NekoSpy", entity=SimpleNamespace(id=8, creator=False))])
+    peer, created = asyncio.run(hutils.asset_channel(client, "NekoSpy", "логи", silent=True, archive=True, ttl=86400))
+    assert created and peer.id == 500
+    assert client.requests == ["CreateChannelRequest", "UpdateNotifySettingsRequest", "SetHistoryTTLRequest"]
+    assert client.folders == [(500, 1)]
+    # второй раз — из кеша, без запросов
+    assert asyncio.run(hutils.asset_channel(client, "NekoSpy", "логи")) == (peer, False)
+    hutils._channels.clear()

@@ -347,13 +347,150 @@ def split_args(text: str) -> list[str]:
         return text.split()
 
 
+# --- служебные чаты модулей (как в Hikka) ---
+
+_FLOOD_PAUSE = 0.5  # пауза между запросами создания чата, как fw_protect в Hikka
+_channels: dict[str, Any] = {}  # название → чат: asset_channel не ищет его в диалогах каждый раз
+
+
+async def _pause() -> None:
+    await asyncio.sleep(_FLOOD_PAUSE)
+
+
+def _bot_username() -> str | None:
+    from .state import get_loader
+
+    inline = get_loader().inline
+    return inline.bot_username if inline is not None else None
+
+
+async def invite_inline_bot(client: Any, peer: Any) -> None:
+    """Добавляет inline-бота в чат и даёт ему право банить (нужно модулям для кнопок в чате)."""
+    from telethon.tl.functions.channels import EditAdminRequest, InviteToChannelRequest
+    from telethon.tl.types import ChatAdminRights
+
+    bot = _bot_username()
+    if bot is None:
+        raise RuntimeError("Inline-бот не запущен, пригласить его в чат нельзя")
+    try:
+        await client(InviteToChannelRequest(peer, [bot]))
+    except Exception as e:
+        raise RuntimeError("Не удалось пригласить inline-бота в служебный чат модуля") from e
+    with contextlib.suppress(Exception):
+        await client(
+            EditAdminRequest(channel=peer, user_id=bot, admin_rights=ChatAdminRights(ban_users=True), rank="Uroboros")
+        )
+
+
+async def dnd(client: Any, peer: Any, archive: bool = True) -> bool:
+    """Отключает уведомления чата и, если ``archive``, убирает его в архив."""
+    from telethon.tl.functions.account import UpdateNotifySettingsRequest
+    from telethon.tl.types import InputPeerNotifySettings
+
+    try:
+        await client(
+            UpdateNotifySettingsRequest(
+                peer=peer,
+                settings=InputPeerNotifySettings(show_previews=False, silent=True, mute_until=2**31 - 1),
+            )
+        )
+        if archive:
+            await _pause()
+            await client.edit_folder(peer, 1)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("utils.dnd: не удалось")
+        return False
+    return True
+
+
+async def set_avatar(client: Any, peer: Any, avatar: str | bytes) -> bool:
+    """Ставит аватарку чату: ссылка на картинку или байты."""
+    from telethon.tl.functions.channels import EditPhotoRequest
+
+    if isinstance(avatar, str) and check_url(avatar):
+        import urllib.request
+
+        def fetch() -> bytes:
+            request = urllib.request.Request(avatar, headers={"User-Agent": "Uroboros"})
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return response.read(10 * 1024 * 1024)
+
+        data = await run_sync(fetch)
+    elif isinstance(avatar, bytes):
+        data = avatar
+    else:
+        return False
+    await _pause()
+    await client(EditPhotoRequest(channel=peer, photo=await client.upload_file(data, file_name="photo.png")))
+    return True
+
+
+async def asset_channel(
+    client: Any,
+    title: str,
+    description: str,
+    *,
+    channel: bool = False,
+    silent: bool = False,
+    archive: bool = False,
+    invite_bot: bool = False,
+    avatar: str | None = None,
+    ttl: int | None = None,
+    _folder: str | None = None,
+) -> tuple[Any, bool]:
+    """Находит служебный чат модуля по названию или создаёт его. Возвращает (чат, создан ли сейчас).
+
+    ``channel`` — канал, иначе супергруппа; ``silent`` — без уведомлений; ``archive`` — в архив;
+    ``invite_bot`` — добавить inline-бота; ``ttl`` — автоудаление сообщений.
+    """
+    from telethon.tl.functions.channels import CreateChannelRequest
+    from telethon.tl.functions.messages import SetHistoryTTLRequest
+
+    if title in _channels:
+        return _channels[title], False
+
+    async for dialog in client.iter_dialogs():
+        if dialog.title == title and getattr(dialog.entity, "creator", False):
+            _channels[title] = dialog.entity
+            if invite_bot:
+                bot_id = None
+                from .state import get_loader
+
+                inline = get_loader().inline
+                bot_id = inline.bot_id if inline is not None else None
+                participants = await client.get_participants(dialog.entity, limit=100)
+                if bot_id is not None and all(p.id != bot_id for p in participants):
+                    await _pause()
+                    await invite_inline_bot(client, dialog.entity)
+            return dialog.entity, False
+
+    await _pause()
+    peer = (await client(CreateChannelRequest(title, description, megagroup=not channel))).chats[0]
+    if invite_bot:
+        await _pause()
+        await invite_inline_bot(client, peer)
+    if silent:
+        await _pause()
+        await dnd(client, peer, archive)
+    elif archive:
+        await _pause()
+        await client.edit_folder(peer, 1)
+    if avatar:
+        await _pause()
+        with contextlib.suppress(Exception):
+            await set_avatar(client, peer, avatar)
+    if ttl:
+        await _pause()
+        await client(SetHistoryTTLRequest(peer=peer, period=ttl))
+    _channels[title] = peer
+    return peer, True
+
+
 _UNSUPPORTED = {
-    "set_avatar": "установка аватарки чата",
-    "invite_inline_bot": "приглашение inline-бота в чат",
-    "asset_channel": "служебные каналы Hikka",
-    "dnd": "архивация и отключение уведомлений чата",
     "find_caller": "поиск вызывающего модуля",
-    "asset_forum_topic": "служебные темы форума Hikka",
+    "asset_forum_topic": "служебные темы форума (есть только в форке Heroku)",
 }
 
 

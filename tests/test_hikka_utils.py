@@ -110,6 +110,6 @@ def test_get_target(monkeypatch):
 
 
 def test_unsupported_names():
-    for name in ("asset_channel", "dnd", "something_new"):
+    for name in ("find_caller", "asset_forum_topic", "something_new"):
         with pytest.raises(AttributeError, match="не поддерживается"):
             getattr(hutils, name)

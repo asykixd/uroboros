@@ -12,10 +12,11 @@ Uroboros загружает модули Hikka и FTG без правок: `.dlm
   `loop`, `tag`, `raw_handler`, права `owner`, `sudo`, `support`, `unrestricted`, `ModuleConfig`,
   `ConfigValue`, `validators`, `StopLoop`, `SelfUnload`;
 - `utils` — `answer`, `answer_file`, `get_args*`, `get_chat_id`, `get_target`, `get_user`, `escape_html`,
-  `run_sync`, `get_link`, `chunks`, `rand`, `smart_split`, `remove_html`, `mime_type` и другие;
+  `run_sync`, `get_link`, `chunks`, `rand`, `smart_split`, `remove_html`, `mime_type`, служебные чаты модулей
+  `asset_channel`, `dnd`, `invite_inline_bot`, `set_avatar` и другие;
 - `validators` — все валидаторы Hikka с подсказками на русском;
 - `inline.types` — `InlineCall`, `InlineQuery`, `InlineMessage`;
-- `version`, `main`, `security`, `types` — то немногое, на что ссылаются модули.
+- `database` (`Database` для аннотаций), `version`, `main`, `security`, `types` — то немногое, на что ссылаются модули.
 
 `import hikkatl...` (форк Telethon из Hikka) и `herokutl` (из Heroku) отдают обычный Telethon.
 Модули с `# scope: hikka_only` загружаются: эта пометка значит «нужен Hikka, а не FTG».
@@ -39,7 +40,7 @@ Uroboros загружает модули Hikka и FTG без правок: `.dlm
 
 При загрузке такой модуль получает понятную ошибку, а не падает посреди работы:
 
-- внутренности Hikka: `from ..database`, `from ..tl_cache`, `from .._internal` и любые подмодули, кроме перечисленных выше;
+- внутренности Hikka: `from ..tl_cache`, `from .._internal`, `from .. import translations` и любые подмодули, кроме перечисленных выше;
 - `import hikka` и Pyrogram-клиент Hikka (`hikkapyro`, `pyrogram`);
 - модули с `# scope: hikka_min` новее 1.6.3.
 
@@ -47,7 +48,8 @@ Uroboros загружает модули Hikka и FTG без правок: `.dlm
 
 - групповые права Hikka (`@loader.group_admin`, `@loader.group_member`, `@loader.pm`) — команда доступна только владельцам;
 - `self.request_join` — Uroboros не вступает в каналы по просьбе модуля, метод возвращает `False`;
-- `self.invoke`, `utils.asset_channel`, `utils.set_avatar`, `utils.dnd`, `utils.invite_inline_bot` — ошибка при вызове;
+- `db.pointer` и `self.pointer` возвращают обычные значения, а не «живые» списки и словари: изменения сохраняйте через `set`;
+- `self.invoke`, `utils.asset_forum_topic` (есть только в форке Heroku) — ошибка при вызове;
 - возможности Hikka-TL сверх обычного Telethon (например `client.hikka_me`) недоступны.
 
 ## Таблица совместимости
