@@ -195,10 +195,20 @@ class Loader:
 
     async def install(self, source: str, origin: str) -> list[Module]:
         """Загружает сторонний модуль и сохраняет его, чтобы он грузился после рестарта."""
+        installed = self.installed()
         instances, replaced = await self._load(source, origin=origin)
         stem = instances[0]._stem
 
-        installed = self.installed()
+        if stem not in installed:
+            for inst in instances:
+                try:
+                    await inst.on_dlmod()
+                except Exception as e:
+                    log.exception("Ошибка в on_dlmod модуля %s", inst.name)
+                    await self.unload_stem(stem)
+                    detail = str(e) if isinstance(e, LoadError) else repr(e)
+                    raise LoadError(f"Ошибка при первой настройке модуля {inst.name}: {detail}") from e
+
         for old_stem in replaced - {stem}:
             installed.pop(old_stem, None)
             (self.modules_dir / f"{old_stem}.py").unlink(missing_ok=True)

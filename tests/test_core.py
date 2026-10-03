@@ -221,3 +221,30 @@ def test_get_set_shortcuts(loader, db):
     inst.set("key", [1, 2])
     assert inst.get("key") == [1, 2]
     assert db.get("Store", "key") == [1, 2]
+
+
+def test_on_dlmod_only_on_first_install(loader, tmp_path):
+    src = (
+        "from uroboros import Module\n"
+        "class Setup(Module):\n"
+        "    async def on_dlmod(self):\n"
+        "        self.set('runs', self.get('runs', 0) + 1)\n"
+    )
+    run(loader.install(src, "a"))
+    run(loader.install(src, "a"))
+    fresh = Loader(None, loader.db, tmp_path / "modules")
+    run(fresh.load_all())
+    assert fresh.get_module("setup").get("runs") == 1
+
+
+def test_failing_on_dlmod_cancels_install(loader, db):
+    src = (
+        "from uroboros import Module\n"
+        "class Broken(Module):\n"
+        "    async def on_dlmod(self):\n"
+        "        raise RuntimeError('нет сети')\n"
+    )
+    with pytest.raises(LoadError, match="первой настройке"):
+        run(loader.install(src, "a"))
+    assert loader.get_module("broken") is None
+    assert db.get(LOADER_OWNER, "installed", {}) == {}
