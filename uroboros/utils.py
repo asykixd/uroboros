@@ -7,7 +7,6 @@ import io
 import os
 import re
 import shlex
-import subprocess
 import sys
 import time
 from typing import TYPE_CHECKING
@@ -25,6 +24,10 @@ START_TIME = time.time()
 MAX_MESSAGE_LENGTH = 4096
 
 _restart_requested = False
+
+IS_WINDOWS = os.name == "nt"
+RESTART_EXIT_CODE = 75
+SUPERVISED_ENV = "UROBOROS_SUPERVISED"
 
 
 def escape_html(text: object) -> str:
@@ -111,9 +114,15 @@ def restart_requested() -> bool:
 
 
 def exec_restart() -> None:
-    args = [sys.executable, "-m", "uroboros", *sys.argv[1:]]
-    if os.name == "nt":
-        # os.execv на Windows ведёт себя криво с консолью — запускаем новый процесс.
-        subprocess.Popen(args)
-        sys.exit(0)
-    os.execv(sys.executable, args)
+    """Перезапускает процесс. На POSIX — ``os.execv`` (PID сохраняется, удобно для systemd).
+
+    На Windows ``execv`` ломает консоль, поэтому там бот работает под процессом-надзирателем
+    (см. ``main.supervise``): достаточно выйти с кодом ``RESTART_EXIT_CODE``.
+    """
+    if IS_WINDOWS:
+        sys.exit(RESTART_EXIT_CODE)
+    os.execv(sys.executable, restart_args())
+
+
+def restart_args() -> list[str]:
+    return [sys.executable, "-m", "uroboros", *sys.argv[1:]]

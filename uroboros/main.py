@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import signal
+import subprocess
 import sys
 
 from . import __version__, utils
@@ -77,7 +79,29 @@ async def run(config: Config) -> None:
         log.info("Остановлен")
 
 
+def supervise() -> None:
+    """Windows: держит бота дочерним процессом и перезапускает его по ``RESTART_EXIT_CODE``.
+
+    Новый процесс сидит в той же консоли, что и раньше, а не отрывается от неё.
+    """
+    env = {**os.environ, utils.SUPERVISED_ENV: "1"}
+    while True:
+        proc = subprocess.Popen(utils.restart_args(), env=env)
+        while True:
+            try:
+                code = proc.wait()
+                break
+            except KeyboardInterrupt:
+                continue  # Ctrl+C получает и дочерний процесс — ждём, пока он завершится сам
+        if code != utils.RESTART_EXIT_CODE:
+            sys.exit(code)
+
+
 def main() -> None:
+    if utils.IS_WINDOWS and not os.environ.get(utils.SUPERVISED_ENV):
+        supervise()
+        return
+
     config = load_config()
     lock = InstanceLock(config.lock_path)
     if not lock.acquire():

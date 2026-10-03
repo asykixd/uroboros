@@ -25,7 +25,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 ## Архитектура
 
-Поток запуска в `main.py`: `load_config` → `Database` → `TelegramClient.start` → `Loader.load_all` → `Dispatcher.install` → `run_until_disconnected`. Рестарт: `utils.restart()` выставляет флаг и отключает клиент, а `main()` после выхода из цикла делает `os.execv` (на Windows — `Popen` и выход).
+Поток запуска в `main.py`: `load_config` → `Database` → `TelegramClient.start` → `Loader.load_all` → `Dispatcher.install` → `run_until_disconnected`. Рестарт: `utils.restart()` выставляет флаг и отключает клиент, а `main()` после выхода из цикла выгружает модули и делает `os.execv`. На Windows `main()` сначала запускает надзирателя (`supervise`), который держит бота дочерним процессом и перезапускает его, когда тот выходит с кодом `RESTART_EXIT_CODE` (75).
 
 **Загрузчик (`loader.py`).** Модули загружаются не импортом, а через `exec` исходника в `ModuleType`:
 - Встроенные модули из `uroboros/modules/*.py` читаются как текст и получают имя `uroboros.modules.<stem>`.
