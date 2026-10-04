@@ -1,6 +1,6 @@
 """Uroboros: модульный юзербот для Telegram."""
 
-__version__ = "0.7.0-dev"
+__version__ = "1.0.0-dev"
 
 from . import utils, validators
 from .decorators import callback_handler, command, inline_handler, watcher

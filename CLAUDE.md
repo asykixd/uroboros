@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Проект
 
-Uroboros — модульный юзербот для Telegram (Python ≥3.10 + Telethon 1.x), аналог Hikka, написанный с нуля. Лицензия AGPL-3.0: код Hikka (тоже AGPL) можно переносить. Интерфейс и сообщения бота — только на русском. Основная ветка — `master`.
+Uroboros — модульный юзербот для Telegram (Python ≥3.10 + Telethon 1.x), аналог Hikka, написанный с нуля. Лицензия AGPL-3.0: код Hikka (тоже AGPL) можно переносить. Интерфейс и сообщения бота — только на русском. Ветки: `master` — стабильная, `dev` — разработка (см. «Ветки и версии»).
 
 ## Команды
 
@@ -48,7 +48,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 Загрузчик проставляет модулю `client`, `loader`, `inline`, `db` (`ModuleDB`, owner = имя модуля), оборачивает `strings` в `Strings` (вызов `self.strings("key", **kw)` экранирует подстановки) и привязывает `config` к БД (ключ `__config__`). При выгрузке stem'а загрузчик останавливает `@loop`-задачи (`loops.py`), снимает обработчики Telethon, чьи функции объявлены в файле модуля, и выгружает библиотеки (`Library`, `self.import_lib`), у которых не осталось модулей-пользователей. Исходники библиотек кешируются в `data/modules/libs/`, ссылки — в БД (`uroboros.loader`/`libs`). `on_dlmod` вызывается в `Loader.install` только если stem ещё не был установлен.
 
-Документация для авторов модулей — `docs/modules.md`. Публичный API зафиксирован в `tests/api_snapshot.json` (политика — `docs/stability.md`): изменили сознательно — `UPDATE_API_SNAPSHOT=1 pytest tests/test_public_api.py`, ломать — только через `uroboros.deprecation.deprecated`. Примеры из `examples/` загружаются в `tests/test_examples.py`: при изменении API их нужно обновлять. Пример с `# requires_uroboros: X` не загрузится, если `__version__` меньше X, поэтому версия на master должна быть не меньше той, что требуют примеры. API намеренно повторяет Hikka (`utils.answer`, `strings`, `config`), чтобы будущий адаптер совместимости был тонким.
+Документация для авторов модулей — `docs/modules.md`. Публичный API зафиксирован в `tests/api_snapshot.json` (политика — `docs/stability.md`): изменили сознательно — `UPDATE_API_SNAPSHOT=1 pytest tests/test_public_api.py`, ломать — только через `uroboros.deprecation.deprecated`. Примеры из `examples/` загружаются в `tests/test_examples.py`: при изменении API их нужно обновлять. Пример с `# requires_uroboros: X` не загрузится, если `__version__` меньше X, поэтому версия в `dev` и `master` должна быть не меньше той, что требуют примеры (суффикс `-dev` при сравнении не учитывается). API намеренно повторяет Hikka (`utils.answer`, `strings`, `config`), чтобы будущий адаптер совместимости был тонким.
 
 **Защита от флуда (`ratelimit.py`).** `UroborosClient` (`client.py`) считает запросы стороннего модуля, чей контекст выставлен в `current_module` (`module_context` вокруг команд, вотчеров, `@loop`, хуков и колбэков). Превысил лимит — `ModuleFrozen` до конца заморозки, уведомление в «Избранное». Настройки — БД `uroboros.security`/`flood`.
 
@@ -72,9 +72,15 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 - ядро маленькое: встроенные модули (`uroboros/modules/`) пишутся только на публичном API, как сторонние;
 - только обычный Telethon 1.x — без форков и без перехода на Telethon 2 до его стабильного релиза;
 - новая зависимость должна ставиться в Termux без компиляции (исключение — aiogram 3: `pydantic-core` там собирается через Rust, так решил пользователь);
-- до 1.0 каждый релиз — с dev-флагом: версия `X.Y.Z-dev` (в `pyproject.toml` и `uroboros/__init__.py`, pip нормализует её в `X.Y.Z.dev0`), тег `vX.Y.Z-dev`, на GitHub — pre-release. Без `-dev` выходит только 1.0 и дальше. Старые теги `v0.1.0b1`, `v0.1.0b2`, `v0.1.1b2` выпущены до этого правила.
-- сейчас релизы не делаются: только коммиты и push в `master`, без тегов и GitHub-релизов, пока пользователь не попросит. Когда попросит — релиз в конце этапа, а не после каждого коммита: зелёный CI → коммит с версией → аннотированный тег → `gh release create --prerelease` с заметками на русском. Номер версии подтверждать у пользователя.
 
 **Адаптер Hikka (`hikka/`).** `hikka.is_hikka` узнаёт модуль, `check_supported` отклоняет внутренности Hikka. Модуль исполняется с `__package__ = uroboros.hikka.modules`, поэтому `from .. import loader, utils` берёт шимы из `uroboros/hikka/`. `hikka.loader.Module.__init_subclass__` переводит метки Hikka (`is_command`, суффиксы `cmd`/`watcher`/`_inline_handler`, `InfiniteLoop`) в атрибуты декораторов Uroboros; `_bind` (хук, который зовёт загрузчик) подменяет `db` на БД в стиле Hikka, `inline` — на `HikkaInline`. `hikkatl` → Telethon — `hikka/aliases.py`. Таблица совместимости — `scripts/hikka_compat.py` (исполняет чужой код: запускать только в изоляции).
 
 Ещё не сделано: проверка исходников модулей и защита во время работы (0.4). Модули Hikka без адаптера не загрузятся.
+
+## Ветки и версии
+
+- **Вся работа — в `dev`.** Коммиты и push только туда. В `master` напрямую не коммитить.
+- **В `master` — только слиянием `dev`**, и только после локальных проверок (`ruff check`, `ruff format --check`, `pytest`) и **явного подтверждения пользователя** на это слияние. Порядок — скилл `/promote`.
+- **Версия зависит от ветки:** в `dev` — `X.Y.Z-dev`, в `master` — `X.Y.Z` (одинаково в `pyproject.toml` и `uroboros/__init__.py`; pip нормализует `-dev` в `.dev0`). При слиянии в `master` суффикс снимается в merge-коммите. `tests/test_version.py` проверяет это по текущей ветке.
+- Канал `.update beta` следует за веткой, на которой стоит бот, поэтому `dev` и `master` обновляются независимо.
+- **Релизы** (теги, GitHub-релизы) не делаются, пока пользователь не попросит. Когда попросит — только из `master` после `/promote`: тег `vX.Y.Z`, `gh release create` с заметками на русском (скилл `/release`). Номер версии подтверждать у пользователя. Старые теги `v0.1.0b1`, `v0.1.0b2`, `v0.1.1b2` и `v*-dev` выпущены по прежним правилам.
