@@ -32,6 +32,7 @@ class Hello(Module):
 ```python
 # meta developer: @username
 # meta version: 1.2
+# meta permissions: network, files
 # requires_uroboros: 0.2
 # requires: requests pillow
 ```
@@ -39,6 +40,7 @@ class Hello(Module):
 | Строка | Что делает |
 |---|---|
 | `# meta <ключ>: <значение>` | метаданные; `developer` и `version` показываются в `.help модуль` |
+| `# meta permissions: network, files` | что нужно модулю: `network` — сеть, `files` — файлы, `env` — переменные окружения, `processes` — запуск команд, `exec` — исполнение кода из строк; `none` — ничего. Права показываются перед установкой, а если код использует необъявленное, пользователь увидит предупреждение |
 | `# requires_uroboros: 0.2` | минимальная версия ядра. На старой версии модуль не загрузится, а пользователь увидит, что нужно обновиться |
 | `# requires: пакет ...` | pip-пакеты. Ставятся, только если при импорте чего-то не хватает, одна попытка |
 

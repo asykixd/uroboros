@@ -170,3 +170,36 @@ def test_tampered_module_file(builtin_loader, caplog):
     asyncio.run(loader.install(STEALER, "https://example.com/demo.py", force=True))
     asyncio.run(loader.reload_all())
     assert loader.get_module("demo") is not None
+
+
+def test_permissions_compared_with_code():
+    source = (
+        "# meta permissions: network, bogus\n"
+        "import aiohttp, subprocess\n"
+        "from pathlib import Path\n"
+        "async def f():\n"
+        "    aiohttp.ClientSession()\n"
+        "    Path('x').write_text('1')\n"
+        "    subprocess.run(['ls'])\n"
+    )
+    report = scan.scan(source)
+    assert report.uses == {"network", "files", "processes"} and report.declared == {"network"}
+    warnings = texts(source, scan.WARNING)
+    assert "неизвестные права в # meta permissions: bogus" in warnings
+    assert "не объявлено в # meta permissions: файлы, запуск команд" in warnings
+
+
+def test_permissions_absent_or_none():
+    assert scan.scan("import requests\nrequests.get('x')").declared is None
+    report = scan.scan("# meta permissions: none\nopen('x')")
+    assert report.declared == set() and any("файлы" in f.text for f in report.warnings)
+    assert scan.scan("# meta permissions: files\nopen('x')").warnings == []
+
+
+def test_confirm_shows_permissions(builtin_loader, monkeypatch):
+    async def fake_download(url):
+        return ("# meta permissions: network\nimport aiohttp\n" + SAFE).encode()
+
+    monkeypatch.setattr(download, "download", fake_download)
+    text = run_command(builtin_loader, ".dlm https://example.com/demo.py")
+    assert "<b>Права:</b> сеть" in text

@@ -210,6 +210,10 @@ class Loader(Module):
         info = f"<b>Источник:</b> <code>{utils.escape_html(candidate.origin)}</code>\n"
         if candidate.pin:
             info += f"<b>Коммит:</b> {commit_html(candidate.pin)}\n"
+        if report.declared is not None:
+            info += f"<b>Права:</b> {scan.permission_names(report.declared) or 'не нужны'}\n"
+        elif report.uses:
+            info += f"<b>Использует:</b> {scan.permission_names(report.uses)}\n"
         info = utils.quote(info + f"<b>Строк:</b> <code>{len(candidate.source.splitlines())}</code>")
         if report.dangerous:
             text = (

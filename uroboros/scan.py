@@ -107,6 +107,52 @@ DECODERS = {
     "loads",
 }
 EXEC_FUNCS = {"exec", "eval", "compile"}
+
+# Права, которые модуль объявляет в шапке: # meta permissions: network, files
+PERMISSIONS = {
+    "network": "сеть",
+    "files": "файлы",
+    "env": "переменные окружения",
+    "processes": "запуск команд",
+    "exec": "исполнение кода из строк",
+}
+PERMISSIONS_RE = re.compile(r"^\s*#\s*meta\s+permissions\s*:\s*(.*?)\s*$", re.MULTILINE | re.IGNORECASE)
+# Полное имя (после разбора импортов) → право.
+CAPABILITY_PREFIXES = {
+    "requests": "network",
+    "aiohttp": "network",
+    "httpx": "network",
+    "urllib.request": "network",
+    "urllib3": "network",
+    "http.client": "network",
+    "socket": "network",
+    "websockets": "network",
+    "ftplib": "network",
+    "smtplib": "network",
+    "aiofiles": "files",
+    "shutil": "files",
+    "os.remove": "files",
+    "os.unlink": "files",
+    "os.rename": "files",
+    "os.makedirs": "files",
+    "os.mkdir": "files",
+    "os.rmdir": "files",
+    "os.listdir": "files",
+    "os.scandir": "files",
+    "os.walk": "files",
+    "os.environ": "env",
+    "os.getenv": "env",
+    "os.putenv": "env",
+    "subprocess": "processes",
+    "os.system": "processes",
+    "os.popen": "processes",
+    "os.exec": "processes",
+    "os.spawn": "processes",
+    "os.fork": "processes",
+    "pty": "processes",
+    "asyncio.create_subprocess_": "processes",
+}
+FILE_METHODS = {"read_text", "write_text", "read_bytes", "write_bytes", "unlink", "mkdir", "rmdir", "iterdir"}
 BLOB_RE = re.compile(r"^[A-Za-z0-9+/=_\-\s]+$")
 BLOB_SIZE = 1000
 
@@ -121,6 +167,8 @@ class Finding:
 @dataclass
 class Report:
     findings: list[Finding] = field(default_factory=list)
+    uses: set[str] = field(default_factory=set)  # права, которые нужны коду (PERMISSIONS)
+    declared: set[str] | None = None  # из # meta permissions; None — шапки нет
 
     @property
     def dangerous(self) -> list[Finding]:
@@ -162,6 +210,20 @@ def summary(findings: list[Finding]) -> str:
     return "; ".join(finding.text for finding in findings)
 
 
+def permission_names(names) -> str:
+    return ", ".join(PERMISSIONS.get(name, name) for name in sorted(names))
+
+
+def parse_permissions(source: str) -> tuple[set[str], int] | None:
+    """``# meta permissions: network, files`` → ({"network", "files"}, строка). ``none`` или пусто — без прав."""
+    match = PERMISSIONS_RE.search(source)
+    if match is None:
+        return None
+    line = source.count("\n", 0, match.start()) + 1
+    names = {name.strip().lower() for name in re.split(r"[,\s]+", match[1]) if name.strip()}
+    return names - {"none"}, line
+
+
 def scan(source: str) -> Report:
     report = Report()
     try:
@@ -169,7 +231,22 @@ def scan(source: str) -> Report:
     except SyntaxError:
         return report  # ошибку покажет компиляция при загрузке
     _Visitor(report, tree).visit(tree)
+    _check_permissions(report, source)
     return report
+
+
+def _check_permissions(report: Report, source: str) -> None:
+    parsed = parse_permissions(source)
+    if parsed is None:
+        return
+    declared, line = parsed
+    report.declared = declared & set(PERMISSIONS)
+    unknown = declared - set(PERMISSIONS)
+    if unknown:
+        report.add(WARNING, f"неизвестные права в # meta permissions: {', '.join(sorted(unknown))}", line)
+    undeclared = report.uses - report.declared
+    if undeclared:
+        report.add(WARNING, f"не объявлено в # meta permissions: {permission_names(undeclared)}", line)
 
 
 def _docstrings(tree: ast.AST) -> set[int]:
@@ -208,6 +285,9 @@ class _Visitor(ast.NodeVisitor):
         return None
 
     def check_name(self, node: ast.AST, name: str) -> None:
+        for prefix, permission in CAPABILITY_PREFIXES.items():
+            if name == prefix or name.startswith(prefix if prefix.endswith("_") else prefix + "."):
+                self.report.uses.add(permission)
         last = name.rsplit(".", 1)[-1]
         if last in DANGER_NAMES:
             self.danger(node, DANGER_NAMES[last])
@@ -259,6 +339,8 @@ class _Visitor(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call) -> None:
         name = self.dotted(node.func) or ""
         func = name.rsplit(".", 1)[-1]
+        if name in ("open", "io.open", "builtins.open") or func in FILE_METHODS:
+            self.report.uses.add("files")
         if name in EXEC_FUNCS or name in {f"builtins.{f}" for f in EXEC_FUNCS}:
             self.check_exec(node, func)
         elif func in ("__import__", "import_module") and node.args and not isinstance(node.args[0], ast.Constant):
@@ -270,6 +352,7 @@ class _Visitor(ast.NodeVisitor):
     def check_exec(self, node: ast.Call, func: str) -> None:
         if not node.args or isinstance(node.args[0], ast.Constant):
             return
+        self.report.uses.add("exec")
         decoded = any(
             isinstance(inner, ast.Call) and (self.dotted(inner.func) or "").rsplit(".", 1)[-1] in DECODERS
             for inner in ast.walk(node.args[0])
