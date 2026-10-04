@@ -16,17 +16,46 @@ DIFF_BUDGET = 2500  # символов разницы на всё сообщен
 
 
 @dataclass
+class Candidate:
+    """Скачанный модуль, который ещё не установлен."""
+
+    source: str
+    origin: str  # откуда брать обновления
+    pin: str | None  # та же версия в конкретном коммите (GitHub)
+    report: scan.Report
+
+
+async def fetch_candidate(url, data=None):
+    """Скачивает модуль; с GitHub — по ссылке на конкретный коммит, чтобы знать, какая версия установлена."""
+    pinned = await github.pin(url)
+    if pinned is not None:
+        data = await download.download(pinned[0])
+    elif data is None:
+        data = await download.download(url)
+    source = download.decode(data)
+    return Candidate(source, url, pinned[0] if pinned else None, scan.scan(source))
+
+
+def commit_html(pin):
+    link = github.commit_link(pin)
+    sha = github.split_raw(pin)[1][:7]
+    return f'<a href="{link}">{sha}</a>' if link else f"<code>{sha}</code>"
+
+
+@dataclass
 class PendingUpdate:
     label: str  # имя модуля в HTML
-    origin: str
     old: str
-    source: str
-    report: scan.Report
+    candidate: Candidate
+
+    @property
+    def report(self):
+        return self.candidate.report
 
     def diff(self):
         return list(
             difflib.unified_diff(
-                self.old.splitlines(), self.source.splitlines(), "установлен", "новый", n=1, lineterm=""
+                self.old.splitlines(), self.candidate.source.splitlines(), "установлен", "новый", n=1, lineterm=""
             )
         )[2:]
 
@@ -68,16 +97,14 @@ class Loader(Module):
             url = spec
 
         await utils.answer(message, "⏳ Загрузка...")
-        if url is not None:
-            data = await download.download(url)
-        else:
+        data = None
+        if url is None:
             url, data = await self._find_in_repos(spec)
-        source = download.decode(data)
-        report = scan.scan(source)
-        if force or (self._trusted(url) and not report.dangerous):
-            await self._install(message, source, url, report, force=force)
+        candidate = await fetch_candidate(url, data)
+        if force or (self._trusted(url) and not candidate.report.dangerous):
+            await self._install(message, candidate, force=force)
         else:
-            await self._confirm(message, source, url, f"dlm -f {spec}", report)
+            await self._confirm(message, candidate, f"dlm -f {spec}")
 
     async def _find_in_repos(self, name):
         repos = self._repos()
@@ -171,18 +198,19 @@ class Loader(Module):
             raise LoadError("Файл модуля больше 2 МБ")
         source = download.decode(await file_message.download_media(bytes))
         origin = f"file:{file_message.file.name or 'module.py'}"
-        report = scan.scan(source)
+        candidate = Candidate(source, origin, None, scan.scan(source))
         if force:
-            await self._install(message, source, origin, report, force=True)
+            await self._install(message, candidate, force=True)
         else:
-            await self._confirm(message, source, origin, "lm -f", report)
+            await self._confirm(message, candidate, "lm -f")
 
-    async def _confirm(self, message, source, origin, force_hint, report):
+    async def _confirm(self, message, candidate, force_hint):
         """Спросить перед установкой: источник не из подключённых репозиториев или в модуле опасный код."""
-        info = utils.quote(
-            f"<b>Источник:</b> <code>{utils.escape_html(origin)}</code>\n"
-            f"<b>Строк:</b> <code>{len(source.splitlines())}</code>"
-        )
+        report = candidate.report
+        info = f"<b>Источник:</b> <code>{utils.escape_html(candidate.origin)}</code>\n"
+        if candidate.pin:
+            info += f"<b>Коммит:</b> {commit_html(candidate.pin)}\n"
+        info = utils.quote(info + f"<b>Строк:</b> <code>{len(candidate.source.splitlines())}</code>")
         if report.dangerous:
             text = (
                 "❌ <b>Модуль может навредить аккаунту</b>\n"
@@ -201,9 +229,7 @@ class Loader(Module):
             )
             button = "✅ Установить"
         if self.inline.available:
-            buttons = [
-                [{"text": button, "callback": self._install_confirmed, "args": (source, origin, report)}, CANCEL]
-            ]
+            buttons = [[{"text": button, "callback": self._install_confirmed, "args": (candidate,)}, CANCEL]]
             try:
                 await self.inline.form(message, text, buttons)
                 return
@@ -213,19 +239,19 @@ class Loader(Module):
         hint = f"<code>{utils.escape_html(prefix + force_hint)}</code>"
         await utils.answer(message, text + f"\nУстановить: {hint}")
 
-    async def _install_confirmed(self, call, source, origin, report):
+    async def _install_confirmed(self, call, candidate):
         await call.edit("⏳ Установка...", None)
         try:
             # Нажатие кнопки — явное подтверждение, в том числе для опасного кода.
-            instances = await self.loader.install(source, origin, force=True)
+            instances = await self.loader.install(candidate.source, candidate.origin, force=True, pin=candidate.pin)
         except LoadError as e:
             await call.edit(f"❌ <b>Модуль не установлен</b>\n{utils.quote(utils.escape_html(e))}")
             return
-        await call.edit(self._installed_text(instances) + findings_text(report))
+        await call.edit(self._installed_text(instances) + findings_text(candidate.report))
 
-    async def _install(self, message, source, origin, report, *, force=False):
-        instances = await self.loader.install(source, origin, force=force)
-        await utils.answer(message, self._installed_text(instances) + findings_text(report))
+    async def _install(self, message, candidate, *, force=False):
+        instances = await self.loader.install(candidate.source, candidate.origin, force=force, pin=candidate.pin)
+        await utils.answer(message, self._installed_text(instances) + findings_text(candidate.report))
 
     def _installed_text(self, instances):
         prefix = utils.get_prefix(self.db.raw)
@@ -265,17 +291,17 @@ class Loader(Module):
                 lines.append(f"{label} — установлен из файла, пропущен")
                 continue
             try:
-                source = download.decode(await download.download(origin))
+                candidate = await fetch_candidate(origin)
             except LoadError as e:
                 failed = True
                 lines.append(f"{label} — ошибка: {utils.escape_html(e)}")
                 continue
             path = self.loader.modules_dir / f"{stem}.py"
             old = path.read_bytes().decode("utf-8", errors="replace") if path.exists() else ""
-            if old == source:
+            if old == candidate.source:
                 lines.append(f"{label} — без изменений")
                 continue
-            updates.append(PendingUpdate(label, origin, old, source, scan.scan(source)))
+            updates.append(PendingUpdate(label, old, candidate))
 
         if not updates:
             title = "❌ <b>Не все модули проверены</b>" if failed else "✅ <b>Обновлений нет</b>"
@@ -310,12 +336,13 @@ class Loader(Module):
         lines = list(lines)
         for update in updates:
             try:
-                await self.loader.install(update.source, update.origin, force=True)
+                new = update.candidate
+                await self.loader.install(new.source, new.origin, force=True, pin=new.pin)
             except LoadError as e:
                 failed = True
                 lines.append(f"{update.label} — ошибка: {utils.escape_html(e)}")
                 continue
-            notes = scan.summary(update.report.findings)
+            notes = scan.summary(update.candidate.report.findings)
             lines.append(
                 f"{update.label} — обновлён ({update.stat})" + (f", обратите внимание: {notes}" if notes else "")
             )
@@ -427,8 +454,9 @@ def updates_text(updates, lines):
         more = len(diff) - len(shown.splitlines())
         if more > 0:
             shown += f"\n… ещё {more} строк"
+        commit = f" · коммит {commit_html(update.candidate.pin)}" if update.candidate.pin else ""
         parts.append(
-            f"{update.label} · {update.stat}"
+            f"{update.label} · {update.stat}{commit}"
             + findings_text(update.report)
             + "\n"
             + utils.quote(f"<code>{utils.escape_html(shown)}</code>", expandable=True)

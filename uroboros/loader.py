@@ -272,10 +272,11 @@ class Loader:
         instances, _ = await self._load(source, origin=origin, stem=stem, filename=filename)
         return instances
 
-    async def install(self, source: str, origin: str, *, force: bool = False) -> list[Module]:
+    async def install(self, source: str, origin: str, *, force: bool = False, pin: str | None = None) -> list[Module]:
         """Загружает сторонний модуль и сохраняет его, чтобы он грузился после рестарта.
 
         Модуль с опасным кодом (``scan``) ставится только с ``force=True`` — после явного подтверждения.
+        ``origin`` — откуда брать обновления, ``pin`` — ссылка на ту же версию в конкретном коммите (GitHub).
         """
         if not force:
             report = scan.scan(source)
@@ -309,7 +310,17 @@ class Loader:
             hashes.pop(old_stem, None)
         hashes[stem] = source_hash(source)
         self.db.set(LOADER_OWNER, "hashes", hashes)
+        pins = self.db.get(LOADER_OWNER, "pins", {})
+        for old_stem in replaced | {stem}:
+            pins.pop(old_stem, None)
+        if pin:
+            pins[stem] = pin
+        self.db.set(LOADER_OWNER, "pins", pins)
         return instances
+
+    def pins(self) -> dict[str, str]:
+        """Сторонние модули с GitHub: stem → ссылка на установленную версию в конкретном коммите."""
+        return self.db.get(LOADER_OWNER, "pins", {})
 
     async def _load(
         self,
@@ -629,6 +640,9 @@ class Loader:
         hashes = self.db.get(LOADER_OWNER, "hashes", {})
         hashes.pop(stem, None)
         self.db.set(LOADER_OWNER, "hashes", hashes)
+        pins = self.pins()
+        pins.pop(stem, None)
+        self.db.set(LOADER_OWNER, "pins", pins)
         (self.modules_dir / f"{stem}.py").unlink(missing_ok=True)
         return removed
 

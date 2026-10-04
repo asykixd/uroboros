@@ -33,3 +33,14 @@ def builtin_loader(tmp_path):
 def builtin_globals(name):
     """Глобальные переменные встроенного модуля (их исполняют через exec, а не импортируют)."""
     return vars(sys.modules[f"uroboros.modules.{name}"])
+
+
+@pytest.fixture(autouse=True)
+def no_github_api(monkeypatch):
+    """Тесты не ходят в сеть: SHA коммита не узнать, модули качаются по исходной ссылке."""
+    from uroboros import github
+
+    def offline(repo, ref):
+        raise OSError("нет сети в тестах")
+
+    monkeypatch.setattr(github, "resolve_commit", offline)
