@@ -19,7 +19,7 @@ def sh(cwd, *args):
 
 def commit_version(repo, version):
     (repo / "uroboros").mkdir(exist_ok=True)
-    (repo / "uroboros" / "__init__.py").write_text(f'__version__ = "{version}"\n')
+    (repo / "uroboros" / "__init__.py").write_text(f'__version__ = "{version}"\n', encoding="utf-8")
     sh(repo, "add", "-A")
     sh(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", version)
 
@@ -53,7 +53,7 @@ def repo(tmp_path, monkeypatch):
 
 
 def version(repo):
-    return (repo / "uroboros" / "__init__.py").read_text().split('"')[1]
+    return (repo / "uroboros" / "__init__.py").read_text(encoding="utf-8").split('"')[1]
 
 
 def test_switch_to_dev_and_back(repo):
@@ -83,7 +83,7 @@ def test_broken_branch_rolls_back(repo):
 def test_refuses_same_branch_and_local_changes(repo):
     with pytest.raises(updater.UpdateError, match="Уже стоит ветка master"):
         asyncio.run(updater.prepare_switch("master", "1.0.0"))
-    (repo / "uroboros" / "__init__.py").write_text("правка\n")
+    (repo / "uroboros" / "__init__.py").write_text("правка\n", encoding="utf-8")
     with pytest.raises(updater.UpdateError, match="изменённые файлы"):
         asyncio.run(updater.prepare_switch("dev", "1.0.0"))
 

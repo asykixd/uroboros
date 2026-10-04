@@ -142,4 +142,4 @@ def test_uplm_confirmation_button(env, monkeypatch):
     assert "Обновить модули?" in last_text(env) and "+    x = 1" in last_text(env)
     press(env.manager, "🔃 Обновить")
     assert last_text(env).startswith("✅ <b>Модули обновлены")
-    assert "x = 1" in (env.loader.modules_dir / "remote.py").read_text()
+    assert "x = 1" in (env.loader.modules_dir / "remote.py").read_text(encoding="utf-8")

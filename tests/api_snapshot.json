@@ -152,11 +152,6 @@
   "run_sync": "(func: 'Callable[..., T]', *args: 'Any', **kwargs: 'Any') -> 'T'"
  },
  "uroboros.validators": {
-  "Any": {
-   "init": "(self, /, *args, **kwargs)",
-   "methods": {},
-   "properties": []
-  },
   "Boolean": {
    "init": "(self, /, *args, **kwargs)",
    "methods": {},
@@ -174,11 +169,6 @@
   },
   "Integer": {
    "init": "(self, minimum: 'int | None' = None, maximum: 'int | None' = None)",
-   "methods": {},
-   "properties": []
-  },
-  "Iterable": {
-   "init": "(self, /, *args, **kwargs)",
    "methods": {},
    "properties": []
   },

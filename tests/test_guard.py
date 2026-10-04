@@ -30,8 +30,8 @@ def env(builtin_loader):
     loader = builtin_loader
     asyncio.run(loader.install(MODULE, "https://example.com/demo.py"))
     data_dir = loader.modules_dir.parent
-    (data_dir / "config.json").write_text("{}")
-    (data_dir / "notes.txt").write_text("ok")
+    (data_dir / "config.json").write_text("{}", encoding="utf-8")
+    (data_dir / "notes.txt").write_text("ok", encoding="utf-8")
     blocked = []
     loader.guard.on_block = lambda name, action: blocked.append((name, action))
     guard.activate(loader.guard)

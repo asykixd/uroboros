@@ -36,7 +36,7 @@ def test_roundtrip(db, tmp_path):
     data = backup.create(db, src_dir)
 
     (dst_dir).mkdir()
-    (dst_dir / "stale.py").write_text("x = 1")
+    (dst_dir / "stale.py").write_text("x = 1", encoding="utf-8")
     target = Database(":memory:")
     target.set("Old", "key", 1)
     restored = backup.restore(data, target, dst_dir)
@@ -45,13 +45,13 @@ def test_roundtrip(db, tmp_path):
     assert target.get(MAIN_OWNER, "prefix") == "!"
     assert target.get(LOADER_OWNER, "installed") == {"demo": "https://example.com/demo.py"}
     assert target.get("Old", "key") is None
-    assert (dst_dir / "demo.py").read_text() == MODULE
+    assert (dst_dir / "demo.py").read_text(encoding="utf-8") == MODULE
     assert not (dst_dir / "stale.py").exists()
     target.close()
 
 
 def test_archive_never_contains_session(db, tmp_path):
-    (tmp_path / "uroboros.session").write_text("secret")
+    (tmp_path / "uroboros.session").write_text("secret", encoding="utf-8")
     names = zipfile.ZipFile(io.BytesIO(backup.create(db, tmp_path / "modules"))).namelist()
     assert names == [backup.MANIFEST, backup.DB_FILE]
 

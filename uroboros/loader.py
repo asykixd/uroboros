@@ -428,7 +428,7 @@ class Loader:
             try:
                 with module_context(inst):
                     await inst.on_load()
-            except Exception as e:
+            except (Exception, SystemExit) as e:
                 log.exception("Ошибка в on_load модуля %s", inst.name)
                 await self.unload_stem(stem)
                 detail = str(e) if isinstance(e, LoadError) else repr(e)
@@ -461,6 +461,10 @@ class Loader:
                     raise LoadError(f"Не хватает зависимости: {e}") from e
                 await pip_install(requirements)
                 installed_requirements = True
+            except SystemExit as e:
+                # Иначе модуль останавливает весь бот (в Python 3.10–3.11 — даже из задачи asyncio).
+                sys.modules.pop(modname, None)
+                raise LoadError(f"Модуль завершил программу при загрузке (SystemExit: {e})") from e
             except BaseException:
                 sys.modules.pop(modname, None)
                 raise
