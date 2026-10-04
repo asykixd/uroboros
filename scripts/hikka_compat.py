@@ -92,7 +92,7 @@ async def check_source(source: str, tmp: Path) -> tuple[str, str]:
     loader.security.me_id = 1
     try:
         with mock.patch.object(core_loader, "pip_install", no_pip):
-            instances = await asyncio.wait_for(loader.install(source, "file:compat.py"), TIMEOUT)
+            instances = await asyncio.wait_for(loader.install(source, "file:compat.py", force=True), TIMEOUT)
         commands = sum(len(loader.module_commands(inst)) for inst in instances)
         await asyncio.wait_for(loader.unload_all(), TIMEOUT)
         return OK, f"команд: {commands}"

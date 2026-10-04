@@ -1,0 +1,86 @@
+site_name: Uroboros
+site_description: Модульный юзербот для Telegram на Python и Telethon
+site_url: https://asykixd.github.io/uroboros/
+repo_url: https://github.com/asykixd/uroboros
+repo_name: asykixd/uroboros
+edit_uri: edit/dev/docs/
+copyright: AGPL-3.0
+
+theme:
+  name: material
+  language: ru
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - content.code.copy
+    - content.tabs.link
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Тёмная тема
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Светлая тема
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/asykixd/uroboros
+      name: Uroboros на GitHub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/uroboros-userbot/
+      name: uroboros-userbot на PyPI
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Главная: README.md
+  - Установка: install.md
+  - Команды: commands.md
+  - Безопасность: security.md
+  - Для авторов модулей:
+      - Как писать модули: modules.md
+      - Примеры: examples.md
+      - Стабильность API: stability.md
+  - Модули Hikka и FTG:
+      - Адаптер: hikka.md
+      - Совместимость: hikka-compat.md

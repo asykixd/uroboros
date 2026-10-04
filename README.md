@@ -1,16 +1,43 @@
-# Uroboros
+<p align="center">
+  <img src="docs/assets/logo.svg" width="112" alt="Uroboros">
+</p>
 
-Модульный юзербот для Telegram на Python + Telethon.
+<h1 align="center">Uroboros</h1>
 
-> Статус: **в разработке** (`0.7.0-dev`): до 1.0 API может меняться. Готово ядро (загрузчик модулей, команды,
-> настройки, установка с GitHub, бэкап, логи), расширенный API модулей (фоновые задачи, фильтры команд, библиотеки)
-> и inline-бот с формами и кнопками, доступ и защита от флуда, веб-панель первого входа и адаптер модулей Hikka/FTG.
+<p align="center">
+  Модульный юзербот для Telegram на Python и Telethon.<br>
+  Модули одной командой, кнопки и формы, защита аккаунта от вредного кода.
+</p>
 
-> ⚠️ Юзербот работает от имени вашего аккаунта. Спам, массовые рассылки и флуд
-> запросами могут привести к бану. Сначала проверяйте на втором аккаунте.
-> Сторонние модули получают полный доступ к аккаунту и серверу — ставьте только те, которым доверяете.
+<p align="center">
+  <a href="https://github.com/asykixd/uroboros/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/asykixd/uroboros/ci.yml?branch=master&label=тесты&style=flat-square" alt="Тесты"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-14b8a6?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/telethon-1.x-0f766e?style=flat-square" alt="Telethon 1.x">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/лицензия-AGPL--3.0-2dd4bf?style=flat-square" alt="AGPL-3.0"></a>
+</p>
 
-## Установка
+<p align="center">
+  <a href="https://asykixd.github.io/uroboros/"><b>📚 Документация</b></a> ·
+  <a href="docs/install.md"><b>🚀 Установка</b></a> ·
+  <a href="docs/commands.md"><b>⌨️ Команды</b></a> ·
+  <a href="docs/modules.md"><b>🧩 Писать модули</b></a> ·
+  <a href="https://github.com/asykixd/uroboros-modules"><b>📦 Модули</b></a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/preview.svg" width="720" alt="Сообщения Uroboros в Telegram">
+</p>
+
+## ✨ Возможности
+
+|  |  |
+|---|---|
+| 📦 **Модули одной командой** — `.dlm notes`, поиск `.search`, свои репозитории `.addrepo` | 🛡 **Защита аккаунта** — код модуля проверяется до установки, а во время работы модули не видят сессию |
+| 🤖 **Кнопки и формы** — встроенный inline-бот: настройки, справка, подтверждения | 🔁 **Совместим с Hikka** — большинство модулей Hikka и FTG работают без правок |
+| 🌿 **Стабильная и dev-ветки** — `.dev on` / `.dev off`, обновление `.update` с откатом | 💾 **Бэкапы** — база и модули одним архивом, автобэкап по расписанию |
+| 🔐 **Доступ по уровням** — `owner`, `sudo`, `support` и права на каждую команду | 🐧 **Работает везде** — Linux и VPS, Termux, Docker, Windows, macOS |
+
+## 🚀 Установка
 
 Linux, VPS, Termux и macOS:
 
@@ -18,87 +45,83 @@ Linux, VPS, Termux и macOS:
 curl -fsSL https://raw.githubusercontent.com/asykixd/uroboros/master/install.sh | sh
 ```
 
+Или через pip: `pip install uroboros-userbot`. Docker, служба systemd, автозапуск в Termux и Windows — в
+[документации по установке](docs/install.md).
+
 При первом запуске Uroboros пишет в консоль ссылку на веб-панель входа: откройте её в браузере, введите
-`api_id` и `api_hash` (их можно получить на https://my.telegram.org/apps), номер телефона, код и пароль 2FA —
-или отсканируйте QR-код в Telegram на телефоне. После входа панель выключается. Вход в консоли — `--cli`.
+`api_id` и `api_hash` с [my.telegram.org/apps](https://my.telegram.org/apps), номер, код и пароль 2FA — или
+отсканируйте QR-код. После входа панель выключается, а Uroboros сам создаёт inline-бота для кнопок через
+@BotFather. Вход в консоли — `--cli`.
 
-Вместе с юзерботом запускается inline-бот для форм с кнопками: при первом запуске Uroboros создаёт его сам
-через @BotFather.
-
-Docker, служба systemd, автозапуск в Termux, Windows и подробности — в [docs/install.md](docs/install.md).
-
-## Команды
+## ⌨️ Главные команды
 
 | Команда | Что делает |
 |---|---|
-| `.help [модуль]` | список модулей / справка |
-| `.dlm [-f] <ссылка>` | установить модуль по ссылке (GitHub `blob`-ссылки понимаются); не из подключённого репозитория — с подтверждением, `-f` — без |
-| `.dlm owner/repo/модуль` | установить модуль из репозитория на GitHub |
-| `.dlm owner/repo` | показать модули в репозитории |
-| `.dlm <модуль>` | найти модуль в подключённых репозиториях |
-| `.addrepo`, `.delrepo`, `.repos` | подключённые репозитории модулей |
-| `.search <запрос>` | найти модуль в подключённых репозиториях |
-| `.lm` | установить модуль из файла (ответом на файл) |
-| `.ulm <модуль>` | удалить модуль |
-| `.uplm [модуль]` | обновить сторонние модули из источника |
-| `.reload` | перезагрузить модули |
-| `.cfg [модуль] [ключ] [значение]` | настройки модулей (с inline-ботом — кнопками), `.rcfg` — сброс |
-| `.setprefix`, `.alias`, `.unalias`, `.aliases` | префикс и алиасы |
-| `.e <код>`, `.t <команда>` | Python eval и shell |
-| `.ping`, `.info`, `.restart` | система |
-| `.update [-f \| channel stable\|beta \| notify on\|off]` | обновление: список изменений и подтверждение, канал, уведомления раз в сутки |
-| `.inlinebot [токен \| new \| on \| off]` | inline-бот: состояние, свой токен, новый бот |
-| `.owner`, `.sudo`, `.support [add\|del пользователь]` | группы доступа: кому можно вызывать команды |
-| `.security [команда уровень]` | права команд: `owner`, `sudo`, `support`, `everyone` |
-| `.security flood [запросов секунд заморозка \| on \| off]` | защита от флуда: заморозка модулей, которые шлют слишком много запросов |
-| `.logs [уровень]` | логи файлом в «Избранное» |
-| `.backup`, `.restore` | бэкап БД и модулей в «Избранное» (без сессии) и восстановление ответом на архив; автобэкап — `.cfg backup interval <часы>` |
+| 📖 `.help [модуль]` | список модулей и справка |
+| 📥 `.dlm <ссылка \| owner/repo/модуль \| модуль>` | установить модуль; `.dlm owner/repo` — модули репозитория |
+| 🔃 `.uplm [модуль]` | обновить модули: сначала изменения и подтверждение |
+| 🗑 `.ulm <модуль>` | удалить модуль |
+| ⚙️ `.cfg [модуль]` | настройки модулей — кнопками |
+| 🆕 `.update` | обновить Uroboros: список изменений, установка, откат при ошибке |
+| 🌿 `.dev on \| off` | перейти на сборку из `dev` или вернуться на стабильную `master` |
+| 🔐 `.security` | доступ, права команд, защита от флуда и защита модулей |
+| 💾 `.backup`, ♻️ `.restore` | бэкап базы и модулей и восстановление |
+| ℹ️ `.info`, 📡 `.ping`, 📝 `.logs` | состояние бота |
 
-Модули Hikka и FTG ставятся так же, через `.dlm` и `.lm`: адаптер загружает их без правок.
-Что поддерживается — в [docs/hikka.md](docs/hikka.md).
+Все команды с уровнями доступа — в [справочнике](docs/commands.md).
 
-## Пишем модуль
+## 🧩 Пишем модуль
 
 ```python
-# requires: requests
-from uroboros import ConfigValue, Module, ModuleConfig, command, utils, validators, watcher
+# meta developer: @you
+# meta permissions: none
+# requires_uroboros: 1.0
+from uroboros import Module, command, utils
 
 
-class Hello(Module):
-    """Пример модуля"""
+class Notes(Module):
+    """Заметки"""
 
-    def __init__(self):
-        self.config = ModuleConfig(
-            ConfigValue("times", 1, "Сколько раз здороваться", validators.Integer(minimum=1, maximum=5)),
+    @command("save", emoji="💾")
+    async def save(self, message):
+        """<имя> <текст> — сохранить заметку"""
+        name, _, text = utils.get_args_raw(message).partition(" ")
+        self.set(name, text)
+        await utils.answer(
+            message,
+            utils.card(
+                "✅ <b>Заметка сохранена</b>",
+                [f"🏷 Имя: <code>{utils.escape_html(name)}</code>", f"📏 Длина: <code>{len(text)}</code>"],
+                hint=f"показать: <code>.note {utils.escape_html(name)}</code>",
+            ),
         )
-
-    async def on_load(self):
-        self.db.set("loaded", True)  # у каждого модуля своё хранилище
-
-    @command("hello", aliases=["hi"])
-    async def hello(self, message):
-        """[имя] — поздороваться"""
-        name = utils.get_args_raw(message) or "мир"
-        await utils.answer(message, f"Привет, <b>{utils.escape_html(name)}</b>! " * self.config["times"])
-
-    @watcher(only_incoming=True)
-    async def watch(self, message):
-        # вызывается на каждое входящее сообщение
-        pass
 ```
 
-Внутри модуля доступны `self.client` (TelegramClient), `self.get`/`self.set` (своё хранилище),
-`self.config`, `self.strings` и `self.loader`. Ещё есть фильтры команд, фоновые задачи `@loop`,
-библиотеки `self.import_lib(url)`, формы с кнопками `self.inline.form(...)` и хелперы в `utils`. Подробно — в [docs/modules.md](docs/modules.md),
-примеры — в [examples/](examples).
+В модуле есть `self.client` (Telethon), своё хранилище `self.get`/`self.set`, настройки `self.config`,
+фильтры команд, вотчеры, фоновые задачи `@loop`, библиотеки, формы с кнопками `self.inline.form(...)` и
+хелперы в `utils`. Подробно — в [руководстве для авторов](docs/modules.md), готовые модули —
+в [uroboros-modules](https://github.com/asykixd/uroboros-modules) (это и шаблон для своего репозитория).
 
-## Тесты
+## 🛡 Безопасность
+
+> [!WARNING]
+> Юзербот работает от имени вашего аккаунта. Спам, массовые рассылки и флуд запросами могут привести к бану —
+> сначала проверяйте на втором аккаунте.
+
+Сторонние модули выполняются в одном процессе с ботом. Uroboros проверяет их код при установке, показывает
+права и изменения, закрепляет модули с GitHub на коммите и не даёт им трогать сессию и угонять аккаунт. Но это
+не песочница — ставьте модули, которым доверяете. Подробнее — в [docs/security.md](docs/security.md).
+
+## 🛠 Разработка
+
+Ветка `dev` — разработка (версии `X.Y.Z-dev`), `master` — стабильные версии.
 
 ```bash
-.venv/bin/pip install -e '.[dev]'
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
 .venv/bin/python -m pytest
+.venv/bin/mkdocs serve
 ```
 
-## Лицензия
+## 📄 Лицензия
 
 AGPL-3.0, см. [LICENSE](LICENSE).

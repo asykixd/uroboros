@@ -14,7 +14,7 @@ description: Чек-лист при изменении публичного API 
    ```
    Посмотри дифф `tests/api_snapshot.json` — в нём должно быть только задуманное.
 3. **Документация.** Обнови `docs/modules.md` (примеры там не форматируются ruff — проверь их глазами).
-4. **Примеры.** `examples/*.py` загружаются в `tests/test_examples.py`. Если нужен новый API — добавь `# requires_uroboros: X` и проверь, что `__version__` на master не меньше X.
+4. **Примеры.** `examples/*.py` загружаются в `tests/test_examples.py`. Если нужен новый API — добавь `# requires_uroboros: X` и проверь, что `__version__` в `dev` не меньше X.
 5. **Адаптер Hikka.** API намеренно повторяет Hikka. Проверь шимы в `uroboros/hikka/` (`utils`, `loader`, inline), если менялись `utils.answer`, `strings`, `config` или inline-формы.
 6. **Встроенные модули** (`uroboros/modules/`) пишутся только на публичном API — убедись, что они не лезут во внутренности.
 7. **Тесты:**

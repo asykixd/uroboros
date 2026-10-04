@@ -39,3 +39,43 @@ def test_to_raw_url(spec, expected):
 def test_module_url():
     assert module_url("o/r", "mod") == f"{RAW}/o/r/HEAD/mod.py"
     assert module_url("o/r", "mod.py") == f"{RAW}/o/r/HEAD/mod.py"
+
+
+SHA = "0123456789abcdef0123456789abcdef01234567"
+
+
+def test_split_raw_and_commit_link():
+    from uroboros.github import commit_link, split_raw
+
+    assert split_raw(f"{RAW}/o/r/HEAD/dir/mod.py") == ("o/r", "HEAD", "dir/mod.py")
+    assert split_raw(f"{RAW}/o/r/HEAD") is None
+    assert split_raw("https://example.com/o/r/HEAD/mod.py") is None
+    assert commit_link(f"{RAW}/o/r/{SHA}/mod.py") == f"https://github.com/o/r/commit/{SHA}"
+    assert commit_link(f"{RAW}/o/r/main/mod.py") is None
+
+
+def test_pin(monkeypatch):
+    import asyncio
+
+    from uroboros import github
+
+    calls = []
+
+    def resolve(repo, ref):
+        calls.append((repo, ref))
+        return SHA
+
+    monkeypatch.setattr(github, "resolve_commit", resolve)
+    assert asyncio.run(github.pin(f"{RAW}/o/r/HEAD/mod.py")) == (f"{RAW}/o/r/{SHA}/mod.py", SHA)
+    assert asyncio.run(github.pin(f"{RAW}/o/r/{SHA}/mod.py")) == (f"{RAW}/o/r/{SHA}/mod.py", SHA)
+    assert asyncio.run(github.pin("https://example.com/mod.py")) is None
+    assert calls == [("o/r", "HEAD")]
+
+
+def test_pin_falls_back_when_api_fails():
+    import asyncio
+
+    from uroboros import github
+
+    # conftest подменяет resolve_commit ошибкой сети
+    assert asyncio.run(github.pin(f"{RAW}/o/r/HEAD/mod.py")) is None

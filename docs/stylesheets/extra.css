@@ -1,0 +1,55 @@
+/* Фирменная тема Uroboros поверх mkdocs-material. */
+:root {
+  --md-primary-fg-color: #0f766e;
+  --md-primary-fg-color--light: #14b8a6;
+  --md-primary-fg-color--dark: #115e59;
+  --md-accent-fg-color: #14b8a6;
+  --uro-grad: linear-gradient(135deg, #0f766e, #14b8a6 55%, #5eead4);
+  --uro-card: #ffffff;
+  --uro-border: #d7e2e0;
+  --uro-bubble: #effdfa;
+}
+[data-md-color-scheme="slate"] {
+  --md-hue: 175;
+  --md-default-bg-color: #0b1211;
+  --md-primary-fg-color: #2dd4bf;
+  --md-accent-fg-color: #5eead4;
+  --md-typeset-a-color: #5eead4;
+  --uro-card: #131c1b;
+  --uro-border: #24312f;
+  --uro-bubble: #15302c;
+}
+.md-header, .md-tabs { background: var(--uro-grad); }
+[data-md-color-scheme="slate"] .md-header { background: #0f1a19; border-bottom: 1px solid var(--uro-border); }
+
+/* --- главная --- */
+.uro-hero { text-align: center; padding: 1.2rem 0 1.6rem; }
+.uro-hero img { width: 120px; height: 120px; filter: drop-shadow(0 12px 30px rgba(20, 184, 166, .35)); }
+.uro-hero h1 { font-size: 2.6rem; font-weight: 800; margin: .4rem 0 .2rem; letter-spacing: -.02em;
+               background: var(--uro-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.uro-hero p { font-size: 1.05rem; opacity: .85; max-width: 34rem; margin: 0 auto 1.2rem; }
+.uro-hero .md-button { margin: .25rem; border-radius: 999px; }
+.uro-hero .md-button--primary { background: var(--uro-grad); border: 0; color: #fff; }
+
+.md-typeset .grid.cards > ul > li, .md-typeset .grid > .card {
+  border-radius: 14px; border-color: var(--uro-border); background: var(--uro-card);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.md-typeset .grid.cards > ul > li:hover {
+  transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgba(15, 118, 110, .55); border-color: var(--md-accent-fg-color);
+}
+
+/* Сообщение бота в стиле Telegram */
+.tg-chat { max-width: 26rem; margin: 1rem auto; padding: 1rem; border-radius: 18px;
+           background: linear-gradient(160deg, #a7f3d0 0%, #99f6e4 50%, #a5f3fc 100%); }
+[data-md-color-scheme="slate"] .tg-chat { background: linear-gradient(160deg, #0f2a27, #0b1f2a); }
+.tg-msg { background: var(--uro-bubble); border-radius: 16px 16px 4px 16px; padding: .6rem .8rem .4rem;
+          margin-left: auto; width: fit-content; max-width: 100%; font-size: .78rem; line-height: 1.5;
+          box-shadow: 0 1px 1px rgba(0, 0, 0, .12); }
+.tg-msg + .tg-msg { margin-top: .5rem; }
+.tg-msg blockquote { margin: .35rem 0; padding: .1rem .6rem; border-left: 3px solid #14b8a6 !important;
+                     background: rgba(20, 184, 166, .09); border-radius: 4px; color: inherit; }
+.tg-msg code { font-size: .72rem; }
+.tg-msg .tg-time { display: block; text-align: right; font-size: .62rem; opacity: .55; }
+.tg-msg i { opacity: .85; }
+.uro-hero .headerlink { display: none; }

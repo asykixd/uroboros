@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Проект
 
-Uroboros — модульный юзербот для Telegram (Python ≥3.10 + Telethon 1.x), аналог Hikka, написанный с нуля. Лицензия AGPL-3.0: код Hikka (тоже AGPL) можно переносить. Интерфейс и сообщения бота — только на русском. Основная ветка — `master`.
+Uroboros — модульный юзербот для Telegram (Python ≥3.10 + Telethon 1.x), аналог Hikka, написанный с нуля. Лицензия AGPL-3.0: код Hikka (тоже AGPL) можно переносить. Интерфейс и сообщения бота — только на русском. Ветки: `master` — стабильная, `dev` — разработка (см. «Ветки и версии»).
 
 ## Команды
 
@@ -48,23 +48,25 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 Загрузчик проставляет модулю `client`, `loader`, `inline`, `db` (`ModuleDB`, owner = имя модуля), оборачивает `strings` в `Strings` (вызов `self.strings("key", **kw)` экранирует подстановки) и привязывает `config` к БД (ключ `__config__`). При выгрузке stem'а загрузчик останавливает `@loop`-задачи (`loops.py`), снимает обработчики Telethon, чьи функции объявлены в файле модуля, и выгружает библиотеки (`Library`, `self.import_lib`), у которых не осталось модулей-пользователей. Исходники библиотек кешируются в `data/modules/libs/`, ссылки — в БД (`uroboros.loader`/`libs`). `on_dlmod` вызывается в `Loader.install` только если stem ещё не был установлен.
 
-Документация для авторов модулей — `docs/modules.md`. Публичный API зафиксирован в `tests/api_snapshot.json` (политика — `docs/stability.md`): изменили сознательно — `UPDATE_API_SNAPSHOT=1 pytest tests/test_public_api.py`, ломать — только через `uroboros.deprecation.deprecated`. Примеры из `examples/` загружаются в `tests/test_examples.py`: при изменении API их нужно обновлять. Пример с `# requires_uroboros: X` не загрузится, если `__version__` меньше X, поэтому версия на master должна быть не меньше той, что требуют примеры. API намеренно повторяет Hikka (`utils.answer`, `strings`, `config`), чтобы будущий адаптер совместимости был тонким.
+Документация — сайт на mkdocs (`mkdocs.yml`, страницы в `docs/`, сборка `.venv/bin/mkdocs build --strict`, публикация с `master` — `.github/workflows/docs.yml`). `docs/commands.md` и `docs/examples.md` генерируются `scripts/gen_docs.py` из кода, `tests/test_docs.py` проверяет, что они актуальны: поменяли команду или пример — перегенерируйте. Для авторов модулей — `docs/modules.md`, модель безопасности — `docs/security.md`. Публичный API зафиксирован в `tests/api_snapshot.json` (политика — `docs/stability.md`): изменили сознательно — `UPDATE_API_SNAPSHOT=1 pytest tests/test_public_api.py`, ломать — только через `uroboros.deprecation.deprecated`. Примеры из `examples/` загружаются в `tests/test_examples.py`: при изменении API их нужно обновлять. Пример с `# requires_uroboros: X` не загрузится, если `__version__` меньше X, поэтому версия в `dev` и `master` должна быть не меньше той, что требуют примеры (суффикс `-dev` при сравнении не учитывается). API намеренно повторяет Hikka (`utils.answer`, `strings`, `config`), чтобы будущий адаптер совместимости был тонким.
 
 **Защита от флуда (`ratelimit.py`).** `UroborosClient` (`client.py`) считает запросы стороннего модуля, чей контекст выставлен в `current_module` (`module_context` вокруг команд, вотчеров, `@loop`, хуков и колбэков). Превысил лимит — `ModuleFrozen` до конца заморозки, уведомление в «Избранное». Настройки — БД `uroboros.security`/`flood`.
 
 **Inline-бот (`inline/`).** aiogram 3 в том же процессе, `InlineManager` (`loader.inline`). Ошибка запуска бота не роняет юзербот: причина в `manager.error`, её показывает `.inlinebot`. Токен: `UROBOROS_BOT_TOKEN` → БД (`uroboros.inline`/`token`) → создание через @BotFather (`botfather.py`, там же включаются inline-режим и inline feedback). Форма: юзербот делает inline-запрос к своему боту с id формы и отправляет результат (`click`). `inline_message_id` бот узнаёт из `chosen_inline_result` или из первого нажатия. Кнопки ввода подставляют `@бот <id> `, текст приходит в `chosen_inline_result`, служебное сообщение `INPUT_MARKER` юзербот удаляет. Формы (`Unit`) живут в памяти и снимаются при выгрузке stem'а. Отвечает бот только владельцу и `always_allow`. Модули получают прокси `self.inline` (`inline.Inline`). Тесты подменяют бота и клиента заглушками из `tests/fake_inline.py`.
 
-**БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed), `uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands).
+**БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed, hashes — sha256 файлов, pins — ссылки на установленную версию в коммите GitHub), `uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands).
 
-**GitHub (`github.py`).** Преобразует blob-ссылки и короткие пути `owner/repo/path` в адреса `raw.githubusercontent.com/.../HEAD/...`, а списки модулей репозитория получает через GitHub contents API. В `.dlm` разбор идёт по порядку: `owner/repo` → показать список модулей; ссылка или путь → скачать; просто имя → искать в подключённых репозиториях (БД модуля Loader, ключ `repos`).
+**GitHub (`github.py`).** Преобразует blob-ссылки и короткие пути `owner/repo/path` в адреса `raw.githubusercontent.com/.../HEAD/...`, а списки модулей репозитория получает через GitHub contents API. В `.dlm` разбор идёт по порядку: `owner/repo` → показать список модулей; ссылка или путь → скачать; просто имя → искать в подключённых репозиториях (БД модуля Loader, ключ `repos`; пока ключа нет — официальный `asykixd/uroboros-modules`, `DEFAULT_REPOS`).
 
 ## Стиль сообщений бота
 
-Все ответы — HTML через `utils.answer`: свой исходящий текст он редактирует, если текст длиннее 4096 символов — отправляет файлом. Стиль сдержанный:
-- в начале сообщения ровно один эмодзи-статус: ✅ успех, ❌ ошибка, ⏳ процесс, 📦 модули, ⚙️ настройки, 🔗 алиасы и репозитории, 🗑 удаление, 🔐 доступ;
-- без декоративных значков в каждой строке;
-- списки и подробности — в цитатах `utils.quote(...)`, длинное и traceback — в `utils.quote(..., expandable=True)`;
-- код — в `<pre>`.
+Все ответы — HTML через `utils.answer`: свой исходящий текст он редактирует, если текст длиннее 4096 символов — отправляет файлом. Стиль — «карточки» (`utils.card(title, body, hint=...)`):
+- заголовок начинается с одного эмодзи-статуса и жирного текста: ✅ успех, ❌ ошибка, ⏳ процесс, 🚨 опасное, ⚠️ предупреждение, 📦 модули, ⚙️ настройки, 🔐 доступ, 🗑 удаление, 🔗 репозитории, 🏷 алиасы, 🆕 обновления, 🌿 ветки, 💾 бэкап, 🤖 inline-бот;
+- тело — в цитате, у каждой строки своя уместная иконка по смыслу поля (⏱ время, 📦 модули, 👤 пользователь, 🔗 источник, 📌 коммит, 🔐 права, 📏 размер, 🐍 версия), в списках без своей иконки — `▸`;
+- подсказка «что делать дальше» — последней строкой: `💡 <i>...</i>` (`hint=`);
+- эмодзи только уместные: одна на строку, по смыслу, без украшательства; в кнопках-действиях — иконка действия (📥 Установить, 🗑 Удалить, ✖️ Отмена, ◀️ Назад), кнопки-списки (имена модулей, ключей) — без иконок;
+- у встроенных команд `@command(emoji=...)` — иконка в `.help` и справочнике команд;
+- длинное и traceback — в `utils.quote(..., expandable=True)`, код — в `<pre>`.
 
 ## Планы и ограничения
 
@@ -72,9 +74,18 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 - ядро маленькое: встроенные модули (`uroboros/modules/`) пишутся только на публичном API, как сторонние;
 - только обычный Telethon 1.x — без форков и без перехода на Telethon 2 до его стабильного релиза;
 - новая зависимость должна ставиться в Termux без компиляции (исключение — aiogram 3: `pydantic-core` там собирается через Rust, так решил пользователь);
-- до 1.0 каждый релиз — с dev-флагом: версия `X.Y.Z-dev` (в `pyproject.toml` и `uroboros/__init__.py`, pip нормализует её в `X.Y.Z.dev0`), тег `vX.Y.Z-dev`, на GitHub — pre-release. Без `-dev` выходит только 1.0 и дальше. Старые теги `v0.1.0b1`, `v0.1.0b2`, `v0.1.1b2` выпущены до этого правила.
-- сейчас релизы не делаются: только коммиты и push в `master`, без тегов и GitHub-релизов, пока пользователь не попросит. Когда попросит — релиз в конце этапа, а не после каждого коммита: зелёный CI → коммит с версией → аннотированный тег → `gh release create --prerelease` с заметками на русском. Номер версии подтверждать у пользователя.
 
 **Адаптер Hikka (`hikka/`).** `hikka.is_hikka` узнаёт модуль, `check_supported` отклоняет внутренности Hikka. Модуль исполняется с `__package__ = uroboros.hikka.modules`, поэтому `from .. import loader, utils` берёт шимы из `uroboros/hikka/`. `hikka.loader.Module.__init_subclass__` переводит метки Hikka (`is_command`, суффиксы `cmd`/`watcher`/`_inline_handler`, `InfiniteLoop`) в атрибуты декораторов Uroboros; `_bind` (хук, который зовёт загрузчик) подменяет `db` на БД в стиле Hikka, `inline` — на `HikkaInline`. `hikkatl` → Telethon — `hikka/aliases.py`. Таблица совместимости — `scripts/hikka_compat.py` (исполняет чужой код: запускать только в изоляции).
 
-Ещё не сделано: проверка исходников модулей и защита во время работы (0.4). Модули Hikka без адаптера не загрузятся.
+**Проверка исходников (`scan.py`).** AST-эвристика перед установкой: `Loader.install` бросает `scan.UnsafeModuleError` на опасном коде, если не передан `force=True` (кнопка подтверждения или `-f` в `.dlm`/`.lm`/`.uplm`/`.restore`); подозрительное команды показывают в ответе. Встроенные модули не проверяются. Загрузчик хранит sha256 файлов сторонних модулей (БД `uroboros.loader`/`hashes`): если файл изменили в обход Uroboros и в нём опасный код, `load_all` его не грузит. `.uplm` показывает разницу (`difflib`) и ждёт подтверждения, `-f` — сразу. Модули с GitHub качаются по ссылке на коммит (`github.pin`: SHA через API, без API — по исходной ссылке); `installed` хранит исходную ссылку для обновлений, `pins` — закреплённую.
+
+**Защита во время работы (`guard.py`).** `Guard` (`loader.guard`) ограничивает сторонние модули, кроме доверенных (`uroboros.loader`/`trusted`: модуль поставлен с подтверждённым опасным кодом или `.security trust`): `UroborosClient.__call__` не пропускает опасные запросы (`BLOCKED_REQUESTS`), свойство `UroborosClient.session` не отдаёт сессию коду из `uroboros.ext.*`/`uroboros.lib.*`/модулей Hikka (по `sys._getframe`), audit hook (`guard.activate`, ставится в `main.run`) не даёт открывать/удалять сессию, `config.json` и `uroboros.db` и передавать их в команды, пока выставлен `current_module`. Блокировка — `ModuleBlocked` (`LoadError` и `PermissionError`) и уведомление в «Избранное». Это не песочница. Модули Hikka без адаптера не загрузятся.
+
+## Ветки и версии
+
+- **Вся работа — в `dev`.** Коммиты и push только туда. В `master` напрямую не коммитить.
+- **В `master` — только слиянием `dev`**, и только после локальных проверок (`ruff check`, `ruff format --check`, `pytest`) и **явного подтверждения пользователя** на это слияние. Порядок — скилл `/promote`.
+- **Версия зависит от ветки:** в `dev` — `X.Y.Z-dev`, в `master` — `X.Y.Z` (одинаково в `pyproject.toml` и `uroboros/__init__.py`; pip нормализует `-dev` в `.dev0`). При слиянии в `master` суффикс снимается в merge-коммите. `tests/test_version.py` проверяет это по текущей ветке.
+- Установка через pip (без git) обновляется с PyPI: `updater.check_pip`/`install_pip`, канал `stable` — версии без суффикса, `beta` — и `.devN`; `.dev` там недоступна.
+- Канал `.update beta` следует за веткой, на которой стоит бот, поэтому `dev` и `master` обновляются независимо. `.dev on`/`.dev off` (`updater.prepare_switch`/`switch`) переключают ветку бота с откатом, если новая не запускается.
+- **Релизы** (теги, GitHub-релизы) не делаются, пока пользователь не попросит. Когда попросит — только из `master` после `/promote`: тег `vX.Y.Z`, `gh release create` с заметками на русском (скилл `/release`); релиз публикует пакет `uroboros-userbot` на PyPI (`publish.yml`). Номер версии подтверждать у пользователя. Старые теги `v0.1.0b1`, `v0.1.0b2`, `v0.1.1b2` и `v*-dev` выпущены по прежним правилам.

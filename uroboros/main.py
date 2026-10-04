@@ -11,7 +11,7 @@ import signal
 import subprocess
 import sys
 
-from . import __version__, logs, utils, web
+from . import __version__, guard, logs, utils, web
 from .client import UroborosClient, login, make_client
 from .config import Config, get_data_dir, load_config
 from .database import Database
@@ -45,12 +45,12 @@ def notify_frozen(client, name: str, settings: dict) -> None:
     async def send() -> None:
         current_module.set(None)  # уведомление — запрос ядра, а не замороженного модуля
         text = (
-            f"❄️ <b>Модуль {utils.escape_html(name)} заморожен</b>\n"
+            f"🧊 <b>Модуль {utils.escape_html(name)} заморожен</b>\n"
             + utils.quote(
-                f"Больше {settings['limit']} запросов к Telegram за {settings['window']} с. "
-                f"Его запросы блокируются {settings['freeze']} с, чтобы аккаунт не получил ограничений."
+                f"📨 Больше {settings['limit']} запросов к Telegram за {settings['window']} с\n"
+                f"⏱ Его запросы блокируются {settings['freeze']} с, чтобы аккаунт не получил ограничений"
             )
-            + "\n<i>Настройка: .security flood</i>"
+            + f"\n💡 <i>Разморозить: .security unfreeze {utils.escape_html(name)} · настройка: .security flood</i>"
         )
         try:
             await client.send_message("me", text, parse_mode="html")
@@ -58,6 +58,24 @@ def notify_frozen(client, name: str, settings: dict) -> None:
             log.exception("Не удалось сообщить о заморозке модуля %s", name)
 
     asyncio.get_running_loop().create_task(send())
+
+
+def notify_blocked(client, name: str, action: str) -> None:
+    async def send() -> None:
+        current_module.set(None)  # уведомление — запрос ядра, а не модуля
+        text = (
+            f"🛡 <b>Модуль {utils.escape_html(name)} остановлен</b>\n"
+            + utils.quote(f"🚨 Он пытался {utils.escape_html(action)}\n✋ Это угрожает аккаунту, действие не выполнено")
+            + f"\n💡 <i>Если модулю это действительно нужно: .security trust {utils.escape_html(name)}</i>"
+        )
+        try:
+            await client.send_message("me", text, parse_mode="html")
+        except Exception:
+            log.exception("Не удалось сообщить о блокировке модуля %s", name)
+
+    # Блокировка вне цикла событий (например, в потоке) — хватит записи в логе.
+    with contextlib.suppress(RuntimeError):
+        asyncio.get_running_loop().create_task(send())
 
 
 async def shutdown(loader: Loader) -> None:
@@ -112,6 +130,9 @@ async def run(args: argparse.Namespace) -> None:
     loader = Loader(client, db, config.modules_dir)
     client.limiter = loader.ratelimit
     loader.ratelimit.on_freeze = lambda name, settings: notify_frozen(client, name, settings)
+    client.guard = loader.guard
+    loader.guard.on_block = lambda name, action: notify_blocked(client, name, action)
+    guard.activate(loader.guard)
     inline = InlineManager(client, db)
     inline.loader = loader
     loader.inline = inline

@@ -64,4 +64,4 @@ def test_rejected_command_is_not_called(tmp_path):
     message = msg(group=True)
     asyncio.run(dispatcher._run_command(Command(getattr(x, COMMAND_ATTR), x, None), "x", message))
     assert called == []
-    assert message.edits == ["❌ Команда работает только в личных сообщениях"]
+    assert message.edits == ["🚫 <b>Команда работает только в личных сообщениях</b>"]

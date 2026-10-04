@@ -193,31 +193,86 @@ class LoginFlow:
 
 # --- страницы ---
 
+# Логотип: змей, кусающий свой хвост. Тот же рисунок — в документации (docs/assets/logo.svg).
+LOGO = (
+    '<svg class="logo" viewBox="0 0 64 64" aria-hidden="true">'
+    '<defs><linearGradient id="ug" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><st'
+    'op offset="1" stop-color="#0f766e"/></linearGradient></defs><path d="M49.0 19.7A21 21 0 1 1 12.3 24.'
+    '8" fill="none" stroke="url(#ug)" stroke-width="8" stroke-linecap="round"/><path d="M12.3 24.8A21 21 '
+    '0 0 1 24.8 12.3" fill="none" stroke="url(#ug)" stroke-width="6" stroke-linecap="round"/><path d="M24'
+    '.8 12.3A21 21 0 0 1 32.7 11.0" fill="none" stroke="url(#ug)" stroke-width="4" stroke-linecap="round"'
+    '/><path d="M32.7 11.0A21 21 0 0 1 37.1 11.6" fill="none" stroke="url(#ug)" stroke-width="2.4" stroke'
+    '-linecap="round"/><g transform="translate(42.5 13.8) rotate(-150)"><path d="M-8 -5 Q2 -7.6 9 -1.2 L9'
+    ' 1.2 Q2 7.6 -8 5 Q-10 0 -8 -5Z" fill="url(#ug)"/><circle cx="2" cy="-2.4" r="1.6" fill="#fff"/><circ'
+    'le cx="2.4" cy="-2.4" r="0.8" fill="#0b1211"/></g>'
+    "</svg>"
+)
+
 STYLE = """
-:root { --bg: #f4f5f7; --card: #fff; --text: #1d1f23; --muted: #6b7079; --accent: #2b7de9; --error: #c93c3c;
-        --border: #dfe2e6; }
+:root { --bg: #eef3f2; --bg2: #e2ecea; --card: #ffffff; --text: #12201e; --muted: #5d6b69; --accent: #0f9488;
+        --accent2: #14b8a6; --error: #c2410c; --error-bg: #fff1e8; --border: #d7e2e0; --field: #f6f9f8;
+        --shadow: 0 20px 50px -20px rgba(15, 118, 110, .35); }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #15171a; --card: #1f2226; --text: #e8eaed; --muted: #9aa0a8; --accent: #5aa0ff; --error: #ff7b7b;
-          --border: #33373d; }
+  :root { --bg: #0b1211; --bg2: #0f1d1b; --card: #131c1b; --text: #e6f0ee; --muted: #93a6a3; --accent: #2dd4bf;
+          --accent2: #5eead4; --error: #fb923c; --error-bg: #2a1a10; --border: #24312f; --field: #0e1716;
+          --shadow: 0 20px 60px -20px rgba(45, 212, 191, .18); }
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;
-       background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-main { width: 100%; max-width: 380px; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-       padding: 28px 24px; }
-h1 { font-size: 20px; margin: 0 0 4px; }
+       background: radial-gradient(1200px 600px at 10% -10%, var(--bg2), transparent), var(--bg);
+       color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+       padding: 28px 26px 20px; box-shadow: var(--shadow); animation: rise .35s ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.logo { width: 44px; height: 44px; flex: none; }
+.brand b { display: block; font-size: 19px; letter-spacing: .2px; }
+.brand span { display: block; font-size: 13px; color: var(--muted); }
+.steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 22px; }
+.steps li { flex: 1; font-size: 12px; color: var(--muted); text-align: center; }
+.steps li::before { content: ""; display: block; height: 4px; border-radius: 4px; background: var(--border);
+                    margin-bottom: 6px; }
+.steps li.done::before, .steps li.active::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.steps li.active { color: var(--text); font-weight: 600; }
+h1 { font-size: 21px; margin: 0 0 6px; line-height: 1.3; }
 p { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
-label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit;
-        background: var(--bg); color: var(--text); }
-button { width: 100%; margin-top: 16px; padding: 11px; border: 0; border-radius: 8px; font: inherit; font-weight: 600;
-         background: var(--accent); color: #fff; cursor: pointer; }
-button.link { background: none; color: var(--accent); font-weight: 400; margin-top: 8px; padding: 6px; }
-.error { color: var(--error); font-size: 14px; margin: 0 0 12px; }
-.qr { background: #fff; padding: 12px; border-radius: 10px; margin: 0 auto 16px; width: 232px; }
+label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+input { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; font: inherit;
+        background: var(--field); color: var(--text); transition: border-color .15s, box-shadow .15s; }
+input:focus { outline: none; border-color: var(--accent);
+              box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+button { width: 100%; margin-top: 18px; padding: 13px; border: 0; border-radius: 12px; font: inherit; font-weight: 650;
+         background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; cursor: pointer;
+         transition: transform .1s, filter .15s; }
+@media (prefers-color-scheme: dark) { button { color: #04201d; } }
+button:hover { filter: brightness(1.05); }
+button:active { transform: scale(.99); }
+button.link { background: none; color: var(--accent); font-weight: 500; margin-top: 6px; padding: 8px; }
+.alert { display: flex; gap: 8px; color: var(--error); background: var(--error-bg); border-radius: 12px;
+         padding: 10px 12px; font-size: 14px; margin: 0 0 14px; }
+.qr { background: #fff; padding: 14px; border-radius: 16px; margin: 4px auto 14px; width: 236px;
+      border: 1px solid var(--border); }
 .qr svg { display: block; width: 208px; height: 208px; }
+.hint { font-size: 13px; color: var(--muted); }
+.success { text-align: center; padding: 8px 0 4px; }
+.success .mark { font-size: 54px; line-height: 1; display: inline-block; animation: pop .4s ease-out; }
+@keyframes pop { 0% { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.12); } 100% { transform: none; } }
+footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);
+         text-align: center; }
 a { color: var(--accent); }
 """
+
+STEPS = (("api", "🔑 Ключи"), ("phone", "📱 Номер"), ("code", "💬 Вход"))
+STEP_OF = {"api": 0, "phone": 1, "code": 2, "password": 2, "qr": 2, "done": 3}
+
+
+def _steps(state: str) -> str:
+    current = STEP_OF.get(state, 0)
+    items = []
+    for index, (_, title) in enumerate(STEPS):
+        cls = "done" if index < current else "active" if index == current else ""
+        items.append(f'<li class="{cls}">{title}</li>')
+    return f'<ol class="steps">{"".join(items)}</ol>'
 
 
 def _form(token: str, action: str, body: str, submit: str) -> str:
@@ -242,25 +297,41 @@ def _qr_svg(url: str) -> str:
     return image.to_string(encoding="unicode")
 
 
+def _page(content: str, *, head: str = "", title: str = "Uroboros — вход") -> str:
+    return (
+        '<!doctype html><html lang="ru"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f'<meta name="referrer" content="no-referrer">{head}<title>{title}</title>'
+        f"<style>{STYLE}</style></head><body><main>"
+        f'<header class="brand">{LOGO}<div><b>Uroboros</b><span>модульный юзербот для Telegram</span></div></header>'
+        f"{content}"
+        "<footer>🔒 Всё остаётся на этом компьютере · панель выключится сразу после входа</footer>"
+        "</main></body></html>"
+    )
+
+
 def render(flow: LoginFlow, token: str) -> str:
-    error = f'<p class="error">{html.escape(flow.error)}</p>' if flow.error else ""
-    refresh = ""
+    error = f'<div class="alert"><span>⚠️</span><span>{html.escape(flow.error)}</span></div>' if flow.error else ""
+    head = ""
     if flow.state == "api":
         body = (
-            "<h1>Uroboros</h1><p>Получите api_id и api_hash на "
-            '<a href="https://my.telegram.org/apps" target="_blank" rel="noreferrer">my.telegram.org/apps</a></p>'
+            "<h1>🔑 Ключи приложения</h1><p>Telegram выдаёт их бесплатно: войдите на "
+            '<a href="https://my.telegram.org/apps" target="_blank" rel="noreferrer">my.telegram.org/apps</a> '
+            "и создайте приложение — подойдут любые название и описание.</p>"
             + error
             + _form(
                 token,
                 "api",
-                '<label for="api_id">api_id</label><input id="api_id" name="api_id" inputmode="numeric" required>'
-                '<label for="api_hash">api_hash</label><input id="api_hash" name="api_hash" required>',
-                "Дальше",
+                '<label for="api_id">api_id</label>'
+                '<input id="api_id" name="api_id" inputmode="numeric" placeholder="1234567" required>'
+                '<label for="api_hash">api_hash</label>'
+                '<input id="api_hash" name="api_hash" placeholder="0123456789abcdef…" autocomplete="off" required>',
+                "Дальше →",
             )
         )
     elif flow.state == "phone":
         body = (
-            "<h1>Вход в Telegram</h1><p>Номер телефона аккаунта, на котором будет работать юзербот</p>"
+            "<h1>📱 Номер телефона</h1><p>Аккаунт, на котором будет работать юзербот. Telegram пришлёт код.</p>"
             + error
             + _form(
                 token,
@@ -269,54 +340,57 @@ def render(flow: LoginFlow, token: str) -> str:
                 '<input id="phone" name="phone" type="tel" placeholder="+7 900 000-00-00" autocomplete="tel" required>',
                 "Получить код",
             )
-            + _link_button(token, "qr", "Войти по QR-коду")
+            + _link_button(token, "qr", "📷 Войти по QR-коду")
         )
     elif flow.state == "code":
         body = (
-            f"<h1>Код</h1><p>Telegram прислал код на {html.escape(flow.phone or '')}: в приложение или по SMS</p>"
+            f"<h1>💬 Код из Telegram</h1><p>Отправили на <b>{html.escape(flow.phone or '')}</b> — в приложение "
+            "Telegram на другом устройстве или по SMS.</p>"
             + error
             + _form(
                 token,
                 "code",
                 '<label for="code">Код</label>'
-                '<input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" required>',
+                '<input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="12345" '
+                "required autofocus>",
                 "Войти",
             )
-            + _link_button(token, "back", "Другой номер")
+            + _link_button(token, "back", "← Другой номер")
         )
     elif flow.state == "password":
         body = (
-            "<h1>Пароль</h1><p>На аккаунте включена двухэтапная проверка</p>"
+            "<h1>🔒 Облачный пароль</h1><p>На аккаунте включена двухэтапная проверка.</p>"
             + error
             + _form(
                 token,
                 "password",
-                '<label for="password">Облачный пароль</label>'
-                '<input id="password" name="password" type="password" autocomplete="current-password" required>',
+                '<label for="password">Пароль</label>'
+                '<input id="password" name="password" type="password" autocomplete="current-password" '
+                "required autofocus>",
                 "Войти",
             )
         )
     elif flow.state == "qr":
-        refresh = f'<meta http-equiv="refresh" content="{QR_REFRESH}; url=/?token={token}">'
+        head = f'<meta http-equiv="refresh" content="{QR_REFRESH}; url=/?token={token}">'
         body = (
-            "<h1>Вход по QR-коду</h1><p>Telegram на телефоне → Настройки → Устройства → Подключить устройство</p>"
+            "<h1>📷 Вход по QR-коду</h1><p>Telegram на телефоне → Настройки → Устройства → Подключить устройство.</p>"
             + error
             + f'<div class="qr">{_qr_svg(flow.qr.url)}</div>'
-            + _link_button(token, "back", "Войти по номеру")
+            + '<p class="hint">Код обновляется сам. После сканирования страница перейдёт дальше.</p>'
+            + _link_button(token, "back", "← Войти по номеру")
         )
     else:
-        body = "<h1>Готово</h1><p>Вход выполнен, юзербот запускается. Это окно можно закрыть.</p>"
-    return (
-        '<!doctype html><html lang="ru"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        f'<meta name="referrer" content="no-referrer">{refresh}<title>Uroboros — вход</title>'
-        f"<style>{STYLE}</style></head><body><main>{body}</main></body></html>"
-    )
+        body = (
+            '<div class="success"><span class="mark">✅</span><h1>Готово</h1>'
+            "<p>Вход выполнен, юзербот запускается. Это окно можно закрыть, а в Telegram написать "
+            "<b>.help</b>.</p></div>"
+        )
+    return _page(_steps(flow.state) + body, head=head)
 
 
-DENIED = (
-    '<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Uroboros</title></head>'
-    "<body><p>Нет доступа: откройте ссылку из консоли Uroboros целиком.</p></body></html>"
+DENIED = _page(
+    "<h1>🔐 Нет доступа</h1><p>Откройте ссылку из консоли Uroboros целиком — в ней есть одноразовый ключ.</p>",
+    title="Uroboros",
 )
 
 

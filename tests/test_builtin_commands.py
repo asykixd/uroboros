@@ -35,11 +35,16 @@ def test_uplm_updates_changed_modules(builtin_loader, monkeypatch):
     monkeypatch.setattr(download, "download", fake_download)
 
     text = run_command(loader, ".uplm")
-    assert "без изменений" in text and "из файла, пропущен" in text
+    assert text.startswith("✅ <b>Обновлений нет") and "без изменений" in text and "из файла, пропущен" in text
 
     remote["https://example.com/demo.py"] = V2.encode()
     text = run_command(loader, ".uplm demo")
-    assert text.startswith("✅") and "обновлён" in text
+    assert text.startswith("🔃 <b>Обновить модули?") and "<b>Demo</b> · +1 −1" in text and "uplm -f demo" in text
+    assert '-    @command("one")' in text and '+    @command("two")' in text
+    assert loader.get_command("one") is not None
+
+    text = run_command(loader, ".uplm -f demo")
+    assert text.startswith("✅") and "обновлён (+1 −1)" in text
     assert loader.get_command("one") is None
     assert loader.get_command("two") is not None
 
@@ -80,10 +85,45 @@ def test_search_in_connected_repos(builtin_loader, monkeypatch):
         return listings[repo]
 
     monkeypatch.setattr(github, "list_modules", fake_list)
+    assert loader.get_module("loader")._repos() == ["asykixd/uroboros-modules"]  # официальные — по умолчанию
+    assert "delrepo" in loader.commands and "Отключён" not in run_command(loader, ".delrepo asykixd/uroboros-modules")
     assert "Нет подключённых" in run_command(loader, ".search weather")
 
     loader.get_module("loader").db.set("repos", ["a/mods", "b/broken"])
     text = run_command(loader, ".search weather")
     assert "Найдено</b> · 2" in text and "dlm a/mods/WeatherPro" in text and "b/broken" in text
-    assert "Ничего не найдено" in run_command(loader, ".search radio")
+    assert "Ничего не нашлось" in run_command(loader, ".search radio")
     assert calls.count("a/mods") == 1  # список кешируется
+
+
+def test_dlm_and_uplm_pin_github_commit(builtin_loader, monkeypatch):
+    from uroboros import github
+
+    loader = builtin_loader
+    loader.get_module("loader").db.set("repos", ["someone/mods"])
+    base = "https://raw.githubusercontent.com/someone/mods"
+    sha1, sha2 = "1" * 40, "2" * 40
+    state = {"sha": sha1}
+    files = {f"{base}/{sha1}/demo.py": V1.encode(), f"{base}/{sha2}/demo.py": V2.encode()}
+    downloads = []
+
+    async def fake_download(url):
+        downloads.append(url)
+        return files[url]
+
+    monkeypatch.setattr(download, "download", fake_download)
+    monkeypatch.setattr(github, "resolve_commit", lambda repo, ref: state["sha"])
+
+    assert run_command(loader, ".dlm someone/mods/demo").startswith("✅")
+    assert downloads == [f"{base}/{sha1}/demo.py"]
+    assert loader.installed()["demo"] == f"{base}/HEAD/demo.py"  # обновления — с HEAD
+    assert loader.pins()["demo"] == f"{base}/{sha1}/demo.py"
+
+    state["sha"] = sha2
+    text = run_command(loader, ".uplm demo")
+    assert f'📌 <a href="https://github.com/someone/mods/commit/{sha2}">2222222</a>' in text
+    run_command(loader, ".uplm -f demo")
+    assert loader.pins()["demo"] == f"{base}/{sha2}/demo.py"
+
+    asyncio.run(loader.uninstall("Demo"))
+    assert "demo" not in loader.pins()

@@ -15,7 +15,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
-from . import __version__, download, github, hikka
+from . import __version__, download, github, hikka, scan
 from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import (
     CALLBACK_ATTR,
@@ -28,6 +28,7 @@ from .decorators import (
     WatcherInfo,
 )
 from .errors import LoadError
+from .guard import Guard
 from .hikka import aliases as hikka_aliases
 from .inline import Inline
 from .loops import LOOP_ATTR, Loop
@@ -152,6 +153,10 @@ def lib_file_name(url: str) -> str:
     return f"{base}_{hashlib.sha256(url.encode()).hexdigest()[:10]}.py"
 
 
+def source_hash(source: str) -> str:
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
 def make_stem(name: str) -> str:
     return re.sub(r"[^a-z0-9_]", "_", name.lower()) or "module"
 
@@ -186,6 +191,7 @@ class Loader:
         self.inline: InlineManager | None = None
         self.security = Security(db)
         self.ratelimit = RateLimiter(db)
+        self.guard = Guard(self, modules_dir.parent)
 
         self.modules: dict[str, Module] = {}  # имя в нижнем регистре → модуль
         self.commands: dict[str, Command] = {}  # основное имя → команда
@@ -223,17 +229,39 @@ class Loader:
             except Exception:
                 log.exception("Не удалось загрузить встроенный модуль %s", path.stem)
 
+        hashes = self.db.get(LOADER_OWNER, "hashes", {})
         for stem, origin in self.installed().items():
             path = self.modules_dir / f"{stem}.py"
             if not path.exists():
                 log.warning("Файл модуля %s пропал, пропускаю", path)
                 continue
+            source = path.read_text("utf-8")
+            if not self._check_hash(stem, source, hashes):
+                continue
             try:
-                await self.load_source(path.read_text("utf-8"), origin=origin, stem=stem, filename=str(path))
+                await self.load_source(source, origin=origin, stem=stem, filename=str(path))
             except Exception:
                 log.exception("Не удалось загрузить модуль %s", stem)
+        self.db.set(LOADER_OWNER, "hashes", hashes)
 
         log.info("Загружено модулей: %d, команд: %d", len(self.modules), len(self.commands))
+
+    def _check_hash(self, stem: str, source: str, hashes: dict[str, str]) -> bool:
+        """Файл модуля изменили в обход Uroboros: с опасным кодом не грузим, иначе запоминаем новый хеш."""
+        digest = source_hash(source)
+        if hashes.get(stem, digest) != digest:
+            report = scan.scan(source)
+            if report.dangerous:
+                log.error(
+                    "Файл модуля %s изменён не через Uroboros и содержит опасный код (%s), не загружаю. "
+                    "Переустановите модуль: .dlm",
+                    stem,
+                    scan.summary(report.dangerous),
+                )
+                return False
+            log.warning("Файл модуля %s изменён не через Uroboros", stem)
+        hashes[stem] = digest
+        return True
 
     async def load_source(
         self,
@@ -246,8 +274,15 @@ class Loader:
         instances, _ = await self._load(source, origin=origin, stem=stem, filename=filename)
         return instances
 
-    async def install(self, source: str, origin: str) -> list[Module]:
-        """Загружает сторонний модуль и сохраняет его, чтобы он грузился после рестарта."""
+    async def install(self, source: str, origin: str, *, force: bool = False, pin: str | None = None) -> list[Module]:
+        """Загружает сторонний модуль и сохраняет его, чтобы он грузился после рестарта.
+
+        Модуль с опасным кодом (``scan``) ставится только с ``force=True`` — после явного подтверждения.
+        ``origin`` — откуда брать обновления, ``pin`` — ссылка на ту же версию в конкретном коммите (GitHub).
+        """
+        report = scan.scan(source)
+        if report.dangerous and not force:
+            raise scan.UnsafeModuleError(report)
         installed = self.installed()
         instances, replaced = await self._load(source, origin=origin)
         stem = instances[0]._stem
@@ -271,7 +306,26 @@ class Loader:
         (self.modules_dir / f"{stem}.py").write_bytes(source.encode("utf-8"))
         installed[stem] = origin
         self.db.set(LOADER_OWNER, "installed", installed)
+        hashes = self.db.get(LOADER_OWNER, "hashes", {})
+        for old_stem in replaced - {stem}:
+            hashes.pop(old_stem, None)
+        hashes[stem] = source_hash(source)
+        self.db.set(LOADER_OWNER, "hashes", hashes)
+        pins = self.db.get(LOADER_OWNER, "pins", {})
+        for old_stem in replaced | {stem}:
+            pins.pop(old_stem, None)
+        if pin:
+            pins[stem] = pin
+        self.db.set(LOADER_OWNER, "pins", pins)
+        for old_stem in replaced - {stem}:
+            self.guard.set_trusted(old_stem, False)
+        # Опасный код пользователь видел и подтвердил — защита во время работы этот модуль не ограничивает.
+        self.guard.set_trusted(stem, bool(report.dangerous))
         return instances
+
+    def pins(self) -> dict[str, str]:
+        """Сторонние модули с GitHub: stem → ссылка на установленную версию в конкретном коммите."""
+        return self.db.get(LOADER_OWNER, "pins", {})
 
     async def _load(
         self,
@@ -588,6 +642,13 @@ class Loader:
         installed = self.installed()
         installed.pop(stem, None)
         self.db.set(LOADER_OWNER, "installed", installed)
+        hashes = self.db.get(LOADER_OWNER, "hashes", {})
+        hashes.pop(stem, None)
+        self.db.set(LOADER_OWNER, "hashes", hashes)
+        pins = self.pins()
+        pins.pop(stem, None)
+        self.db.set(LOADER_OWNER, "pins", pins)
+        self.guard.set_trusted(stem, False)
         (self.modules_dir / f"{stem}.py").unlink(missing_ok=True)
         return removed
 

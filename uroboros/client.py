@@ -2,23 +2,40 @@
 
 from __future__ import annotations
 
+import sys
+
 from telethon import TelegramClient
 
 from . import __version__
 from .config import Config
+from .guard import Guard
 from .ratelimit import RateLimiter, current_module
 
 
 class UroborosClient(TelegramClient):
-    """TelegramClient, который считает запросы сторонних модулей (защита от флуда)."""
+    """TelegramClient, который защищает аккаунт от сторонних модулей: флуд запросами, опасные запросы, сессия."""
 
     limiter: RateLimiter | None = None
+    guard: Guard | None = None
 
     async def __call__(self, request, ordered=False, flood_sleep_threshold=None):
+        if self.guard is not None:
+            self.guard.check_request(request)
         module = current_module.get()
         if module is not None and self.limiter is not None:
             self.limiter.check(module, len(request) if isinstance(request, list) else 1)
         return await super().__call__(request, ordered, flood_sleep_threshold)
+
+    @property
+    def session(self):
+        # Telethon обращается к сессии постоянно, поэтому проверка дешёвая: только имя модуля вызывающего кода.
+        if self.guard is not None:
+            self.guard.check_session_access(sys._getframe(1).f_globals.get("__name__", ""))
+        return self._uroboros_session
+
+    @session.setter
+    def session(self, value):
+        self._uroboros_session = value
 
     # --- совместимость с Hikka-TL: модули Hikka передают параметры кеша (exp, force) ---
 

@@ -25,6 +25,7 @@ class CommandInfo:
     no_reply: bool = False
     filter: Callable[[Any], bool] | None = None
     access: str = "sudo"
+    emoji: str = ""  # иконка команды в .help и списках
 
     def restrictions(self) -> list[str]:
         """Ограничения команды словами — для .help."""
@@ -82,6 +83,7 @@ def command(
     no_reply: bool = False,
     filter: Callable[[Any], bool] | None = None,
     access: str = "sudo",
+    emoji: str = "",
 ):
     """Помечает метод как команду ``<префикс><name>``.
 
@@ -95,6 +97,8 @@ def command(
 
     ``access`` — кто может выполнять команду по умолчанию: ``owner``, ``sudo`` (и владельцы),
     ``support`` (и выше) или ``everyone``. Пользователь меняет это через ``.security``.
+
+    ``emoji`` — иконка команды в ``.help`` и в списке команд после установки модуля (одна уместная эмодзи).
     """
     from .security import LEVELS
 
@@ -122,6 +126,7 @@ def command(
                 no_reply=no_reply,
                 filter=filter,
                 access=access,
+                emoji=emoji,
             ),
         )
         return func
