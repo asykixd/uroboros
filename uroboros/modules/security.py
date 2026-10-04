@@ -15,7 +15,7 @@ class Security(Module):
 
     @command("security", access="owner")
     async def security(self, message):
-        """[команда уровень | flood ... | unfreeze модуль] — доступ, права команд и защита от флуда"""
+        """[команда уровень | flood ... | unfreeze модуль | trust/untrust модуль] — доступ, права команд и защита"""
         args = utils.get_args(message)
         if not args:
             await utils.answer(message, await self._overview())
@@ -25,6 +25,9 @@ class Security(Module):
             return
         if args[0].lower() == "unfreeze" and len(args) == 2:
             await self._unfreeze(message, args[1])
+            return
+        if args[0].lower() in ("trust", "untrust") and len(args) == 2:
+            await self._trust(message, args[1], args[0].lower() == "trust")
             return
         if len(args) != 2:
             await utils.answer(message, USAGE)
@@ -74,6 +77,11 @@ class Security(Module):
             else "выключена"
         )
         text += f"\n<b>Защита от флуда:</b> {flood}"
+        trusted = sorted(self.loader.guard.trusted())
+        if trusted:
+            names = {m._stem: m.name for m in self.loader.modules.values()}
+            items = [f"<b>{utils.escape_html(names.get(stem, stem))}</b>" for stem in trusted]
+            text += "\n<b>Без защиты во время работы</b>\n" + utils.quote(", ".join(items))
         frozen = [(name, limiter.frozen_for(name)) for name in list(limiter.frozen)]
         frozen = [f"<b>{utils.escape_html(n)}</b> — ещё {format_seconds(left)}" for n, left in frozen if left]
         if frozen:
@@ -119,6 +127,25 @@ class Security(Module):
             await utils.answer(message, f"✅ Модуль <b>{utils.escape_html(name)}</b> разморожен")
         else:
             await utils.answer(message, f"❌ Модуль <b>{utils.escape_html(name)}</b> не заморожен")
+
+    async def _trust(self, message, name, trusted):
+        module = self.loader.get_module(name)
+        if module is None or module.is_builtin:
+            await utils.answer(message, f"❌ Нет стороннего модуля <code>{utils.escape_html(name)}</code>")
+            return
+        self.loader.guard.set_trusted(module._stem, trusted)
+        label = f"<b>{utils.escape_html(module.name)}</b>"
+        if trusted:
+            await utils.answer(
+                message,
+                f"🔐 Модулю {label} разрешено всё\n"
+                + utils.quote(
+                    "Защита во время работы его больше не ограничивает: он может читать сессию, завершать сеансы "
+                    "и менять пароль. Включить обратно: <code>security untrust</code>"
+                ),
+            )
+        else:
+            await utils.answer(message, f"🔐 Модуль {label} снова под защитой")
 
     async def _user(self, user_id):
         if self.client is not None:

@@ -28,6 +28,7 @@ from .decorators import (
     WatcherInfo,
 )
 from .errors import LoadError
+from .guard import Guard
 from .hikka import aliases as hikka_aliases
 from .inline import Inline
 from .loops import LOOP_ATTR, Loop
@@ -190,6 +191,7 @@ class Loader:
         self.inline: InlineManager | None = None
         self.security = Security(db)
         self.ratelimit = RateLimiter(db)
+        self.guard = Guard(self, modules_dir.parent)
 
         self.modules: dict[str, Module] = {}  # имя в нижнем регистре → модуль
         self.commands: dict[str, Command] = {}  # основное имя → команда
@@ -278,10 +280,9 @@ class Loader:
         Модуль с опасным кодом (``scan``) ставится только с ``force=True`` — после явного подтверждения.
         ``origin`` — откуда брать обновления, ``pin`` — ссылка на ту же версию в конкретном коммите (GitHub).
         """
-        if not force:
-            report = scan.scan(source)
-            if report.dangerous:
-                raise scan.UnsafeModuleError(report)
+        report = scan.scan(source)
+        if report.dangerous and not force:
+            raise scan.UnsafeModuleError(report)
         installed = self.installed()
         instances, replaced = await self._load(source, origin=origin)
         stem = instances[0]._stem
@@ -316,6 +317,10 @@ class Loader:
         if pin:
             pins[stem] = pin
         self.db.set(LOADER_OWNER, "pins", pins)
+        for old_stem in replaced - {stem}:
+            self.guard.set_trusted(old_stem, False)
+        # Опасный код пользователь видел и подтвердил — защита во время работы этот модуль не ограничивает.
+        self.guard.set_trusted(stem, bool(report.dangerous))
         return instances
 
     def pins(self) -> dict[str, str]:
@@ -643,6 +648,7 @@ class Loader:
         pins = self.pins()
         pins.pop(stem, None)
         self.db.set(LOADER_OWNER, "pins", pins)
+        self.guard.set_trusted(stem, False)
         (self.modules_dir / f"{stem}.py").unlink(missing_ok=True)
         return removed
 

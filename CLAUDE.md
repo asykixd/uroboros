@@ -77,7 +77,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 **Проверка исходников (`scan.py`).** AST-эвристика перед установкой: `Loader.install` бросает `scan.UnsafeModuleError` на опасном коде, если не передан `force=True` (кнопка подтверждения или `-f` в `.dlm`/`.lm`/`.uplm`/`.restore`); подозрительное команды показывают в ответе. Встроенные модули не проверяются. Загрузчик хранит sha256 файлов сторонних модулей (БД `uroboros.loader`/`hashes`): если файл изменили в обход Uroboros и в нём опасный код, `load_all` его не грузит. `.uplm` показывает разницу (`difflib`) и ждёт подтверждения, `-f` — сразу. Модули с GitHub качаются по ссылке на коммит (`github.pin`: SHA через API, без API — по исходной ссылке); `installed` хранит исходную ссылку для обновлений, `pins` — закреплённую.
 
-Ещё не сделано: защита во время работы (0.4). Модули Hikka без адаптера не загрузятся.
+**Защита во время работы (`guard.py`).** `Guard` (`loader.guard`) ограничивает сторонние модули, кроме доверенных (`uroboros.loader`/`trusted`: модуль поставлен с подтверждённым опасным кодом или `.security trust`): `UroborosClient.__call__` не пропускает опасные запросы (`BLOCKED_REQUESTS`), свойство `UroborosClient.session` не отдаёт сессию коду из `uroboros.ext.*`/`uroboros.lib.*`/модулей Hikka (по `sys._getframe`), audit hook (`guard.activate`, ставится в `main.run`) не даёт открывать/удалять сессию, `config.json` и `uroboros.db` и передавать их в команды, пока выставлен `current_module`. Блокировка — `ModuleBlocked` (`LoadError` и `PermissionError`) и уведомление в «Избранное». Это не песочница. Модули Hikka без адаптера не загрузятся.
 
 ## Ветки и версии
 

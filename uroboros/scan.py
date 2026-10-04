@@ -35,6 +35,7 @@ DANGER_NAMES = {
     "qr_login": "входит в аккаунт по QR-коду",
     "auth_key": "читает ключ авторизации (сессию)",
     "api_hash": "читает api_hash",
+    "_uroboros_session": "читает сессию в обход защиты",
 }
 WARNING_NAMES = {
     "GetAuthorizationsRequest": "получает список сеансов аккаунта",
