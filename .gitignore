@@ -6,3 +6,5 @@ data/
 *.session
 *.session-journal
 site/
+.coverage
+htmlcov/

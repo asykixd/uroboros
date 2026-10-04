@@ -33,7 +33,7 @@
 |  |  |
 |---|---|
 | 📦 **Модули одной командой** — `.dlm notes`, поиск `.search`, свои репозитории `.addrepo` | 🛡 **Защита аккаунта** — код модуля проверяется до установки, а во время работы модули не видят сессию |
-| 🤖 **Кнопки и формы** — встроенный inline-бот: настройки, справка, подтверждения | 🔁 **Совместим с Hikka** — большинство модулей Hikka и FTG работают без правок |
+| 🤖 **Кнопки и формы** — встроенный inline-бот: настройки, справка, подтверждения | 🔁 **Модули Hikka и FTG** — адаптер загружает их без правок; что поддерживается — в [docs/hikka.md](docs/hikka.md) |
 | 🌿 **Стабильная и dev-ветки** — `.dev on` / `.dev off`, обновление `.update` с откатом | 💾 **Бэкапы** — база и модули одним архивом, автобэкап по расписанию |
 | 🔐 **Доступ по уровням** — `owner`, `sudo`, `support` и права на каждую команду | 🐧 **Работает везде** — Linux и VPS, Termux, Docker, Windows, macOS |
 
@@ -122,6 +122,12 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
 .venv/bin/mkdocs serve
 ```
 
+## 🙏 Благодарности
+
+API модулей и адаптер повторяют [Hikka](https://github.com/hikariatama/Hikka) (AGPL-3.0) — спасибо её авторам.
+Используются [Telethon](https://github.com/LonamiWebs/Telethon) и [aiogram](https://github.com/aiogram/aiogram).
+
 ## 📄 Лицензия
 
-AGPL-3.0, см. [LICENSE](LICENSE).
+AGPL-3.0, см. [LICENSE](LICENSE). Как помочь проекту — [CONTRIBUTING.md](CONTRIBUTING.md), уязвимости —
+[SECURITY.md](SECURITY.md).
