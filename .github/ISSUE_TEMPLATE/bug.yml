@@ -1,0 +1,35 @@
+name: 🐞 Ошибка
+description: Что-то работает не так
+labels: [ошибка]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Уязвимости — не сюда, а приватно: см. SECURITY.md. Не прикладывайте сессию, config.json и логи с личными данными.
+  - type: textarea
+    id: what
+    attributes:
+      label: Что случилось
+      description: Что делали, что ожидали и что получили
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      placeholder: |
+        1. .dlm ...
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: Версия и система
+      description: Из .info — версия Uroboros, Python, система (Linux, Termux, Docker, Windows, macOS)
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Ошибка или лог
+      description: Текст ошибки из ответа бота или кусок лога (.logs error)
+      render: text
