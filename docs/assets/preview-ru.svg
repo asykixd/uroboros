@@ -30,7 +30,7 @@
   <rect x="318" y="116" width="3" height="98" rx="1.5" fill="#14b8a6"/>
   <rect x="321" y="116" width="357" height="98" rx="4" fill="#14b8a6" opacity=".08"/>
   <g font-size="13" fill="#d7e6e3">
-    <text x="332" y="136">👤 Аккаунт: <tspan font-weight="700">Алиса</tspan></text>
+    <text x="332" y="136">👤 Аккаунт: <tspan font-weight="700">Evelin</tspan></text>
     <text x="332" y="155">⏱ Аптайм: <tspan font-family="Menlo, monospace" fill="#5eead4">3 д 04:05:06</tspan></text>
     <text x="332" y="174">📦 Модулей: <tspan font-family="Menlo, monospace" fill="#5eead4">13</tspan> · команд: <tspan font-family="Menlo, monospace" fill="#5eead4">35</tspan></text>
     <text x="332" y="193">🌿 Ветка: <tspan font-family="Menlo, monospace" fill="#5eead4">master</tspan></text>

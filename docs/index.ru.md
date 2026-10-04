@@ -64,8 +64,8 @@ hide:
 
 <div class="tg-chat" markdown>
 <div class="tg-msg">
-🐍 <b>Uroboros</b> <code>1.0.0</code>
-<blockquote>👤 Аккаунт: <b>Алиса</b><br>⏱ Аптайм: <code>3 д 04:05:06</code><br>📦 Модулей: <code>13</code> · команд: <code>35</code><br>⌨️ Префикс: <code>.</code><br>🌿 Ветка: <code>master</code></blockquote>
+🐍 <b>Uroboros</b>
+<blockquote>👤 Аккаунт: <b>Evelin</b><br>⏱ Аптайм: <code>3 д 04:05:06</code><br>📦 Модулей: <code>13</code> · команд: <code>35</code><br>⌨️ Префикс: <code>.</code><br>🌿 Ветка: <code>master</code></blockquote>
 💡 <i><code>.help</code> — все команды</i>
 <span class="tg-time">12:00 ✓✓</span>
 </div>

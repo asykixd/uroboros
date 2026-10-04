@@ -64,8 +64,8 @@ from malicious code.
 
 <div class="tg-chat" markdown>
 <div class="tg-msg">
-🐍 <b>Uroboros</b> <code>1.0.0</code>
-<blockquote>👤 Account: <b>Alice</b><br>⏱ Uptime: <code>3d 04:05:06</code><br>📦 Modules: <code>13</code> · commands: <code>35</code><br>⌨️ Prefix: <code>.</code><br>🌿 Branch: <code>master</code></blockquote>
+🐍 <b>Uroboros</b>
+<blockquote>👤 Account: <b>Evelin</b><br>⏱ Uptime: <code>3d 04:05:06</code><br>📦 Modules: <code>13</code> · commands: <code>35</code><br>⌨️ Prefix: <code>.</code><br>🌿 Branch: <code>master</code></blockquote>
 💡 <i><code>.help</code> — all commands</i>
 <span class="tg-time">12:00 ✓✓</span>
 </div>

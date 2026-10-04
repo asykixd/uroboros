@@ -27,7 +27,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/asykixd/uroboros/master/docs/assets/preview-en.svg" width="720" alt="Uroboros messages in Telegram">
+  <img src="https://raw.githubusercontent.com/asykixd/uroboros/master/docs/assets/preview-en.svg?v=2" width="720" alt="Uroboros messages in Telegram">
 </p>
 
 ## ✨ Features
