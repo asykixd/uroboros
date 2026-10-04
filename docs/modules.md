@@ -1,8 +1,8 @@
 # Как писать модули
 
 Модуль — это `.py`-файл с одним или несколькими классами-наследниками `Module`.
-Встроенные модули Uroboros написаны на том же API, их код — хороший пример: [`uroboros/modules/`](../uroboros/modules).
-Готовые примеры — в [`examples/`](../examples).
+Встроенные модули Uroboros написаны на том же API, их код — хороший пример: [`uroboros/modules/`](https://github.com/asykixd/uroboros/tree/master/uroboros/modules).
+Готовые примеры — в [`examples/`](examples.md).
 
 Установить свой модуль: отправьте файл в любой чат и ответьте на него `.lm`, либо `.dlm <ссылка>`.
 
