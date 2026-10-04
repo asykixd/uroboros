@@ -14,6 +14,7 @@ from uroboros.errors import InlineError
 CANCEL = {"text": "Отмена", "action": "close"}
 CHECK_EVERY = 24 * 3600
 DOCKER_UPDATE = "git pull &amp;&amp; docker compose up -d --build"
+RELEASES_HINT = 'что нового — в <a href="https://github.com/asykixd/uroboros/releases">релизах на GitHub</a>'
 DEV_ARGS = {"on": "dev", "dev": "dev", "off": "master", "master": "master"}
 
 
@@ -112,12 +113,12 @@ class System(Module):
         if updater.in_docker():
             await utils.answer(message, f"❌ В Docker обновляйтесь образом: <code>{DOCKER_UPDATE}</code>")
             return
-        if not updater.is_git_checkout():
-            await utils.answer(message, "❌ Uroboros установлен не из git-репозитория")
+        if not updater.is_git_checkout() and not updater.is_pip_install():
+            await utils.answer(message, "❌ Uroboros установлен не из git-репозитория и не через pip")
             return
 
         await utils.answer(message, "⏳ Проверяю обновления...")
-        update = await updater.check(self._get_channel())
+        update = await self._check()
         if update is None:
             await utils.answer(message, f"✅ Установлена последняя версия <i>(канал {self._get_channel()})</i>")
             return
@@ -151,7 +152,7 @@ class System(Module):
         count = f"{len(shown)}+" if len(update.commits) > len(shown) else str(len(shown))
         return (
             f"🆕 <b>Доступно обновление</b> · {utils.escape_html(update.label)} · изменений: {count}\n"
-            + utils.quote("\n".join(lines) or "без описания", expandable=len(lines) > 10)
+            + utils.quote("\n".join(lines) or RELEASES_HINT, expandable=len(lines) > 10)
         )
 
     async def _install_pressed(self, call, update):
@@ -164,7 +165,16 @@ class System(Module):
 
     async def _install(self, update, report, message):
         await report("⏳ Обновление и установка зависимостей...")
-        await self._apply(updater.install(update), report, message, "🔄 Обновлено, перезапуск...")
+        action = (
+            updater.install(update) if updater.is_git_checkout() else updater.install_pip(update, uroboros.__version__)
+        )
+        await self._apply(action, report, message, "🔄 Обновлено, перезапуск...")
+
+    async def _check(self):
+        """Обновление в текущем канале: из git, а если Uroboros поставлен через pip — с PyPI."""
+        if updater.is_git_checkout():
+            return await updater.check(self._get_channel())
+        return await updater.check_pip(self._get_channel(), uroboros.__version__)
 
     async def _apply(self, action, report, message, done):
         """Ждёт ``action`` (обновление или смену ветки) и перезапускается; ошибку показывает через ``report``."""
@@ -200,7 +210,7 @@ class System(Module):
             await utils.answer(message, "❌ В Docker ветку выбирают при сборке образа: <code>git switch dev</code>")
             return
         if not updater.is_git_checkout():
-            await utils.answer(message, "❌ Uroboros установлен не из git-репозитория")
+            await utils.answer(message, "❌ Ветки доступны только при установке из git-репозитория")
             return
         if not args:
             branch = await updater.current_branch()
@@ -282,13 +292,13 @@ class System(Module):
             self.client is None
             or not self.db.get("notify", True)
             or updater.in_docker()
-            or not updater.is_git_checkout()
+            or not (updater.is_git_checkout() or updater.is_pip_install())
             or time.time() - self.db.get("last_check", 0) < CHECK_EVERY
         ):
             return
         self.db.set("last_check", time.time())
         try:
-            update = await updater.check(self._get_channel())
+            update = await self._check()
         except updater.UpdateError as e:
             logging.getLogger(__name__).info("Проверка обновлений не удалась: %s", e)
             return

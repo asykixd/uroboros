@@ -184,3 +184,59 @@ def test_inline_confirmation(tmp_path, monkeypatch):
     assert fake.ran("merge") and restarted == [True]
     assert env.bot.edits()[-1]["text"] == "🔄 Обновлено, перезапуск..."
     env.db.close()
+
+
+def test_version_key_and_latest_release():
+    assert updater.version_key("1.1.0") > updater.version_key("1.1.0.dev0") > updater.version_key("1.0.9")
+    assert updater.version_key("1.1.0-dev") == updater.version_key("1.1.0.dev0")
+    releases = {
+        "1.0.0": [{"yanked": False}],
+        "1.1.0.dev0": [{"yanked": False}],
+        "1.0.1": [{"yanked": True}],
+        "0.9.0": [],
+        "junk": [{}],
+    }
+    assert updater.latest_release(releases, "stable") == "1.0.0"
+    assert updater.latest_release(releases, "beta") == "1.1.0.dev0"
+
+
+@pytest.fixture
+def pip_install(monkeypatch):
+    monkeypatch.setattr(updater, "is_git_checkout", lambda: False)
+    monkeypatch.setattr(updater, "distribution", lambda: "uroboros-userbot")
+    monkeypatch.setattr(updater, "_pypi_releases", lambda dist: {"1.0.0": [{}], "1.2.0": [{}], "1.3.0.dev0": [{}]})
+
+
+def test_check_pip(pip_install):
+    update = asyncio.run(updater.check_pip("stable", "1.0.0"))
+    assert update.target == "uroboros-userbot==1.2.0" and update.label == "PyPI 1.2.0"
+    assert asyncio.run(updater.check_pip("beta", "1.0.0")).target.endswith("==1.3.0.dev0")
+    assert asyncio.run(updater.check_pip("stable", "1.2.0")) is None
+
+
+def test_install_pip_rolls_back(pip_install, monkeypatch):
+    calls = []
+
+    async def fake_run(*args):
+        calls.append(args)
+        return (1, "boom") if args[1] == "-c" else (0, "")
+
+    monkeypatch.setattr(updater, "run_process", fake_run)
+    update = asyncio.run(updater.check_pip("stable", "1.0.0"))
+    with pytest.raises(updater.InstallError) as error:
+        asyncio.run(updater.install_pip(update, "1.0.0"))
+    assert error.value.rolled_back and error.value.stage == "Новая версия не запускается"
+    assert calls[0][-1] == "uroboros-userbot==1.2.0" and calls[-1][-1] == "uroboros-userbot==1.0.0"
+
+
+def test_update_command_from_pypi(builtin_loader, pip_install, monkeypatch):
+    monkeypatch.delenv("UROBOROS_DOCKER", raising=False)
+    system = builtin_loader.get_module("system")
+    system.db.set("channel", "stable")
+    message = FakeMessage(".update")
+    asyncio.run(system.update(message))
+    assert "PyPI 1.2.0" in message.edits[-1] and "релизах на GitHub" in message.edits[-1]
+
+    message = FakeMessage(".dev on")
+    asyncio.run(system.dev(message))
+    assert message.edits[-1].startswith("❌ Ветки доступны только при установке из git")
