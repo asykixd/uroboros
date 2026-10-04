@@ -48,6 +48,7 @@ Docker, служба systemd, автозапуск в Termux, Windows и под�
 | `.e <код>`, `.t <команда>` | Python eval и shell |
 | `.ping`, `.info`, `.restart` | система |
 | `.update [-f \| channel stable\|beta \| notify on\|off]` | обновление: список изменений и подтверждение, канал, уведомления раз в сутки |
+| `.dev [on \| off] [-f]` | ветка бота: `on` — сборка из `dev`, `off` — стабильная `master` |
 | `.inlinebot [токен \| new \| on \| off]` | inline-бот: состояние, свой токен, новый бот |
 | `.owner`, `.sudo`, `.support [add\|del пользователь]` | группы доступа: кому можно вызывать команды |
 | `.security [команда уровень]` | права команд: `owner`, `sudo`, `support`, `everyone` |
