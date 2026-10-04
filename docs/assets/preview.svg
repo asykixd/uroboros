@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="0 0 720 400" font-family="-apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f2a27"/>
+      <stop offset="1" stop-color="#0b1f2a"/>
+    </linearGradient>
+    <linearGradient id="ug" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <rect width="720" height="400" rx="20" fill="url(#bg)"/>
+
+  <!-- шапка чата -->
+  <rect width="720" height="56" rx="20" fill="#0f1a19"/>
+  <rect y="36" width="720" height="20" fill="#0f1a19"/>
+  <circle cx="36" cy="28" r="16" fill="#14b8a6" opacity=".2"/>
+  <text x="36" y="34" font-size="16" text-anchor="middle">⭐</text>
+  <text x="62" y="25" font-size="15" font-weight="600" fill="#e6f0ee">Избранное</text>
+  <text x="62" y="43" font-size="12" fill="#93a6a3">Uroboros 1.0.0 · в сети</text>
+
+  <!-- сообщение .info -->
+  <g filter="url(#shadow)">
+    <rect x="300" y="76" width="396" height="178" rx="16" fill="#15302c"/>
+  </g>
+  <text x="318" y="104" font-size="15" fill="#e6f0ee">🐍 <tspan font-weight="700">Uroboros</tspan> <tspan font-family="Menlo, monospace" font-size="13" fill="#5eead4">1.0.0</tspan></text>
+  <rect x="318" y="116" width="3" height="98" rx="1.5" fill="#14b8a6"/>
+  <rect x="321" y="116" width="357" height="98" rx="4" fill="#14b8a6" opacity=".08"/>
+  <g font-size="13" fill="#d7e6e3">
+    <text x="332" y="136">👤 Аккаунт: <tspan font-weight="700">Алиса</tspan></text>
+    <text x="332" y="155">⏱ Аптайм: <tspan font-family="Menlo, monospace" fill="#5eead4">3 д 04:05:06</tspan></text>
+    <text x="332" y="174">📦 Модулей: <tspan font-family="Menlo, monospace" fill="#5eead4">13</tspan> · команд: <tspan font-family="Menlo, monospace" fill="#5eead4">35</tspan></text>
+    <text x="332" y="193">🌿 Ветка: <tspan font-family="Menlo, monospace" fill="#5eead4">master</tspan></text>
+  </g>
+  <text x="318" y="236" font-size="13" font-style="italic" fill="#b9cbc8">💡 <tspan font-family="Menlo, monospace" fill="#5eead4">.help</tspan> — все команды</text>
+  <text x="682" y="246" font-size="11" fill="#7fa29d" text-anchor="end">12:00 ✓✓</text>
+
+  <!-- сообщение об установке -->
+  <g filter="url(#shadow)">
+    <rect x="300" y="266" width="396" height="116" rx="16" fill="#15302c"/>
+  </g>
+  <text x="318" y="294" font-size="15" fill="#e6f0ee">✅ <tspan font-weight="700">Модуль Notes загружен</tspan></text>
+  <rect x="318" y="304" width="3" height="58" rx="1.5" fill="#14b8a6"/>
+  <rect x="321" y="304" width="357" height="58" rx="4" fill="#14b8a6" opacity=".08"/>
+  <g font-size="13" fill="#d7e6e3">
+    <text x="332" y="324">💾 <tspan font-family="Menlo, monospace" fill="#5eead4">.save</tspan> — сохранить заметку</text>
+    <text x="332" y="343">📖 <tspan font-family="Menlo, monospace" fill="#5eead4">.note</tspan> — показать заметку</text>
+  </g>
+  <text x="682" y="374" font-size="11" fill="#7fa29d" text-anchor="end">12:01 ✓✓</text>
+
+  <!-- логотип слева -->
+  <g transform="translate(60 120) scale(2.6)"><path d="M49.0 19.7A21 21 0 1 1 12.3 24.8" fill="none" stroke="url(#ug)" stroke-width="8" stroke-linecap="round"/><path d="M12.3 24.8A21 21 0 0 1 24.8 12.3" fill="none" stroke="url(#ug)" stroke-width="6" stroke-linecap="round"/><path d="M24.8 12.3A21 21 0 0 1 32.7 11.0" fill="none" stroke="url(#ug)" stroke-width="4" stroke-linecap="round"/><path d="M32.7 11.0A21 21 0 0 1 37.1 11.6" fill="none" stroke="url(#ug)" stroke-width="2.4" stroke-linecap="round"/><g transform="translate(42.5 13.8) rotate(-150)"><path d="M-8 -5 Q2 -7.6 9 -1.2 L9 1.2 Q2 7.6 -8 5 Q-10 0 -8 -5Z" fill="url(#ug)"/><circle cx="2" cy="-2.4" r="1.6" fill="#fff"/><circle cx="2.4" cy="-2.4" r="0.8" fill="#0b1211"/></g></g>
+  <text x="143" y="335" font-size="22" font-weight="800" fill="#5eead4" text-anchor="middle">Uroboros</text>
+  <text x="143" y="358" font-size="12" fill="#93a6a3" text-anchor="middle">юзербот для Telegram</text>
+</svg>
