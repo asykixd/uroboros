@@ -62,18 +62,16 @@ from malicious code.
 
 ## What it looks like
 
-The bot interface is in Russian for now; English is coming.
-
 <div class="tg-chat" markdown>
 <div class="tg-msg">
 🐍 <b>Uroboros</b> <code>1.0.0</code>
-<blockquote>👤 Аккаунт: <b>Алиса</b><br>⏱ Аптайм: <code>3 д 04:05:06</code><br>📦 Модулей: <code>13</code> · команд: <code>35</code><br>⌨️ Префикс: <code>.</code><br>🌿 Ветка: <code>master</code></blockquote>
-💡 <i><code>.help</code> — все команды</i>
+<blockquote>👤 Account: <b>Alice</b><br>⏱ Uptime: <code>3d 04:05:06</code><br>📦 Modules: <code>13</code> · commands: <code>35</code><br>⌨️ Prefix: <code>.</code><br>🌿 Branch: <code>master</code></blockquote>
+💡 <i><code>.help</code> — all commands</i>
 <span class="tg-time">12:00 ✓✓</span>
 </div>
 <div class="tg-msg">
-✅ <b>Модуль Notes загружен</b>
-<blockquote>💾 <code>.save</code> — сохранить заметку<br>📖 <code>.note</code> — показать заметку<br>🗂 <code>.notes</code> — список заметок</blockquote>
+✅ <b>Notes module loaded</b>
+<blockquote>💾 <code>.save</code> — save a note<br>📖 <code>.note</code> — show a note<br>🗂 <code>.notes</code> — list notes</blockquote>
 <span class="tg-time">12:01 ✓✓</span>
 </div>
 </div>
@@ -105,7 +103,7 @@ The bot interface is in Russian for now; English is coming.
     ```
 
 The bot opens a web login panel: enter `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org),
-phone and code, or log in by QR code. Then type `.help` in any chat.
+phone and code, or log in by QR code. Then type `.help` in any chat. The bot speaks Russian for now; English is next.
 
 ## Docs
 

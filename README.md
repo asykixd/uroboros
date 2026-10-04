@@ -18,33 +18,28 @@
 </p>
 
 <p align="center">
-  <a href="https://asykixd.github.io/uroboros/"><b>Docs</b></a> ·
-  <a href="https://asykixd.github.io/uroboros/install/"><b>Install</b></a> ·
-  <a href="https://asykixd.github.io/uroboros/commands/"><b>Commands</b></a> ·
-  <a href="https://asykixd.github.io/uroboros/modules/"><b>Writing modules</b></a> ·
-  <a href="https://github.com/asykixd/uroboros-modules"><b>Modules</b></a> ·
-  <a href="https://github.com/asykixd/uroboros/blob/master/README.ru.md"><b>Русский</b></a>
+  <a href="https://asykixd.github.io/uroboros/"><b>📚 Docs</b></a> ·
+  <a href="https://asykixd.github.io/uroboros/install/"><b>🚀 Install</b></a> ·
+  <a href="https://asykixd.github.io/uroboros/commands/"><b>⌨️ Commands</b></a> ·
+  <a href="https://asykixd.github.io/uroboros/modules/"><b>🧩 Write modules</b></a> ·
+  <a href="https://github.com/asykixd/uroboros-modules"><b>📦 Modules</b></a> ·
+  <a href="https://github.com/asykixd/uroboros/blob/master/README.ru.md"><b>🇷🇺 Русский</b></a>
 </p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/asykixd/uroboros/master/docs/assets/preview.svg" width="720" alt="Uroboros messages in Telegram">
 </p>
 
-> [!NOTE]
-> The bot interface is in Russian for now; English is coming.
+## ✨ Features
 
-## Features
+|  |  |
+|---|---|
+| 📦 **One-command modules**: `.dlm notes`, `.search`, your own repos via `.addrepo` | 🛡 **Account protection**: code is scanned before install, and modules can't touch the session at runtime |
+| 🤖 **Buttons and forms**: built-in inline bot for settings, help and confirmations | 🔁 **Hikka and FTG modules**: loaded as-is through an adapter, see [what's supported](https://asykixd.github.io/uroboros/hikka/) |
+| 🌿 **Stable and dev channels**: `.dev on` / `.dev off`, `.update` with rollback | 💾 **Backups**: database and modules in one archive, on a schedule |
+| 🔐 **Access levels**: `owner`, `sudo`, `support` and per-command permissions | 🐧 **Runs anywhere**: Linux and VPS, Termux, Docker, Windows, macOS |
 
-- 📦 **One-command modules**: `.dlm notes`, `.search`, custom repos via `.addrepo`
-- 🛡 **Account protection**: modules are scanned before install and can't reach the session at runtime
-- 🤖 **Buttons and forms**: built-in inline bot for settings, help and confirmations
-- 🔁 **Hikka and FTG modules**: loaded as-is through an adapter ([details](https://asykixd.github.io/uroboros/hikka/))
-- 🌿 **Stable and dev channels**: `.dev on`/`off`, `.update` with rollback
-- 🔐 **Access levels**: `owner`, `sudo`, `support`, per-command permissions
-- 💾 **Backups**: database and modules in one archive, scheduled
-- 🐧 **Runs anywhere**: Linux/VPS, Termux, Docker, Windows, macOS
-
-## Install
+## 🚀 Install
 
 Linux, VPS, Termux, macOS:
 
@@ -59,24 +54,27 @@ On first run Uroboros prints a link to a web login panel: enter `api_id`/`api_ha
 [my.telegram.org/apps](https://my.telegram.org/apps), phone, code and 2FA password, or scan a QR code. The panel
 shuts down after login, and Uroboros creates its inline bot via @BotFather. Console login: `--cli`.
 
-## Main commands
+> [!NOTE]
+> The bot speaks Russian for now; the English interface is next on the roadmap.
+
+## ⌨️ Main commands
 
 | Command | Description |
 |---|---|
-| `.help [module]` | modules and help |
-| `.dlm <url \| owner/repo/module \| module>` | install a module; `.dlm owner/repo` lists a repo |
-| `.uplm [module]` | update modules (shows diff, asks to confirm) |
-| `.ulm <module>` | remove a module |
-| `.cfg [module]` | module settings, with buttons |
-| `.update` | update Uroboros with changelog and rollback |
-| `.dev on \| off` | switch to `dev` builds or back to `master` |
-| `.security` | access, command permissions, flood and module protection |
-| `.backup`, `.restore` | backup and restore |
-| `.info`, `.ping`, `.logs` | bot status |
+| 📖 `.help [module]` | modules and help |
+| 📥 `.dlm <url \| owner/repo/module \| module>` | install a module; `.dlm owner/repo` lists a repo |
+| 🔃 `.uplm [module]` | update modules: diff first, then confirm |
+| 🗑 `.ulm <module>` | remove a module |
+| ⚙️ `.cfg [module]` | module settings, with buttons |
+| 🆕 `.update` | update Uroboros: changelog, install, rollback on failure |
+| 🌿 `.dev on \| off` | switch to `dev` builds or back to stable `master` |
+| 🔐 `.security` | access, command permissions, flood and module protection |
+| 💾 `.backup`, ♻️ `.restore` | backup and restore |
+| ℹ️ `.info`, 📡 `.ping`, 📝 `.logs` | bot status |
 
 Full list with access levels: [command reference](https://asykixd.github.io/uroboros/commands/).
 
-## Writing a module
+## 🧩 Write a module
 
 ```python
 # meta developer: @you
@@ -108,7 +106,7 @@ Modules get `self.client` (Telethon), storage (`self.get`/`self.set`), `self.con
 [module guide](https://asykixd.github.io/uroboros/modules/); ready-made modules and a repo template:
 [uroboros-modules](https://github.com/asykixd/uroboros-modules).
 
-## Security
+## 🛡 Security
 
 > [!WARNING]
 > A userbot acts as your account. Spam, mass messaging and request floods can get it banned: test on a spare
@@ -118,7 +116,7 @@ Third-party modules run in the bot's process. Uroboros scans their code on insta
 pins GitHub modules to a commit and blocks access to the session. It is not a sandbox: install modules you trust.
 See [security](https://asykixd.github.io/uroboros/security/).
 
-## Development
+## 🛠 Development
 
 `dev` is the development branch (`X.Y.Z-dev`), `master` is stable.
 
@@ -128,12 +126,12 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
 .venv/bin/mkdocs serve
 ```
 
-## Credits
+## 🙏 Credits
 
 The module API and adapter follow [Hikka](https://github.com/hikariatama/Hikka) (AGPL-3.0); thanks to its authors.
 Built on [Telethon](https://github.com/LonamiWebs/Telethon) and [aiogram](https://github.com/aiogram/aiogram).
 
-## License
+## 📄 License
 
 AGPL-3.0, see [LICENSE](https://github.com/asykixd/uroboros/blob/master/LICENSE).
 [Contributing](https://github.com/asykixd/uroboros/blob/master/CONTRIBUTING.md) ·
