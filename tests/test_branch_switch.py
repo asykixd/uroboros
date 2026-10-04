@@ -109,7 +109,7 @@ def run(system, text):
 
 
 def test_dev_command(system, repo):
-    assert "Ветка: <b>master</b>" in run(system, ".dev") and "dev on" in run(system, ".dev")
+    assert "🌿 <b>Ветка</b> <code>master</code>" in run(system, ".dev") and "dev on" in run(system, ".dev")
 
     text = run(system, ".dev on")
     assert "Перейти на сборку из ветки dev?" in text and "1.1.0-dev" in text and "dev on -f" in text

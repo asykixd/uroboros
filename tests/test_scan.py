@@ -104,11 +104,11 @@ def test_dlm_from_trusted_repo_still_asks_for_dangerous(builtin_loader, monkeypa
     monkeypatch.setattr(download, "download", fake_download)
     loader.get_module("loader").db.set("repos", ["someone/mods"])
     text = run_command(loader, ".dlm someone/mods/demo")
-    assert text.startswith("❌ <b>Модуль может навредить аккаунту") and "выгружает сессию" in text
+    assert text.startswith("🚨 <b>Модуль может навредить аккаунту") and "выгружает сессию" in text
     assert "dlm -f someone/mods/demo" in text and loader.get_module("demo") is None
 
     text = run_command(loader, ".dlm -f someone/mods/demo")
-    assert text.startswith("✅") and "<b>Опасное:</b>" in text
+    assert text.startswith("✅") and "🚨 <b>Опасное</b>" in text
 
 
 def test_uplm_skips_dangerous_update(builtin_loader, monkeypatch):
@@ -120,7 +120,7 @@ def test_uplm_skips_dangerous_update(builtin_loader, monkeypatch):
 
     monkeypatch.setattr(download, "download", fake_download)
     text = run_command(loader, ".uplm demo")
-    assert text.startswith("❌ <b>В обновлениях модулей опасный код") and "выгружает сессию" in text
+    assert text.startswith("🚨 <b>В обновлениях модулей опасный код") and "выгружает сессию" in text
     assert "uplm -f demo" in text and "save" not in (loader.modules_dir / "demo.py").read_text()
 
     assert "обновлён" in run_command(loader, ".uplm -f demo")
@@ -146,7 +146,7 @@ def test_restore_refuses_dangerous_modules(builtin_loader):
 
     loader.get_module("System").restart = fake_restart
     text = run_command(loader, ".restore", Reply())
-    assert text.startswith("❌") and "<b>demo</b>: выгружает сессию" in text and "restore -f" in text
+    assert text.startswith("🚨") and "<b>demo</b>: выгружает сессию" in text and "restore -f" in text
     assert restarted == []
 
     assert run_command(loader, ".restore -f", Reply()).startswith("✅")
@@ -202,4 +202,4 @@ def test_confirm_shows_permissions(builtin_loader, monkeypatch):
 
     monkeypatch.setattr(download, "download", fake_download)
     text = run_command(builtin_loader, ".dlm https://example.com/demo.py")
-    assert "<b>Права:</b> сеть" in text
+    assert "🔐 Права: сеть" in text

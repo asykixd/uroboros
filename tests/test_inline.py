@@ -107,7 +107,7 @@ def test_confirm(env):
     press(env.manager, "Удалить")
     assert env.bot.edits()[-1]["text"] == "Точно?" and calls == []
 
-    press(env.manager, "Отмена")
+    press(env.manager, "✖️ Отмена")
     assert env.bot.edits()[-1]["text"] == "Модуль"
     assert button_texts(env.manager, form.unit) == ["Удалить"]
 

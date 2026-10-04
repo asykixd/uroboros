@@ -45,12 +45,12 @@ def notify_frozen(client, name: str, settings: dict) -> None:
     async def send() -> None:
         current_module.set(None)  # уведомление — запрос ядра, а не замороженного модуля
         text = (
-            f"❄️ <b>Модуль {utils.escape_html(name)} заморожен</b>\n"
+            f"🧊 <b>Модуль {utils.escape_html(name)} заморожен</b>\n"
             + utils.quote(
-                f"Больше {settings['limit']} запросов к Telegram за {settings['window']} с. "
-                f"Его запросы блокируются {settings['freeze']} с, чтобы аккаунт не получил ограничений."
+                f"📨 Больше {settings['limit']} запросов к Telegram за {settings['window']} с\n"
+                f"⏱ Его запросы блокируются {settings['freeze']} с, чтобы аккаунт не получил ограничений"
             )
-            + "\n<i>Настройка: .security flood</i>"
+            + f"\n💡 <i>Разморозить: .security unfreeze {utils.escape_html(name)} · настройка: .security flood</i>"
         )
         try:
             await client.send_message("me", text, parse_mode="html")
@@ -64,9 +64,9 @@ def notify_blocked(client, name: str, action: str) -> None:
     async def send() -> None:
         current_module.set(None)  # уведомление — запрос ядра, а не модуля
         text = (
-            f"🔐 <b>Модуль {utils.escape_html(name)} заблокирован</b>\n"
-            + utils.quote(f"Он пытался {utils.escape_html(action)}. Это угрожает аккаунту, действие не выполнено.")
-            + f"\n<i>Если модулю это действительно нужно: .security trust {utils.escape_html(name)}</i>"
+            f"🛡 <b>Модуль {utils.escape_html(name)} остановлен</b>\n"
+            + utils.quote(f"🚨 Он пытался {utils.escape_html(action)}\n✋ Это угрожает аккаунту, действие не выполнено")
+            + f"\n💡 <i>Если модулю это действительно нужно: .security trust {utils.escape_html(name)}</i>"
         )
         try:
             await client.send_message("me", text, parse_mode="html")

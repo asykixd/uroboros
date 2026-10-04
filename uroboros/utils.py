@@ -51,6 +51,28 @@ def quote(text: str, *, expandable: bool = False) -> str:
     return f"<blockquote{' expandable' if expandable else ''}>{text}</blockquote>"
 
 
+def card(
+    title: str,
+    body: str | list[str] | None = None,
+    *,
+    hint: str | None = None,
+    expandable: bool = False,
+) -> str:
+    """Сообщение-карточка: заголовок, тело в цитате и подсказка внизу.
+
+    ``title`` — HTML с эмодзи-статусом в начале (``"✅ <b>Готово</b>"``), ``body`` — HTML или список строк
+    (каждая — со своей уместной иконкой), ``hint`` — подсказка после 💡, ``expandable`` — свернуть тело.
+    """
+    text = title
+    if isinstance(body, list):
+        body = "\n".join(body)
+    if body:
+        text += "\n" + quote(body, expandable=expandable)
+    if hint:
+        text += f"\n💡 <i>{hint}</i>"
+    return text
+
+
 def get_args_raw(message: Message) -> str:
     """Всё, что после команды, как есть."""
     parts = (message.raw_text or "").split(maxsplit=1)
@@ -87,11 +109,12 @@ async def answer(message: Message, text: str, **kwargs) -> Message:
         file = io.BytesIO(_strip_html(text).encode())
         file.name = "output.txt"
         await message.respond(
-            "📄 Вывод слишком длинный, он во вложении",
+            "📄 <b>Вывод не влез в сообщение</b> · он во вложении",
+            parse_mode="html",
             file=file,
             reply_to=message.id,
         )
-        text = "📄 Вывод отправлен файлом"
+        text = "📄 <b>Вывод отправлен файлом</b>"
         kwargs.pop("file", None)
 
     if message.out:

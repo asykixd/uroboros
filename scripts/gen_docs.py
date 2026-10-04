@@ -48,6 +48,8 @@ async def _commands() -> str:
             for cmd in commands:
                 args, _, about = cmd.info.doc.partition("— ")
                 usage = f"`.{cmd.name}{(' ' + args.strip()) if args.strip() else ''}`"
+                if cmd.info.emoji:
+                    usage = f"{cmd.info.emoji} {usage}"
                 if cmd.info.aliases:
                     usage += " (" + ", ".join(f"`.{alias}`" for alias in cmd.info.aliases) + ")"
                 parts.append(

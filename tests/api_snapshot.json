@@ -53,7 +53,7 @@
    "properties": []
   },
   "callback_handler": "(prefix: 'str | None' = None)",
-  "command": "(name: 'str | None' = None, *, aliases: 'list[str] | tuple[str, ...]' = (), doc: 'str | None' = None, only_pm: 'bool' = False, only_groups: 'bool' = False, only_channels: 'bool' = False, chats: 'list[int] | tuple[int, ...] | None' = None, only_reply: 'bool' = False, no_reply: 'bool' = False, filter: 'Callable[[Any], bool] | None' = None, access: 'str' = 'sudo')",
+  "command": "(name: 'str | None' = None, *, aliases: 'list[str] | tuple[str, ...]' = (), doc: 'str | None' = None, only_pm: 'bool' = False, only_groups: 'bool' = False, only_channels: 'bool' = False, chats: 'list[int] | tuple[int, ...] | None' = None, only_reply: 'bool' = False, no_reply: 'bool' = False, filter: 'Callable[[Any], bool] | None' = None, access: 'str' = 'sudo', emoji: 'str' = '')",
   "inline_handler": "(name: 'str | None' = None, *, doc: 'str | None' = None)",
   "loop": "(interval: 'float', *, autostart: 'bool' = True, wait_before: 'bool' = False)",
   "watcher": "(*, only_outgoing: 'bool' = False, only_incoming: 'bool' = False, filter: 'Callable[[Any], bool] | None' = None)"
@@ -134,6 +134,7 @@
   },
   "answer": "(message: 'Message', text: 'str', **kwargs) -> 'Message'",
   "answer_file": "(message: 'Message', file: 'Any', caption: 'str | None' = None, **kwargs) -> 'Message'",
+  "card": "(title: 'str', body: 'str | list[str] | None' = None, *, hint: 'str | None' = None, expandable: 'bool' = False) -> 'str'",
   "escape_html": "(text: 'object') -> 'str'",
   "exec_restart": "() -> 'None'",
   "format_duration": "(seconds: 'float') -> 'str'",

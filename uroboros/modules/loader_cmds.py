@@ -10,7 +10,7 @@ from uroboros.loader import LoadError
 MAX_SIZE = download.MAX_SIZE
 SEARCH_CACHE = 600
 SEARCH_LIMIT = 30
-CANCEL = {"text": "Отмена", "action": "close"}
+CANCEL = {"text": "✖️ Отмена", "action": "close"}
 DEFAULT_REPOS = ("asykixd/uroboros-modules",)  # официальные модули: подключены, пока пользователь не отключит
 DIFF_LINES = 40  # строк разницы на модуль
 DIFF_BUDGET = 2500  # символов разницы на всё сообщение: оно должно влезть в 4096 вместе с остальным
@@ -78,13 +78,21 @@ class Loader(Module):
         repo = github.repo_of(url)
         return repo is not None and repo.lower() in (r.lower() for r in self._repos())
 
-    @command("dlm", access="owner")
+    @command("dlm", access="owner", emoji="📥")
     async def dlm(self, message):
         """[-f] <ссылка | owner/repo/модуль | модуль> — установить модуль; -f — без подтверждения"""
         force, spec = split_force(utils.get_args_raw(message))
         if not spec:
             await utils.answer(
-                message, "❌ Укажите ссылку, путь <code>owner/repo/модуль</code> или имя модуля из репозитория"
+                message,
+                utils.card(
+                    "❌ <b>Какой модуль установить?</b>",
+                    [
+                        "🔗 ссылка на файл",
+                        "📁 путь <code>owner/repo/модуль</code>",
+                        "🏷 имя модуля из подключённых репозиториев",
+                    ],
+                ),
             )
             return
 
@@ -97,7 +105,7 @@ class Loader(Module):
         if url is None and spec.startswith(("http://", "https://")):
             url = spec
 
-        await utils.answer(message, "⏳ Загрузка...")
+        await utils.answer(message, "⏳ <b>Скачиваю модуль...</b>")
         data = None
         if url is None:
             url, data = await self._find_in_repos(spec)
@@ -125,14 +133,18 @@ class Loader(Module):
         except Exception as e:
             raise LoadError(f"Не удалось получить список модулей {repo}: {e}") from e
         if not names:
-            await utils.answer(message, f"❌ В корне {utils.escape_html(repo)} нет .py-файлов")
+            await utils.answer(message, f"❌ <b>В корне {utils.escape_html(repo)} нет модулей</b>")
             return
-        prefix = utils.get_prefix(self.db.raw)
-        lines = [f"<code>{prefix}dlm {utils.escape_html(repo)}/{utils.escape_html(n)}</code>" for n in names]
+        prefix = utils.escape_html(utils.get_prefix(self.db.raw))
+        lines = [f"▸ <code>{prefix}dlm {utils.escape_html(repo)}/{utils.escape_html(n)}</code>" for n in names]
         await utils.answer(
             message,
-            f"📦 <b>{utils.escape_html(repo)}</b> · {len(names)}\n"
-            + utils.quote("\n".join(lines), expandable=len(names) > 10),
+            utils.card(
+                f'📚 <b><a href="https://github.com/{repo}">{utils.escape_html(repo)}</a></b> · модулей: {len(names)}',
+                lines,
+                hint="нажмите на команду, чтобы скопировать",
+                expandable=len(names) > 10,
+            ),
         )
 
     async def _repo_modules(self, repo):
@@ -145,19 +157,24 @@ class Loader(Module):
         cache[repo] = (time.monotonic(), names)
         return names
 
-    @command("search")
+    @command("search", emoji="🔎")
     async def search(self, message):
         """<запрос> — найти модуль в подключённых репозиториях"""
         query = utils.get_args_raw(message).strip().lower()
         if not query:
-            await utils.answer(message, "❌ Что искать? Например: <code>search weather</code>")
+            await utils.answer(
+                message, utils.card("❌ <b>Что искать?</b>", hint="например: <code>search weather</code>")
+            )
             return
         repos = self._repos()
         if not repos:
-            await utils.answer(message, "❌ Нет подключённых репозиториев, добавьте: <code>addrepo owner/repo</code>")
+            await utils.answer(
+                message,
+                utils.card("❌ <b>Нет подключённых репозиториев</b>", hint="добавьте: <code>addrepo owner/repo</code>"),
+            )
             return
 
-        await utils.answer(message, "⏳ Поиск...")
+        await utils.answer(message, "🔎 <b>Ищу модули...</b>")
         words = query.split()
         found, failed = [], []
         for repo in repos:
@@ -169,31 +186,31 @@ class Loader(Module):
             found += [(repo, name) for name in names if all(word in name.lower() for word in words)]
 
         prefix = utils.get_prefix(self.db.raw)
-        notes = f"\n<i>Не удалось получить список: {utils.escape_html(', '.join(failed))}</i>" if failed else ""
+        notes = f"\n⚠️ <i>Не удалось получить список: {utils.escape_html(', '.join(failed))}</i>" if failed else ""
         if not found:
             await utils.answer(
-                message, f"❌ Ничего не найдено по запросу <code>{utils.escape_html(query)}</code>{notes}"
+                message, f"🔎 <b>Ничего не нашлось</b> по запросу <code>{utils.escape_html(query)}</code>{notes}"
             )
             return
         lines = [
-            f"<code>{utils.escape_html(prefix)}dlm {utils.escape_html(repo)}/{utils.escape_html(name)}</code>"
+            f"▸ <code>{utils.escape_html(prefix)}dlm {utils.escape_html(repo)}/{utils.escape_html(name)}</code>"
             for repo, name in found[:SEARCH_LIMIT]
         ]
         if len(found) > SEARCH_LIMIT:
             lines.append(f"… и ещё {len(found) - SEARCH_LIMIT}")
         await utils.answer(
             message,
-            f"📦 <b>Найдено</b> · {len(found)}\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10) + notes,
+            utils.card(f"🔎 <b>Найдено</b> · {len(found)}", lines, expandable=len(lines) > 10) + notes,
         )
 
-    @command("lm", access="owner")
+    @command("lm", access="owner", emoji="📎")
     async def lm(self, message):
         """[-f] (ответом на файл или с файлом) — установить модуль из файла; -f — без подтверждения"""
         force, _ = split_force(utils.get_args_raw(message))
         reply = await message.get_reply_message()
         file_message = reply if reply and reply.file else message if message.file else None
         if file_message is None:
-            await utils.answer(message, "❌ Ответьте на .py-файл модуля или прикрепите его")
+            await utils.answer(message, "❌ <b>Ответьте на .py-файл модуля</b> или прикрепите его к команде")
             return
         if file_message.file.size and file_message.file.size > MAX_SIZE:
             raise LoadError("Файл модуля больше 2 МБ")
@@ -208,31 +225,29 @@ class Loader(Module):
     async def _confirm(self, message, candidate, force_hint):
         """Спросить перед установкой: источник не из подключённых репозиториев или в модуле опасный код."""
         report = candidate.report
-        info = f"<b>Источник:</b> <code>{utils.escape_html(candidate.origin)}</code>\n"
+        info = [f"🔗 Источник: <code>{utils.escape_html(candidate.origin)}</code>"]
         if candidate.pin:
-            info += f"<b>Коммит:</b> {commit_html(candidate.pin)}\n"
+            info.append(f"📌 Коммит: {commit_html(candidate.pin)}")
         if report.declared is not None:
-            info += f"<b>Права:</b> {scan.permission_names(report.declared) or 'не нужны'}\n"
+            info.append(f"🔐 Права: {scan.permission_names(report.declared) or 'не нужны'}")
         elif report.uses:
-            info += f"<b>Использует:</b> {scan.permission_names(report.uses)}\n"
-        info = utils.quote(info + f"<b>Строк:</b> <code>{len(candidate.source.splitlines())}</code>")
+            info.append(f"🧰 Использует: {scan.permission_names(report.uses)}")
+        info.append(f"📏 Строк: <code>{len(candidate.source.splitlines())}</code>")
         if report.dangerous:
             text = (
-                "❌ <b>Модуль может навредить аккаунту</b>\n"
-                + info
+                utils.card("🚨 <b>Модуль может навредить аккаунту</b>", info)
                 + findings_text(report)
-                + "\n<i>Устанавливайте, только если доверяете автору и понимаете, зачем модулю это нужно</i>"
+                + "\n💡 <i>Устанавливайте, только если доверяете автору и понимаете, зачем модулю это нужно</i>"
             )
             button = "⚠️ Установить всё равно"
         else:
             text = (
-                "📦 <b>Установить модуль?</b>\n"
-                + info
+                utils.card("📦 <b>Установить модуль?</b>", info)
                 + findings_text(report)
-                + "\n<i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
+                + "\n💡 <i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
                 "ставьте только те, которым доверяете</i>"
             )
-            button = "✅ Установить"
+            button = "📥 Установить"
         if self.inline.available:
             buttons = [[{"text": button, "callback": self._install_confirmed, "args": (candidate,)}, CANCEL]]
             try:
@@ -242,15 +257,15 @@ class Loader(Module):
                 pass  # например, в чате запрещены inline-боты — подтверждение командой
         prefix = utils.get_prefix(self.db.raw)
         hint = f"<code>{utils.escape_html(prefix + force_hint)}</code>"
-        await utils.answer(message, text + f"\nУстановить: {hint}")
+        await utils.answer(message, text + f"\n📥 Установить: {hint}")
 
     async def _install_confirmed(self, call, candidate):
-        await call.edit("⏳ Установка...", None)
+        await call.edit("⏳ <b>Устанавливаю модуль...</b>", None)
         try:
             # Нажатие кнопки — явное подтверждение, в том числе для опасного кода.
             instances = await self.loader.install(candidate.source, candidate.origin, force=True, pin=candidate.pin)
         except LoadError as e:
-            await call.edit(f"❌ <b>Модуль не установлен</b>\n{utils.quote(utils.escape_html(e))}")
+            await call.edit(utils.card("❌ <b>Модуль не установлен</b>", utils.escape_html(e)))
             return
         await call.edit(self._installed_text(instances) + findings_text(candidate.report))
 
@@ -259,20 +274,17 @@ class Loader(Module):
         await utils.answer(message, self._installed_text(instances) + findings_text(candidate.report))
 
     def _installed_text(self, instances):
-        prefix = utils.get_prefix(self.db.raw)
+        prefix = utils.escape_html(utils.get_prefix(self.db.raw))
         parts = []
         for inst in instances:
-            part = f"✅ Модуль <b>{utils.escape_html(inst.name)}</b> загружен"
             commands = [
-                f"<code>{prefix}{cmd.name}</code> {utils.escape_html(cmd.info.doc)}".rstrip()
+                f"{cmd.info.emoji or '▸'} <code>{prefix}{cmd.name}</code> {utils.escape_html(cmd.info.doc)}".rstrip()
                 for cmd in self.loader.module_commands(inst)
             ]
-            if commands:
-                part += "\n" + utils.quote("\n".join(commands))
-            parts.append(part)
+            parts.append(utils.card(f"✅ <b>Модуль {utils.escape_html(inst.name)} загружен</b>", commands or None))
         return "\n".join(parts)
 
-    @command("uplm", access="owner")
+    @command("uplm", access="owner", emoji="🔃")
     async def uplm(self, message):
         """[-f] [модуль] — обновить сторонние модули: сначала изменения и подтверждение; -f — сразу"""
         force, name = split_force(utils.get_args_raw(message))
@@ -280,31 +292,31 @@ class Loader(Module):
         if name:
             inst = self.loader.get_module(name)
             if inst is None or inst.is_builtin:
-                await utils.answer(message, f"❌ Нет стороннего модуля <code>{utils.escape_html(name)}</code>")
+                await utils.answer(message, f"❌ <b>Нет стороннего модуля</b> <code>{utils.escape_html(name)}</code>")
                 return
             installed = {inst._stem: installed.get(inst._stem, inst._origin)}
         if not installed:
-            await utils.answer(message, "📦 Сторонних модулей нет")
+            await utils.answer(message, "📦 <b>Сторонних модулей нет</b>")
             return
 
-        await utils.answer(message, "⏳ Проверяю обновления модулей...")
+        await utils.answer(message, "⏳ <b>Проверяю обновления модулей...</b>")
         names = {m._stem: m.name for m in self.loader.modules.values()}
         updates, lines, failed = [], [], False
         for stem, origin in installed.items():
             label = f"<b>{utils.escape_html(names.get(stem, stem))}</b>"
             if not origin.startswith(("http://", "https://")):
-                lines.append(f"{label} — установлен из файла, пропущен")
+                lines.append(f"📎 {label} — установлен из файла, пропущен")
                 continue
             try:
                 candidate = await fetch_candidate(origin)
             except LoadError as e:
                 failed = True
-                lines.append(f"{label} — ошибка: {utils.escape_html(e)}")
+                lines.append(f"❌ {label} — ошибка: {utils.escape_html(e)}")
                 continue
             path = self.loader.modules_dir / f"{stem}.py"
             old = path.read_bytes().decode("utf-8", errors="replace") if path.exists() else ""
             if old == candidate.source:
-                lines.append(f"{label} — без изменений")
+                lines.append(f"➖ {label} — без изменений")
                 continue
             updates.append(PendingUpdate(label, old, candidate))
 
@@ -313,14 +325,14 @@ class Loader(Module):
             await utils.answer(message, title + "\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10))
             return
         if force:
-            await utils.answer(message, "⏳ Обновление модулей...")
+            await utils.answer(message, "⏳ <b>Обновляю модули...</b>")
             await utils.answer(message, await self._apply_updates(updates, lines, failed))
             return
 
         text = updates_text(updates, lines)
         dangerous = any(update.report.dangerous for update in updates)
         if self.inline.available:
-            button = "⚠️ Обновить всё равно" if dangerous else "✅ Обновить"
+            button = "⚠️ Обновить всё равно" if dangerous else "🔃 Обновить"
             args = (updates, lines, failed)
             try:
                 await self.inline.form(
@@ -330,10 +342,10 @@ class Loader(Module):
             except InlineError:
                 pass  # например, в чате запрещены inline-боты — подтверждение командой
         hint = utils.escape_html(f"{utils.get_prefix(self.db.raw)}uplm -f {name}".rstrip())
-        await utils.answer(message, text + f"\nОбновить: <code>{hint}</code>")
+        await utils.answer(message, text + f"\n🔃 Обновить: <code>{hint}</code>")
 
     async def _uplm_confirmed(self, call, updates, lines, failed):
-        await call.edit("⏳ Обновление модулей...", None)
+        await call.edit("⏳ <b>Обновляю модули...</b>", None)
         await call.edit(await self._apply_updates(updates, lines, failed), None)
 
     async def _apply_updates(self, updates, lines, failed):
@@ -345,28 +357,28 @@ class Loader(Module):
                 await self.loader.install(new.source, new.origin, force=True, pin=new.pin)
             except LoadError as e:
                 failed = True
-                lines.append(f"{update.label} — ошибка: {utils.escape_html(e)}")
+                lines.append(f"❌ {update.label} — ошибка: {utils.escape_html(e)}")
                 continue
             notes = scan.summary(update.candidate.report.findings)
             lines.append(
-                f"{update.label} — обновлён ({update.stat})" + (f", обратите внимание: {notes}" if notes else "")
+                f"✅ {update.label} — обновлён ({update.stat})" + (f", обратите внимание: {notes}" if notes else "")
             )
         title = "❌ <b>Не все модули обновились</b>" if failed else "✅ <b>Модули обновлены</b>"
         return title + "\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10)
 
-    @command("ulm", access="owner")
+    @command("ulm", access="owner", emoji="🗑")
     async def ulm(self, message):
         """<модуль> — удалить модуль"""
         name = utils.get_args_raw(message).strip()
         if not name:
-            await utils.answer(message, "❌ Укажите имя модуля")
+            await utils.answer(message, "❌ <b>Какой модуль удалить?</b>")
             return
         inst = self.loader.get_module(name)
         if inst is not None and not inst.is_builtin and self.inline.available:
             same_file = [m.name for m in self.loader.modules.values() if m._stem == inst._stem]
             text = f"🗑 <b>Удалить {self._names(same_file)}?</b>"
             if len(same_file) > 1:
-                text += "\n<i>Они в одном файле и удаляются вместе</i>"
+                text += "\n💡 <i>Они в одном файле и удаляются вместе</i>"
             buttons = [[{"text": "🗑 Удалить", "callback": self._ulm_confirmed, "args": (inst.name,)}, CANCEL]]
             try:
                 await self.inline.form(message, text, buttons)
@@ -374,74 +386,88 @@ class Loader(Module):
             except InlineError:
                 pass  # например, в чате запрещены inline-боты — удаляем без подтверждения
         removed = await self.loader.uninstall(name)
-        await utils.answer(message, f"🗑 Удалено: {self._names(m.name for m in removed)}")
+        await utils.answer(message, f"🗑 <b>Удалено:</b> {self._names(m.name for m in removed)}")
 
     async def _ulm_confirmed(self, call, name):
         removed = await self.loader.uninstall(name)
-        await call.edit(f"🗑 Удалено: {self._names(m.name for m in removed)}", None)
+        await call.edit(f"🗑 <b>Удалено:</b> {self._names(m.name for m in removed)}", None)
 
     @staticmethod
     def _names(names):
         return ", ".join(f"<b>{utils.escape_html(name)}</b>" for name in names)
 
-    @command("reload", access="owner")
+    @command("reload", access="owner", emoji="🔁")
     async def reload(self, message):
         """— перезагрузить все модули"""
-        await utils.answer(message, "⏳ Перезагрузка модулей...")
+        await utils.answer(message, "⏳ <b>Перезагружаю модули...</b>")
         await self.loader.reload_all()
         await utils.answer(
             message,
-            "✅ <b>Модули перезагружены</b>\n"
-            + utils.quote(
-                f"Модулей: <code>{len(self.loader.modules)}</code> · команд: <code>{len(self.loader.commands)}</code>"
+            utils.card(
+                "✅ <b>Модули перезагружены</b>",
+                f"📦 Модулей: <code>{len(self.loader.modules)}</code>"
+                f" · команд: <code>{len(self.loader.commands)}</code>",
             ),
         )
 
-    @command("addrepo", access="owner")
+    @command("addrepo", access="owner", emoji="🔗")
     async def addrepo(self, message):
         """<owner/repo | ссылка> — подключить репозиторий модулей с GitHub"""
         repo = github.parse_repo(utils.get_args_raw(message))
         if repo is None:
-            await utils.answer(message, "❌ Нужен репозиторий: <code>owner/repo</code> или ссылка на GitHub")
+            await utils.answer(
+                message, utils.card("❌ <b>Какой репозиторий?</b>", hint="<code>owner/repo</code> или ссылка на GitHub")
+            )
             return
         repos = self._repos()
         if repo.lower() in (r.lower() for r in repos):
-            await utils.answer(message, f"❌ {utils.escape_html(repo)} уже подключён")
+            await utils.answer(message, f"🔗 <b>{utils.escape_html(repo)}</b> уже подключён")
             return
         repos.append(repo)
         self.db.set("repos", repos)
-        await utils.answer(message, f"✅ Репозиторий <b>{utils.escape_html(repo)}</b> подключён")
+        prefix = utils.escape_html(utils.get_prefix(self.db.raw))
+        await utils.answer(
+            message,
+            utils.card(
+                f"🔗 <b>Репозиторий {utils.escape_html(repo)} подключён</b>",
+                hint=f"его модули: <code>{prefix}dlm {utils.escape_html(repo)}</code>, установка по имени: "
+                f"<code>{prefix}dlm модуль</code>",
+            ),
+        )
 
-    @command("delrepo", access="owner")
+    @command("delrepo", access="owner", emoji="✂️")
     async def delrepo(self, message):
         """<owner/repo> — отключить репозиторий"""
         repo = github.parse_repo(utils.get_args_raw(message)) or ""
         repos = self._repos()
         kept = [r for r in repos if r.lower() != repo.lower()]
         if len(kept) == len(repos):
-            await utils.answer(message, "❌ Такой репозиторий не подключён")
+            await utils.answer(message, "❌ <b>Такой репозиторий не подключён</b>")
             return
         self.db.set("repos", kept)
-        await utils.answer(message, f"🗑 Репозиторий <b>{utils.escape_html(repo)}</b> отключён")
+        await utils.answer(message, f"✂️ <b>Репозиторий {utils.escape_html(repo)} отключён</b>")
 
-    @command("repos")
+    @command("repos", emoji="📚")
     async def repos(self, message):
         """— подключённые репозитории"""
         repos = self._repos()
         if not repos:
-            await utils.answer(message, "🔗 Репозитории не подключены")
+            await utils.answer(
+                message,
+                utils.card("📚 <b>Репозитории не подключены</b>", hint="добавьте: <code>addrepo owner/repo</code>"),
+            )
             return
-        lines = [f'<a href="https://github.com/{r}">{utils.escape_html(r)}</a>' for r in repos]
-        await utils.answer(message, "🔗 <b>Репозитории</b>\n" + utils.quote("\n".join(lines)))
+        lines = [f'▸ <a href="https://github.com/{r}">{utils.escape_html(r)}</a>' for r in repos]
+        await utils.answer(message, utils.card(f"📚 <b>Репозитории</b> · {len(repos)}", lines))
 
 
 def findings_text(report):
     """Опасное и подозрительное в модуле — блоками под основным ответом."""
     text = ""
     if report.dangerous:
-        text += "\n<b>Опасное:</b>\n" + utils.quote(scan.describe(report.dangerous))
+        text += "\n🚨 <b>Опасное</b>\n" + utils.quote(scan.describe(report.dangerous))
     if report.warnings:
-        text += "\n<b>Обратите внимание:</b>\n" + utils.quote(
+        text += "\n⚠️ <b>Обратите внимание</b>\n" + utils.quote(
             scan.describe(report.warnings), expandable=len(report.warnings) > 5
         )
     return text
@@ -450,7 +476,7 @@ def findings_text(report):
 def updates_text(updates, lines):
     """Что изменится: по каждому модулю — счётчик строк, находки проверки и сама разница."""
     dangerous = any(update.report.dangerous for update in updates)
-    title = "❌ <b>В обновлениях модулей опасный код</b>" if dangerous else "📦 <b>Обновить модули?</b>"
+    title = "🚨 <b>В обновлениях модулей опасный код</b>" if dangerous else "🔃 <b>Обновить модули?</b>"
     parts, budget = [title], DIFF_BUDGET
     for update in updates:
         diff = update.diff()
@@ -459,9 +485,9 @@ def updates_text(updates, lines):
         more = len(diff) - len(shown.splitlines())
         if more > 0:
             shown += f"\n… ещё {more} строк"
-        commit = f" · коммит {commit_html(update.candidate.pin)}" if update.candidate.pin else ""
+        commit = f" · 📌 {commit_html(update.candidate.pin)}" if update.candidate.pin else ""
         parts.append(
-            f"{update.label} · {update.stat}{commit}"
+            f"🧩 {update.label} · {update.stat}{commit}"
             + findings_text(update.report)
             + "\n"
             + utils.quote(f"<code>{utils.escape_html(shown)}</code>", expandable=True)
@@ -469,7 +495,7 @@ def updates_text(updates, lines):
     if lines:
         parts.append(utils.quote("\n".join(lines), expandable=len(lines) > 10))
     if dangerous:
-        parts.append("<i>Обновляйте, только если доверяете автору и понимаете, зачем модулю это нужно</i>")
+        parts.append("💡 <i>Обновляйте, только если доверяете автору и понимаете, зачем модулю это нужно</i>")
     return "\n".join(parts)
 
 

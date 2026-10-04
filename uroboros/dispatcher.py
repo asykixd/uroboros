@@ -86,7 +86,7 @@ class Dispatcher:
         try:
             reason = command.info.rejection(message)
             if reason is not None:
-                await utils.answer(message, f"❌ {utils.escape_html(reason)}")
+                await utils.answer(message, f"🚫 <b>{utils.escape_html(reason)}</b>")
                 return
             with module_context(command.module):
                 await command.func(message)
@@ -98,7 +98,9 @@ class Dispatcher:
             await self._report(
                 message,
                 used_name,
-                utils.quote(f"Telegram ограничил частоту запросов, повторите через {utils.format_duration(e.seconds)}"),
+                utils.quote(
+                    f"⏳ Telegram ограничил частоту запросов, повторите через {utils.format_duration(e.seconds)}"
+                ),
             )
         except Exception:
             log.exception("Ошибка в команде %s", used_name)

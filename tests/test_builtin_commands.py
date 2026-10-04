@@ -39,7 +39,7 @@ def test_uplm_updates_changed_modules(builtin_loader, monkeypatch):
 
     remote["https://example.com/demo.py"] = V2.encode()
     text = run_command(loader, ".uplm demo")
-    assert text.startswith("📦 <b>Обновить модули?") and "<b>Demo</b> · +1 −1" in text and "uplm -f demo" in text
+    assert text.startswith("🔃 <b>Обновить модули?") and "<b>Demo</b> · +1 −1" in text and "uplm -f demo" in text
     assert '-    @command("one")' in text and '+    @command("two")' in text
     assert loader.get_command("one") is not None
 
@@ -92,7 +92,7 @@ def test_search_in_connected_repos(builtin_loader, monkeypatch):
     loader.get_module("loader").db.set("repos", ["a/mods", "b/broken"])
     text = run_command(loader, ".search weather")
     assert "Найдено</b> · 2" in text and "dlm a/mods/WeatherPro" in text and "b/broken" in text
-    assert "Ничего не найдено" in run_command(loader, ".search radio")
+    assert "Ничего не нашлось" in run_command(loader, ".search radio")
     assert calls.count("a/mods") == 1  # список кешируется
 
 
@@ -121,7 +121,7 @@ def test_dlm_and_uplm_pin_github_commit(builtin_loader, monkeypatch):
 
     state["sha"] = sha2
     text = run_command(loader, ".uplm demo")
-    assert f'коммит <a href="https://github.com/someone/mods/commit/{sha2}">2222222</a>' in text
+    assert f'📌 <a href="https://github.com/someone/mods/commit/{sha2}">2222222</a>' in text
     run_command(loader, ".uplm -f demo")
     assert loader.pins()["demo"] == f"{base}/{sha2}/demo.py"
 

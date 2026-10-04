@@ -131,8 +131,8 @@ def test_security_commands(builtin_loader, monkeypatch):
         return SimpleNamespace(id=int(arg)) if arg else None
 
     monkeypatch.setattr("uroboros.utils.get_target", target)
-    assert "добавлен в <b>sudo</b>" in run(loader, f".sudo add {FRIEND}")
-    assert "уже в <b>sudo</b>" in run(loader, f".sudo add {FRIEND}")
+    assert "<b>добавлен в sudo</b>" in run(loader, f".sudo add {FRIEND}")
+    assert "<b>уже в sudo</b>" in run(loader, f".sudo add {FRIEND}")
     assert loader.security.level_of(FRIEND) == "sudo"
     assert "и так владелец" in run(loader, f".owner add {ME}")
     assert f"<code>{FRIEND}</code>" in run(loader, ".sudo")
@@ -143,7 +143,7 @@ def test_security_commands(builtin_loader, monkeypatch):
     assert "❌" in run(loader, ".security ping admins")
     assert "Доступ" in run(loader, ".security")
     assert "доступ: владельцы" in run(loader, ".help eval")
-    assert "удалён из <b>sudo</b>" in run(loader, f".sudo del {FRIEND}")
+    assert "<b>удалён из sudo</b>" in run(loader, f".sudo del {FRIEND}")
 
 
 def test_dangerous_builtins_are_owner_only(builtin_loader):

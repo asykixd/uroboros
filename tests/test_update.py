@@ -76,7 +76,7 @@ def update(system, monkeypatch, fake, text=".update -f"):
 
 def test_already_up_to_date(system, monkeypatch):
     fake = FakeGit(head="aaa", target="aaa")
-    assert update(system, monkeypatch, fake).startswith("✅ Установлена последняя версия")
+    assert update(system, monkeypatch, fake).startswith("✅ <b>Установлена последняя версия")
     assert not fake.ran("pip") and not system.restarted
 
 
@@ -182,7 +182,7 @@ def test_inline_confirmation(tmp_path, monkeypatch):
     assert not fake.ran("merge")
     press(env.manager, "✅ Обновить")
     assert fake.ran("merge") and restarted == [True]
-    assert env.bot.edits()[-1]["text"] == "🔄 Обновлено, перезапуск..."
+    assert env.bot.edits()[-1]["text"] == "🔄 <b>Обновлено</b> · перезапуск..."
     env.db.close()
 
 
@@ -239,4 +239,4 @@ def test_update_command_from_pypi(builtin_loader, pip_install, monkeypatch):
 
     message = FakeMessage(".dev on")
     asyncio.run(system.dev(message))
-    assert message.edits[-1].startswith("❌ Ветки доступны только при установке из git")
+    assert message.edits[-1].startswith("❌ <b>Ветки доступны только при установке из git")

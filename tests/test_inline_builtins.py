@@ -45,21 +45,21 @@ def test_help_pages_and_module(env):
     message = run(env, ".help")
     assert message.deleted and message.edits == []
     unit = last_unit(env)
-    assert "1/2" in button_texts(env.manager, unit) and "Config" in button_texts(env.manager, unit)
+    assert "📄 1/2" in button_texts(env.manager, unit) and "Config" in button_texts(env.manager, unit)
 
-    press(env.manager, "▶")
-    assert "Extra" in last_text(env) and "2/2" in button_texts(env.manager, unit)
+    press(env.manager, "▶️")
+    assert "Extra" in last_text(env) and "📄 2/2" in button_texts(env.manager, unit)
 
     name = next(t for t in button_texts(env.manager, unit) if t.startswith("Extra"))
     press(env.manager, name)
-    assert f"📦 <b>{name}</b>" in last_text(env)
-    press(env.manager, "◀ Назад")
-    assert "2/2" in button_texts(env.manager, unit)
+    assert f"🧩 <b>{name}</b>" in last_text(env)
+    press(env.manager, "◀️ Назад")
+    assert "📄 2/2" in button_texts(env.manager, unit)
 
 
 def test_help_with_argument_is_text(env):
     message = run(env, ".help help")
-    assert not message.deleted and message.edits[-1].startswith("📦 <b>Help</b>")
+    assert not message.deleted and message.edits[-1].startswith("🧩 <b>Help</b>")
 
 
 def test_cfg_inline(env):
@@ -72,11 +72,11 @@ def test_cfg_inline(env):
     assert {"count", "loud", "mode"} <= set(button_texts(env.manager, unit))
 
     press(env.manager, "loud")
-    press(env.manager, "Включить")
-    assert tuned.config["loud"] is True and "✅ Сохранено" in last_text(env)
-    assert "Выключить" in button_texts(env.manager, unit)
+    press(env.manager, "🟢 Включить")
+    assert tuned.config["loud"] is True and "✅ <b>Сохранено</b>" in last_text(env)
+    assert "🔴 Выключить" in button_texts(env.manager, unit)
 
-    press(env.manager, "◀ Назад")
+    press(env.manager, "◀️ Назад")
     press(env.manager, "mode")
     press(env.manager, "b")
     assert tuned.config["mode"] == "b"
@@ -86,9 +86,9 @@ def test_cfg_inline(env):
     run(env, ".cfg tuned count")
     unit = last_unit(env)
     type_input(env.manager, unit, "0")
-    assert tuned.config["count"] == 1 and "❌ Минимум — 1" in last_text(env)
+    assert tuned.config["count"] == 1 and "Минимум — 1" in last_text(env)
     type_input(env.manager, unit, "3")
-    assert tuned.config["count"] == 3 and "✅ Сохранено" in last_text(env)
+    assert tuned.config["count"] == 3 and "✅ <b>Сохранено</b>" in last_text(env)
 
 
 def test_cfg_with_value_is_text(env):
@@ -105,7 +105,7 @@ def test_ulm_asks_confirmation(env):
 
     press(env.manager, "🗑 Удалить")
     assert env.loader.get_module("doomed") is None
-    assert last_text(env) == "🗑 Удалено: <b>Doomed</b>"
+    assert last_text(env) == "🗑 <b>Удалено:</b> <b>Doomed</b>"
 
 
 def test_text_fallback_without_bot(env):
@@ -123,9 +123,9 @@ def test_dlm_confirmation_button(env, monkeypatch):
     monkeypatch.setattr(download, "download", fake_download)
     run(env, ".dlm https://example.com/remote.py")
     assert "Установить модуль?" in last_text(env) and env.loader.get_module("remote") is None
-    press(env.manager, "✅ Установить")
+    press(env.manager, "📥 Установить")
     assert env.loader.get_module("remote") is not None
-    assert last_text(env).startswith("✅ Модуль <b>Remote</b> загружен")
+    assert last_text(env).startswith("✅ <b>Модуль Remote загружен</b>")
 
 
 def test_uplm_confirmation_button(env, monkeypatch):
@@ -140,6 +140,6 @@ def test_uplm_confirmation_button(env, monkeypatch):
     monkeypatch.setattr(download, "download", fake_download)
     run(env, ".uplm")
     assert "Обновить модули?" in last_text(env) and "+    x = 1" in last_text(env)
-    press(env.manager, "✅ Обновить")
+    press(env.manager, "🔃 Обновить")
     assert last_text(env).startswith("✅ <b>Модули обновлены")
     assert "x = 1" in (env.loader.modules_dir / "remote.py").read_text()

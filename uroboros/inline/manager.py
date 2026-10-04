@@ -64,7 +64,7 @@ MAX_TEXT = 4096
 MAX_CAPTION = 1024
 
 STALE = "Кнопка устарела"
-FOREIGN = "Эта кнопка не для вас"
+FOREIGN = "🔒 Эта кнопка не для вас"
 
 
 class TokenRejected(InlineError):
@@ -723,7 +723,7 @@ class InlineManager:
         async def no(call: InlineCall) -> None:
             await call.edit(saved_text, saved_buttons)
 
-        await call.edit(question, [[{"text": "✅ Да", "callback": yes}, {"text": "Отмена", "callback": no}]])
+        await call.edit(question, [[{"text": "✅ Да", "callback": yes}, {"text": "✖️ Отмена", "callback": no}]])
 
     def _module_of(self, stem: str | None) -> Any:
         if stem is None or self.loader is None:
@@ -738,7 +738,7 @@ class InlineManager:
             await call.answer(str(e)[:200], show_alert=True)
         except Exception:
             log.exception("Ошибка в %s", where)
-            await call.answer("Ошибка, подробности в логах (.logs)", show_alert=True)
+            await call.answer("❌ Ошибка, подробности в логах (.logs)", show_alert=True)
 
     async def _on_userbot_message(self, event: Any) -> None:
         """Удаляет служебное сообщение, которое уходит в чат при вводе текста в форму."""

@@ -22,15 +22,15 @@ def run(loader, text):
 def test_prefix_and_aliases(builtin_loader):
     loader = builtin_loader
     assert "❌" in run(loader, ".setprefix toolong")
-    assert run(loader, ".setprefix !") == "✅ Префикс: <code>!</code>"
+    assert run(loader, ".setprefix !").startswith("⌨️ <b>Префикс</b> <code>!</code>")
     assert loader.db.get(MAIN_OWNER, "prefix") == "!"
 
     assert "→ <code>help</code>" in run(loader, ".alias h help")
     assert "❌" in run(loader, ".alias x nope")
-    assert "уже является командой" in run(loader, ".alias ping help")
+    assert "уже команда" in run(loader, ".alias ping help")
     assert "<code>h</code> → <code>help</code>" in run(loader, ".aliases")
     assert "удалён" in run(loader, ".unalias h")
-    assert run(loader, ".aliases") == "🔗 Алиасов нет"
+    assert run(loader, ".aliases").startswith("🏷 <b>Алиасов нет</b>")
 
 
 def test_dispatcher_resolves_user_alias_and_reports_errors(builtin_loader):
@@ -89,7 +89,7 @@ class FakeManager:
 
 def test_inlinebot_command(builtin_loader):
     loader = builtin_loader
-    assert run(loader, ".inlinebot") == "❌ Inline-бот недоступен"
+    assert run(loader, ".inlinebot") == "❌ <b>Inline-бот недоступен</b>"
     loader.inline = FakeManager()
     assert "нет токена" in run(loader, ".inlinebot")
     assert "выключен" in run(loader, ".inlinebot off")
