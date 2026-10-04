@@ -35,11 +35,16 @@ def test_uplm_updates_changed_modules(builtin_loader, monkeypatch):
     monkeypatch.setattr(download, "download", fake_download)
 
     text = run_command(loader, ".uplm")
-    assert "без изменений" in text and "из файла, пропущен" in text
+    assert text.startswith("✅ <b>Обновлений нет") and "без изменений" in text and "из файла, пропущен" in text
 
     remote["https://example.com/demo.py"] = V2.encode()
     text = run_command(loader, ".uplm demo")
-    assert text.startswith("✅") and "обновлён" in text
+    assert text.startswith("📦 <b>Обновить модули?") and "<b>Demo</b> · +1 −1" in text and "uplm -f demo" in text
+    assert '-    @command("one")' in text and '+    @command("two")' in text
+    assert loader.get_command("one") is not None
+
+    text = run_command(loader, ".uplm -f demo")
+    assert text.startswith("✅") and "обновлён (+1 −1)" in text
     assert loader.get_command("one") is None
     assert loader.get_command("two") is not None
 

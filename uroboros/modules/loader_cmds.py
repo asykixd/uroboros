@@ -1,5 +1,7 @@
 import asyncio
+import difflib
 import time
+from dataclasses import dataclass
 
 from uroboros import Module, command, download, github, scan, utils
 from uroboros.errors import InlineError
@@ -9,6 +11,31 @@ MAX_SIZE = download.MAX_SIZE
 SEARCH_CACHE = 600
 SEARCH_LIMIT = 30
 CANCEL = {"text": "Отмена", "action": "close"}
+DIFF_LINES = 40  # строк разницы на модуль
+DIFF_BUDGET = 2500  # символов разницы на всё сообщение: оно должно влезть в 4096 вместе с остальным
+
+
+@dataclass
+class PendingUpdate:
+    label: str  # имя модуля в HTML
+    origin: str
+    old: str
+    source: str
+    report: scan.Report
+
+    def diff(self):
+        return list(
+            difflib.unified_diff(
+                self.old.splitlines(), self.source.splitlines(), "установлен", "новый", n=1, lineterm=""
+            )
+        )[2:]
+
+    @property
+    def stat(self):
+        diff = self.diff()
+        added = sum(1 for line in diff if line.startswith("+"))
+        removed = sum(1 for line in diff if line.startswith("-"))
+        return f"+{added} −{removed}"
 
 
 class Loader(Module):
@@ -216,7 +243,7 @@ class Loader(Module):
 
     @command("uplm", access="owner")
     async def uplm(self, message):
-        """[-f] [модуль] — обновить сторонние модули из источника; -f — обновить и с опасным кодом"""
+        """[-f] [модуль] — обновить сторонние модули: сначала изменения и подтверждение; -f — сразу"""
         force, name = split_force(utils.get_args_raw(message))
         installed = self.loader.installed()
         if name:
@@ -229,9 +256,9 @@ class Loader(Module):
             await utils.answer(message, "📦 Сторонних модулей нет")
             return
 
-        await utils.answer(message, "⏳ Обновление модулей...")
+        await utils.answer(message, "⏳ Проверяю обновления модулей...")
         names = {m._stem: m.name for m in self.loader.modules.values()}
-        lines, failed = [], False
+        updates, lines, failed = [], [], False
         for stem, origin in installed.items():
             label = f"<b>{utils.escape_html(names.get(stem, stem))}</b>"
             if not origin.startswith(("http://", "https://")):
@@ -239,28 +266,61 @@ class Loader(Module):
                 continue
             try:
                 source = download.decode(await download.download(origin))
-                path = self.loader.modules_dir / f"{stem}.py"
-                if path.exists() and path.read_bytes() == source.encode("utf-8"):
-                    lines.append(f"{label} — без изменений")
-                    continue
-                report = scan.scan(source)
-                if report.dangerous and not force:
-                    failed = True
-                    hint = utils.escape_html(f"{utils.get_prefix(self.db.raw)}uplm -f {names.get(stem, stem)}")
-                    lines.append(
-                        f"{label} — не обновлён, опасный код: {scan.summary(report.dangerous)}. "
-                        f"Обновить всё равно: <code>{hint}</code>"
-                    )
-                    continue
-                await self.loader.install(source, origin, force=force)
-                notes = scan.summary(report.findings)
-                lines.append(f"{label} — обновлён" + (f" (обратите внимание: {notes})" if notes else ""))
             except LoadError as e:
                 failed = True
                 lines.append(f"{label} — ошибка: {utils.escape_html(e)}")
+                continue
+            path = self.loader.modules_dir / f"{stem}.py"
+            old = path.read_bytes().decode("utf-8", errors="replace") if path.exists() else ""
+            if old == source:
+                lines.append(f"{label} — без изменений")
+                continue
+            updates.append(PendingUpdate(label, origin, old, source, scan.scan(source)))
 
+        if not updates:
+            title = "❌ <b>Не все модули проверены</b>" if failed else "✅ <b>Обновлений нет</b>"
+            await utils.answer(message, title + "\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10))
+            return
+        if force:
+            await utils.answer(message, "⏳ Обновление модулей...")
+            await utils.answer(message, await self._apply_updates(updates, lines, failed))
+            return
+
+        text = updates_text(updates, lines)
+        dangerous = any(update.report.dangerous for update in updates)
+        if self.inline.available:
+            button = "⚠️ Обновить всё равно" if dangerous else "✅ Обновить"
+            args = (updates, lines, failed)
+            try:
+                await self.inline.form(
+                    message, text, [[{"text": button, "callback": self._uplm_confirmed, "args": args}, CANCEL]]
+                )
+                return
+            except InlineError:
+                pass  # например, в чате запрещены inline-боты — подтверждение командой
+        hint = utils.escape_html(f"{utils.get_prefix(self.db.raw)}uplm -f {name}".rstrip())
+        await utils.answer(message, text + f"\nОбновить: <code>{hint}</code>")
+
+    async def _uplm_confirmed(self, call, updates, lines, failed):
+        await call.edit("⏳ Обновление модулей...", None)
+        await call.edit(await self._apply_updates(updates, lines, failed), None)
+
+    async def _apply_updates(self, updates, lines, failed):
+        """Ставит подтверждённые обновления (в том числе с опасным кодом — его пользователь видел)."""
+        lines = list(lines)
+        for update in updates:
+            try:
+                await self.loader.install(update.source, update.origin, force=True)
+            except LoadError as e:
+                failed = True
+                lines.append(f"{update.label} — ошибка: {utils.escape_html(e)}")
+                continue
+            notes = scan.summary(update.report.findings)
+            lines.append(
+                f"{update.label} — обновлён ({update.stat})" + (f", обратите внимание: {notes}" if notes else "")
+            )
         title = "❌ <b>Не все модули обновились</b>" if failed else "✅ <b>Модули обновлены</b>"
-        await utils.answer(message, title + "\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10))
+        return title + "\n" + utils.quote("\n".join(lines), expandable=len(lines) > 10)
 
     @command("ulm", access="owner")
     async def ulm(self, message):
@@ -353,6 +413,31 @@ def findings_text(report):
             scan.describe(report.warnings), expandable=len(report.warnings) > 5
         )
     return text
+
+
+def updates_text(updates, lines):
+    """Что изменится: по каждому модулю — счётчик строк, находки проверки и сама разница."""
+    dangerous = any(update.report.dangerous for update in updates)
+    title = "❌ <b>В обновлениях модулей опасный код</b>" if dangerous else "📦 <b>Обновить модули?</b>"
+    parts, budget = [title], DIFF_BUDGET
+    for update in updates:
+        diff = update.diff()
+        shown = "\n".join(diff[:DIFF_LINES])[:budget]
+        budget -= len(shown)
+        more = len(diff) - len(shown.splitlines())
+        if more > 0:
+            shown += f"\n… ещё {more} строк"
+        parts.append(
+            f"{update.label} · {update.stat}"
+            + findings_text(update.report)
+            + "\n"
+            + utils.quote(f"<code>{utils.escape_html(shown)}</code>", expandable=True)
+        )
+    if lines:
+        parts.append(utils.quote("\n".join(lines), expandable=len(lines) > 10))
+    if dangerous:
+        parts.append("<i>Обновляйте, только если доверяете автору и понимаете, зачем модулю это нужно</i>")
+    return "\n".join(parts)
 
 
 def split_force(raw):

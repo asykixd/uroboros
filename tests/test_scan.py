@@ -120,8 +120,8 @@ def test_uplm_skips_dangerous_update(builtin_loader, monkeypatch):
 
     monkeypatch.setattr(download, "download", fake_download)
     text = run_command(loader, ".uplm demo")
-    assert text.startswith("❌") and "не обновлён, опасный код" in text and "uplm -f Demo" in text
-    assert "save" not in (loader.modules_dir / "demo.py").read_text()
+    assert text.startswith("❌ <b>В обновлениях модулей опасный код") and "выгружает сессию" in text
+    assert "uplm -f demo" in text and "save" not in (loader.modules_dir / "demo.py").read_text()
 
     assert "обновлён" in run_command(loader, ".uplm -f demo")
     assert "save" in (loader.modules_dir / "demo.py").read_text()
@@ -151,3 +151,22 @@ def test_restore_refuses_dangerous_modules(builtin_loader):
 
     assert run_command(loader, ".restore -f", Reply()).startswith("✅")
     assert len(restarted) == 1
+
+
+def test_tampered_module_file(builtin_loader, caplog):
+    loader = builtin_loader
+    asyncio.run(loader.install(SAFE, "https://example.com/demo.py"))
+    path = loader.modules_dir / "demo.py"
+
+    path.write_text(SAFE.replace("pass", "return 1"))
+    asyncio.run(loader.reload_all())
+    assert loader.get_module("demo") is not None and "изменён не через Uroboros" in caplog.text
+
+    path.write_text(STEALER)
+    asyncio.run(loader.reload_all())
+    assert loader.get_module("demo") is None and "опасный код" in caplog.text
+
+    # Переустановка через Uroboros — новый хеш, модуль снова грузится.
+    asyncio.run(loader.install(STEALER, "https://example.com/demo.py", force=True))
+    asyncio.run(loader.reload_all())
+    assert loader.get_module("demo") is not None

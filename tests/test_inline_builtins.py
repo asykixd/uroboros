@@ -126,3 +126,20 @@ def test_dlm_confirmation_button(env, monkeypatch):
     press(env.manager, "✅ Установить")
     assert env.loader.get_module("remote") is not None
     assert last_text(env).startswith("✅ Модуль <b>Remote</b> загружен")
+
+
+def test_uplm_confirmation_button(env, monkeypatch):
+    from uroboros import download
+
+    old = b"from uroboros import Module\nclass Remote(Module):\n    pass\n"
+    asyncio.run(env.loader.install(old.decode(), "https://example.com/remote.py"))
+
+    async def fake_download(url):
+        return old.replace(b"pass", b"x = 1")
+
+    monkeypatch.setattr(download, "download", fake_download)
+    run(env, ".uplm")
+    assert "Обновить модули?" in last_text(env) and "+    x = 1" in last_text(env)
+    press(env.manager, "✅ Обновить")
+    assert last_text(env).startswith("✅ <b>Модули обновлены")
+    assert "x = 1" in (env.loader.modules_dir / "remote.py").read_text()

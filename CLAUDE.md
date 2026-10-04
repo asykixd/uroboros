@@ -75,7 +75,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 **Адаптер Hikka (`hikka/`).** `hikka.is_hikka` узнаёт модуль, `check_supported` отклоняет внутренности Hikka. Модуль исполняется с `__package__ = uroboros.hikka.modules`, поэтому `from .. import loader, utils` берёт шимы из `uroboros/hikka/`. `hikka.loader.Module.__init_subclass__` переводит метки Hikka (`is_command`, суффиксы `cmd`/`watcher`/`_inline_handler`, `InfiniteLoop`) в атрибуты декораторов Uroboros; `_bind` (хук, который зовёт загрузчик) подменяет `db` на БД в стиле Hikka, `inline` — на `HikkaInline`. `hikkatl` → Telethon — `hikka/aliases.py`. Таблица совместимости — `scripts/hikka_compat.py` (исполняет чужой код: запускать только в изоляции).
 
-**Проверка исходников (`scan.py`).** AST-эвристика перед установкой: `Loader.install` бросает `scan.UnsafeModuleError` на опасном коде, если не передан `force=True` (кнопка подтверждения или `-f` в `.dlm`/`.lm`/`.uplm`/`.restore`); подозрительное команды показывают в ответе. Встроенные модули и уже установленные при запуске (`load_all`) не проверяются.
+**Проверка исходников (`scan.py`).** AST-эвристика перед установкой: `Loader.install` бросает `scan.UnsafeModuleError` на опасном коде, если не передан `force=True` (кнопка подтверждения или `-f` в `.dlm`/`.lm`/`.uplm`/`.restore`); подозрительное команды показывают в ответе. Встроенные модули не проверяются. Загрузчик хранит sha256 файлов сторонних модулей (БД `uroboros.loader`/`hashes`): если файл изменили в обход Uroboros и в нём опасный код, `load_all` его не грузит. `.uplm` показывает разницу (`difflib`) и ждёт подтверждения, `-f` — сразу.
 
 Ещё не сделано: защита во время работы (0.4). Модули Hikka без адаптера не загрузятся.
 

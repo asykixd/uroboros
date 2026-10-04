@@ -152,6 +152,10 @@ def lib_file_name(url: str) -> str:
     return f"{base}_{hashlib.sha256(url.encode()).hexdigest()[:10]}.py"
 
 
+def source_hash(source: str) -> str:
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
 def make_stem(name: str) -> str:
     return re.sub(r"[^a-z0-9_]", "_", name.lower()) or "module"
 
@@ -223,17 +227,39 @@ class Loader:
             except Exception:
                 log.exception("Не удалось загрузить встроенный модуль %s", path.stem)
 
+        hashes = self.db.get(LOADER_OWNER, "hashes", {})
         for stem, origin in self.installed().items():
             path = self.modules_dir / f"{stem}.py"
             if not path.exists():
                 log.warning("Файл модуля %s пропал, пропускаю", path)
                 continue
+            source = path.read_text("utf-8")
+            if not self._check_hash(stem, source, hashes):
+                continue
             try:
-                await self.load_source(path.read_text("utf-8"), origin=origin, stem=stem, filename=str(path))
+                await self.load_source(source, origin=origin, stem=stem, filename=str(path))
             except Exception:
                 log.exception("Не удалось загрузить модуль %s", stem)
+        self.db.set(LOADER_OWNER, "hashes", hashes)
 
         log.info("Загружено модулей: %d, команд: %d", len(self.modules), len(self.commands))
+
+    def _check_hash(self, stem: str, source: str, hashes: dict[str, str]) -> bool:
+        """Файл модуля изменили в обход Uroboros: с опасным кодом не грузим, иначе запоминаем новый хеш."""
+        digest = source_hash(source)
+        if hashes.get(stem, digest) != digest:
+            report = scan.scan(source)
+            if report.dangerous:
+                log.error(
+                    "Файл модуля %s изменён не через Uroboros и содержит опасный код (%s), не загружаю. "
+                    "Переустановите модуль: .dlm",
+                    stem,
+                    scan.summary(report.dangerous),
+                )
+                return False
+            log.warning("Файл модуля %s изменён не через Uroboros", stem)
+        hashes[stem] = digest
+        return True
 
     async def load_source(
         self,
@@ -278,6 +304,11 @@ class Loader:
         (self.modules_dir / f"{stem}.py").write_bytes(source.encode("utf-8"))
         installed[stem] = origin
         self.db.set(LOADER_OWNER, "installed", installed)
+        hashes = self.db.get(LOADER_OWNER, "hashes", {})
+        for old_stem in replaced - {stem}:
+            hashes.pop(old_stem, None)
+        hashes[stem] = source_hash(source)
+        self.db.set(LOADER_OWNER, "hashes", hashes)
         return instances
 
     async def _load(
@@ -595,6 +626,9 @@ class Loader:
         installed = self.installed()
         installed.pop(stem, None)
         self.db.set(LOADER_OWNER, "installed", installed)
+        hashes = self.db.get(LOADER_OWNER, "hashes", {})
+        hashes.pop(stem, None)
+        self.db.set(LOADER_OWNER, "hashes", hashes)
         (self.modules_dir / f"{stem}.py").unlink(missing_ok=True)
         return removed
 
