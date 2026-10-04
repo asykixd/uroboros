@@ -15,7 +15,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
-from . import __version__, download, github, hikka
+from . import __version__, download, github, hikka, scan
 from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import (
     CALLBACK_ATTR,
@@ -246,8 +246,15 @@ class Loader:
         instances, _ = await self._load(source, origin=origin, stem=stem, filename=filename)
         return instances
 
-    async def install(self, source: str, origin: str) -> list[Module]:
-        """Загружает сторонний модуль и сохраняет его, чтобы он грузился после рестарта."""
+    async def install(self, source: str, origin: str, *, force: bool = False) -> list[Module]:
+        """Загружает сторонний модуль и сохраняет его, чтобы он грузился после рестарта.
+
+        Модуль с опасным кодом (``scan``) ставится только с ``force=True`` — после явного подтверждения.
+        """
+        if not force:
+            report = scan.scan(source)
+            if report.dangerous:
+                raise scan.UnsafeModuleError(report)
         installed = self.installed()
         instances, replaced = await self._load(source, origin=origin)
         stem = instances[0]._stem

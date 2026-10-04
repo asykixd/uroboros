@@ -3,7 +3,7 @@ import io
 import logging
 import time
 
-from uroboros import ConfigValue, Module, ModuleConfig, backup, command, loop, utils, validators
+from uroboros import ConfigValue, Module, ModuleConfig, backup, command, loop, scan, utils, validators
 
 log = logging.getLogger(__name__)
 
@@ -69,7 +69,8 @@ class Backup(Module):
 
     @command("restore", access="owner")
     async def restore_cmd(self, message):
-        """(ответом на бэкап) — восстановить БД и модули и перезапуститься"""
+        """[-f] (ответом на бэкап) — восстановить БД и модули и перезапуститься; -f — и с опасным кодом"""
+        force = utils.get_args_raw(message).strip() == "-f"
         reply = await message.get_reply_message()
         if not reply or not reply.file:
             await utils.answer(message, "❌ Ответьте на zip-файл бэкапа")
@@ -82,11 +83,29 @@ class Backup(Module):
         data = await reply.download_media(bytes)
         # Разбор архива — в потоке, запись — здесь: соединение SQLite привязано к основному потоку.
         dump, modules = await asyncio.to_thread(backup.parse, data)
+        reports = {stem: scan.scan(source) for stem, source in modules.items()}
+        dangerous = {stem: report for stem, report in reports.items() if report.dangerous}
+        if dangerous and not force:
+            lines = [f"<b>{utils.escape_html(stem)}</b>: {scan.summary(r.dangerous)}" for stem, r in dangerous.items()]
+            hint = utils.escape_html(utils.get_prefix(self.db.raw) + "restore -f")
+            await utils.answer(
+                message,
+                "❌ <b>Бэкап не восстановлен: в модулях опасный код</b>\n"
+                + utils.quote("\n".join(lines))
+                + f"\nЕсли доверяете этим модулям, ответьте на файл <code>{hint}</code>",
+            )
+            return
         restored = backup.apply(dump, modules, self.db.raw, self.loader.modules_dir)
-        modules = ", ".join(restored.modules) or "нет"
+        names = ", ".join(restored.modules) or "нет"
+        notes = [
+            f"<b>{utils.escape_html(stem)}</b>: {scan.summary(report.findings)}"
+            for stem, report in reports.items()
+            if report.findings
+        ]
         await utils.answer(
             message,
             "✅ <b>Восстановлено</b>\n"
-            + utils.quote(f"Записей БД: <code>{restored.keys}</code>\nМодули: {utils.escape_html(modules)}"),
+            + utils.quote(f"Записей БД: <code>{restored.keys}</code>\nМодули: {utils.escape_html(names)}")
+            + ("\n<b>Обратите внимание:</b>\n" + utils.quote("\n".join(notes)) if notes else ""),
         )
         await self.loader.get_module("System").restart(message)

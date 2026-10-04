@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from uroboros import Module, command, download, github, utils
+from uroboros import Module, command, download, github, scan, utils
 from uroboros.errors import InlineError
 from uroboros.loader import LoadError
 
@@ -46,10 +46,11 @@ class Loader(Module):
         else:
             url, data = await self._find_in_repos(spec)
         source = download.decode(data)
-        if force or self._trusted(url):
-            await self._install(message, source, url)
+        report = scan.scan(source)
+        if force or (self._trusted(url) and not report.dangerous):
+            await self._install(message, source, url, report, force=force)
         else:
-            await self._confirm(message, source, url, f"dlm -f {spec}")
+            await self._confirm(message, source, url, f"dlm -f {spec}", report)
 
     async def _find_in_repos(self, name):
         repos = self._repos()
@@ -135,33 +136,46 @@ class Loader(Module):
         """[-f] (ответом на файл или с файлом) — установить модуль из файла; -f — без подтверждения"""
         force, _ = split_force(utils.get_args_raw(message))
         reply = await message.get_reply_message()
-        source = reply if reply and reply.file else message if message.file else None
-        if source is None:
+        file_message = reply if reply and reply.file else message if message.file else None
+        if file_message is None:
             await utils.answer(message, "❌ Ответьте на .py-файл модуля или прикрепите его")
             return
-        if source.file.size and source.file.size > MAX_SIZE:
+        if file_message.file.size and file_message.file.size > MAX_SIZE:
             raise LoadError("Файл модуля больше 2 МБ")
-        data = await source.download_media(bytes)
-        origin = f"file:{source.file.name or 'module.py'}"
+        source = download.decode(await file_message.download_media(bytes))
+        origin = f"file:{file_message.file.name or 'module.py'}"
+        report = scan.scan(source)
         if force:
-            await self._install(message, download.decode(data), origin)
+            await self._install(message, source, origin, report, force=True)
         else:
-            await self._confirm(message, download.decode(data), origin, "lm -f")
+            await self._confirm(message, source, origin, "lm -f", report)
 
-    async def _confirm(self, message, source, origin, force_hint):
-        """Модуль не из подключённого репозитория: показать, откуда он и какой длины, и спросить."""
-        text = (
-            "📦 <b>Установить модуль?</b>\n"
-            + utils.quote(
-                f"<b>Источник:</b> <code>{utils.escape_html(origin)}</code>\n"
-                f"<b>Строк:</b> <code>{len(source.splitlines())}</code>"
-            )
-            + "\n<i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
-            "ставьте только те, которым доверяете</i>"
+    async def _confirm(self, message, source, origin, force_hint, report):
+        """Спросить перед установкой: источник не из подключённых репозиториев или в модуле опасный код."""
+        info = utils.quote(
+            f"<b>Источник:</b> <code>{utils.escape_html(origin)}</code>\n"
+            f"<b>Строк:</b> <code>{len(source.splitlines())}</code>"
         )
+        if report.dangerous:
+            text = (
+                "❌ <b>Модуль может навредить аккаунту</b>\n"
+                + info
+                + findings_text(report)
+                + "\n<i>Устанавливайте, только если доверяете автору и понимаете, зачем модулю это нужно</i>"
+            )
+            button = "⚠️ Установить всё равно"
+        else:
+            text = (
+                "📦 <b>Установить модуль?</b>\n"
+                + info
+                + findings_text(report)
+                + "\n<i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
+                "ставьте только те, которым доверяете</i>"
+            )
+            button = "✅ Установить"
         if self.inline.available:
             buttons = [
-                [{"text": "✅ Установить", "callback": self._install_confirmed, "args": (source, origin)}, CANCEL]
+                [{"text": button, "callback": self._install_confirmed, "args": (source, origin, report)}, CANCEL]
             ]
             try:
                 await self.inline.form(message, text, buttons)
@@ -172,18 +186,19 @@ class Loader(Module):
         hint = f"<code>{utils.escape_html(prefix + force_hint)}</code>"
         await utils.answer(message, text + f"\nУстановить: {hint}")
 
-    async def _install_confirmed(self, call, source, origin):
+    async def _install_confirmed(self, call, source, origin, report):
         await call.edit("⏳ Установка...", None)
         try:
-            instances = await self.loader.install(source, origin)
+            # Нажатие кнопки — явное подтверждение, в том числе для опасного кода.
+            instances = await self.loader.install(source, origin, force=True)
         except LoadError as e:
             await call.edit(f"❌ <b>Модуль не установлен</b>\n{utils.quote(utils.escape_html(e))}")
             return
-        await call.edit(self._installed_text(instances))
+        await call.edit(self._installed_text(instances) + findings_text(report))
 
-    async def _install(self, message, source, origin):
-        instances = await self.loader.install(source, origin)
-        await utils.answer(message, self._installed_text(instances))
+    async def _install(self, message, source, origin, report, *, force=False):
+        instances = await self.loader.install(source, origin, force=force)
+        await utils.answer(message, self._installed_text(instances) + findings_text(report))
 
     def _installed_text(self, instances):
         prefix = utils.get_prefix(self.db.raw)
@@ -201,8 +216,8 @@ class Loader(Module):
 
     @command("uplm", access="owner")
     async def uplm(self, message):
-        """[модуль] — обновить сторонние модули из источника"""
-        name = utils.get_args_raw(message).strip()
+        """[-f] [модуль] — обновить сторонние модули из источника; -f — обновить и с опасным кодом"""
+        force, name = split_force(utils.get_args_raw(message))
         installed = self.loader.installed()
         if name:
             inst = self.loader.get_module(name)
@@ -228,8 +243,18 @@ class Loader(Module):
                 if path.exists() and path.read_bytes() == source.encode("utf-8"):
                     lines.append(f"{label} — без изменений")
                     continue
-                await self.loader.install(source, origin)
-                lines.append(f"{label} — обновлён")
+                report = scan.scan(source)
+                if report.dangerous and not force:
+                    failed = True
+                    hint = utils.escape_html(f"{utils.get_prefix(self.db.raw)}uplm -f {names.get(stem, stem)}")
+                    lines.append(
+                        f"{label} — не обновлён, опасный код: {scan.summary(report.dangerous)}. "
+                        f"Обновить всё равно: <code>{hint}</code>"
+                    )
+                    continue
+                await self.loader.install(source, origin, force=force)
+                notes = scan.summary(report.findings)
+                lines.append(f"{label} — обновлён" + (f" (обратите внимание: {notes})" if notes else ""))
             except LoadError as e:
                 failed = True
                 lines.append(f"{label} — ошибка: {utils.escape_html(e)}")
@@ -316,6 +341,18 @@ class Loader(Module):
             return
         lines = [f'<a href="https://github.com/{r}">{utils.escape_html(r)}</a>' for r in repos]
         await utils.answer(message, "🔗 <b>Репозитории</b>\n" + utils.quote("\n".join(lines)))
+
+
+def findings_text(report):
+    """Опасное и подозрительное в модуле — блоками под основным ответом."""
+    text = ""
+    if report.dangerous:
+        text += "\n<b>Опасное:</b>\n" + utils.quote(scan.describe(report.dangerous))
+    if report.warnings:
+        text += "\n<b>Обратите внимание:</b>\n" + utils.quote(
+            scan.describe(report.warnings), expandable=len(report.warnings) > 5
+        )
+    return text
 
 
 def split_force(raw):
