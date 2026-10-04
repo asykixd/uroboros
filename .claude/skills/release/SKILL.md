@@ -22,4 +22,5 @@ disable-model-invocation: true
    ```bash
    gh release create vX.Y.Z --title "Uroboros X.Y.Z" --notes-file <файл>
    ```
-7. Показать пользователю ссылку на релиз и вернуться в `dev`.
+7. **PyPI:** публикация релиза запускает `.github/workflows/publish.yml` (пакет `uroboros-userbot`, trusted publishing). Перед первым релизом пользователь настраивает trusted publisher на pypi.org (параметры — в комментарии workflow). Если Actions недоступны — собрать `python -m build` и попросить пользователя загрузить `twine upload dist/*` самому (токены PyPI не вводить).
+8. Показать пользователю ссылку на релиз и вернуться в `dev`.
