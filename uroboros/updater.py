@@ -1,5 +1,7 @@
 """Обновление из git: каналы ``stable`` (последний тег) и ``beta`` (ветка), список изменений, откат.
 
+Ветки: ``master`` — стабильная, ``dev`` — разработка; ``switch`` переключает между ними.
+
 Обновление — только перемотка вперёд (``merge --ff-only``): локальные коммиты и правки не теряются,
 а если версия расходится с каналом, обновление отменяется с понятной причиной.
 """
@@ -20,6 +22,8 @@ CHANNELS = ("stable", "beta")
 DEFAULT_CHANNEL = "beta"
 MAX_CHANGELOG = 30
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(.*)$")
+VERSION_RE = re.compile(r'^__version__\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
+BRANCHES = ("master", "dev")
 
 
 class UpdateError(LoadError):
@@ -126,7 +130,56 @@ async def install(update: Update) -> None:
     code, output = await git("merge", "--ff-only", update.sha)
     if code != 0:
         raise UpdateError(f"Не удалось обновиться: {output[-500:]}")
+    await _finish(("reset", "--keep", old))
 
+
+@dataclass
+class Switch:
+    branch: str  # куда переходим
+    previous: str  # ветка сейчас
+    version: str  # версия в целевой ветке
+    current_version: str
+
+
+async def current_branch() -> str:
+    branch = await _git_ok("rev-parse", "--abbrev-ref", "HEAD")
+    if branch == "HEAD":
+        raise UpdateError("Репозиторий не на ветке (detached HEAD): переключитесь вручную, git switch master")
+    return branch
+
+
+async def prepare_switch(branch: str, current_version: str) -> Switch:
+    """Проверяет, что на ``branch`` можно перейти, и скачивает её."""
+    if branch not in BRANCHES:
+        raise UpdateError(f"Ветки: {', '.join(BRANCHES)}")
+    previous = await current_branch()
+    if previous == branch:
+        raise UpdateError(f"Уже стоит ветка {branch}")
+    changed = await _git_ok("status", "--porcelain", "--untracked-files=no")
+    if changed:
+        raise UpdateError(f"В папке бота есть изменённые файлы, переключение их затронет:\n{changed[:500]}")
+    await _git_ok("fetch", "--quiet", "origin", branch)
+    source = await _git_ok("show", f"origin/{branch}:uroboros/__init__.py")
+    match = VERSION_RE.search(source)
+    return Switch(branch, previous, match[1] if match else "?", current_version)
+
+
+async def switch(target: Switch) -> None:
+    """Переходит на ветку и ставит зависимости. При ошибке возвращает прежнюю ветку и бросает ``UpdateError``."""
+    code, _ = await git("rev-parse", "--verify", "--quiet", f"refs/heads/{target.branch}")
+    if code == 0:
+        await _git_ok("switch", target.branch)
+        code, output = await git("merge", "--ff-only", f"origin/{target.branch}")
+        if code != 0:
+            await git("switch", target.previous)
+            raise UpdateError(f"Локальная ветка {target.branch} расходится с origin: {output[-500:]}")
+    else:
+        await _git_ok("switch", "--track", "-c", target.branch, f"origin/{target.branch}")
+    await _finish(("switch", target.previous))
+
+
+async def _finish(rollback: tuple[str, ...]) -> None:
+    """Ставит зависимости и проверяет, что новая версия импортируется. Нет — ``git <rollback>``."""
     # Новые зависимости ставятся до рестарта: если не встанут, бот после рестарта не запустится.
     stage = "Не удалось установить зависимости"
     code, output = await run_process(
@@ -138,5 +191,5 @@ async def install(update: Update) -> None:
     if code == 0:
         return
 
-    rollback, rollback_output = await git("reset", "--keep", old)
+    rollback, rollback_output = await git(*rollback)
     raise InstallError(stage, output[-2000:], rolled_back=rollback == 0, rollback_output=rollback_output)

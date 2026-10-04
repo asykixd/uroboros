@@ -14,6 +14,7 @@ from uroboros.errors import InlineError
 CANCEL = {"text": "Отмена", "action": "close"}
 CHECK_EVERY = 24 * 3600
 DOCKER_UPDATE = "git pull &amp;&amp; docker compose up -d --build"
+DEV_ARGS = {"on": "dev", "dev": "dev", "off": "master", "master": "master"}
 
 
 class System(Module):
@@ -163,8 +164,12 @@ class System(Module):
 
     async def _install(self, update, report, message):
         await report("⏳ Обновление и установка зависимостей...")
+        await self._apply(updater.install(update), report, message, "🔄 Обновлено, перезапуск...")
+
+    async def _apply(self, action, report, message, done):
+        """Ждёт ``action`` (обновление или смену ветки) и перезапускается; ошибку показывает через ``report``."""
         try:
-            await updater.install(update)
+            await action
         except updater.InstallError as e:
             text = f"❌ <b>{utils.escape_html(e.stage)}</b>\n" + code_quote(e.output)
             if e.rolled_back:
@@ -175,22 +180,93 @@ class System(Module):
                 )
             await report(text)
             return
+        except updater.UpdateError as e:
+            await report(f"❌ {utils.escape_html(e)}")
+            return
         if message is not None:
             await self.restart(message)
         else:
-            await report("🔄 Обновлено, перезапуск...")
+            await report(done)
             await utils.restart(self.client)
+
+    @command("dev", access="owner")
+    async def dev(self, message):
+        """[on | off] [-f] — ветка бота: on — сборка из dev (новое, до проверки), off — вернуться на master"""
+        args = utils.get_args(message)
+        force = "-f" in args
+        args = [arg for arg in args if arg != "-f"]
+        prefix = utils.escape_html(utils.get_prefix(self.db.raw))
+        if updater.in_docker():
+            await utils.answer(message, "❌ В Docker ветку выбирают при сборке образа: <code>git switch dev</code>")
+            return
+        if not updater.is_git_checkout():
+            await utils.answer(message, "❌ Uroboros установлен не из git-репозитория")
+            return
+        if not args:
+            branch = await updater.current_branch()
+            other = "off" if branch == "dev" else "on"
+            await utils.answer(
+                message,
+                f"⚙️ Ветка: <b>{utils.escape_html(branch)}</b> · версия <code>{uroboros.__version__}</code>\n"
+                f"Переключиться: <code>{prefix}dev {other}</code>",
+            )
+            return
+        branch = DEV_ARGS.get(args[0].lower())
+        if branch is None:
+            await utils.answer(
+                message, f"❌ <code>{prefix}dev on</code> — ветка dev, <code>{prefix}dev off</code> — master"
+            )
+            return
+
+        await utils.answer(message, f"⏳ Скачиваю ветку {branch}...")
+        target = await updater.prepare_switch(branch, uroboros.__version__)
+        if force:
+            await self._switch(target, lambda text: utils.answer(message, text), message)
+            return
+        text = self._switch_text(target)
+        if self.inline.available:
+            buttons = [[{"text": "✅ Переключить", "callback": self._switch_pressed, "args": (target,)}, CANCEL]]
+            try:
+                await self.inline.form(message, text, buttons)
+                return
+            except InlineError:
+                pass
+        await utils.answer(message, text + f"\nПереключить: <code>{prefix}dev {args[0]} -f</code>")
+
+    def _switch_text(self, target):
+        old, new = utils.escape_html(target.current_version), utils.escape_html(target.version)
+        versions = f"<code>{old}</code> → <code>{new}</code>"
+        if target.branch == "dev":
+            prefix = utils.escape_html(utils.get_prefix(self.db.raw))
+            title = "Перейти на сборку из ветки dev?"
+            about = f"В dev — новые возможности до проверки: возможны ошибки. Вернуться — <code>{prefix}dev off</code>"
+        else:
+            title = "Вернуться на стабильную ветку master?"
+            about = "Модули, которым нужна более новая версия, не загрузятся"
+        return f"⚙️ <b>{title}</b>\n" + utils.quote(f"Версия: {versions}\n{about}")
+
+    async def _switch_pressed(self, call, target):
+        async def report(text):
+            await call.edit(text, None)
+
+        await self._switch(target, report, None)
+
+    async def _switch(self, target, report, message):
+        if target.branch == "dev":
+            self.db.set("channel", "beta")  # stable — теги master, в dev их нет
+        await report(f"⏳ Переключение на {target.branch} и установка зависимостей...")
+        await self._apply(updater.switch(target), report, message, f"🔄 Ветка {target.branch}, перезапуск...")
 
     async def _channel(self, message, args):
         if args:
             if args[0] not in updater.CHANNELS:
                 await utils.answer(
-                    message, "❌ Каналы: <code>stable</code> (релизы) и <code>beta</code> (ветка master)"
+                    message, "❌ Каналы: <code>stable</code> (релизы) и <code>beta</code> (каждый коммит в ветке)"
                 )
                 return
             self.db.set("channel", args[0])
         channel = self._get_channel()
-        about = "релизы (теги)" if channel == "stable" else "каждый коммит в master"
+        about = "релизы (теги)" if channel == "stable" else "каждый коммит в текущей ветке"
         await utils.answer(message, f"⚙️ Канал обновлений: <b>{channel}</b> — {about}")
 
     async def _notify(self, message, args):
