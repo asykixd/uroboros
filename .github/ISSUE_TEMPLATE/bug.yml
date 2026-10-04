@@ -1,35 +1,35 @@
-name: 🐞 Ошибка
-description: Что-то работает не так
-labels: [ошибка]
+name: 🐞 Bug
+description: Something doesn't work
+labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Уязвимости — не сюда, а приватно: см. SECURITY.md. Не прикладывайте сессию, config.json и логи с личными данными.
+        Vulnerabilities go privately, see SECURITY.md. Don't attach your session, config.json or logs with personal data. English or Russian is fine.
   - type: textarea
     id: what
     attributes:
-      label: Что случилось
-      description: Что делали, что ожидали и что получили
+      label: What happened
+      description: What you did, what you expected, what you got
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Как повторить
+      label: Steps to reproduce
       placeholder: |
         1. .dlm ...
         2. ...
   - type: input
     id: version
     attributes:
-      label: Версия и система
-      description: Из .info — версия Uroboros, Python, система (Linux, Termux, Docker, Windows, macOS)
+      label: Version and OS
+      description: From .info — Uroboros and Python versions, OS (Linux, Termux, Docker, Windows, macOS)
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Ошибка или лог
-      description: Текст ошибки из ответа бота или кусок лога (.logs error)
+      label: Error or log
+      description: Error text from the bot or a log excerpt (.logs error)
       render: text

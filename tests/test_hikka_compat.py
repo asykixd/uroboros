@@ -18,12 +18,12 @@ def check(source, tmp_path):
 
 def test_compatible_module(tmp_path):
     status, detail = check(DEMO, tmp_path)
-    assert status == compat.OK and detail == "команд: 5"
+    assert status == compat.OK and detail == "commands: 5"
 
 
 def test_missing_requirements_are_not_installed(tmp_path):
     source = "# requires: definitely-not-installed-pkg\nimport definitely_not_installed_pkg\nfrom .. import loader\n"
-    assert check(source, tmp_path) == (compat.DEPS, "нужны пакеты: definitely-not-installed-pkg")
+    assert check(source, tmp_path) == (compat.DEPS, "needs packages: definitely-not-installed-pkg")
 
 
 def test_broken_modules(tmp_path):
@@ -34,6 +34,6 @@ def test_broken_modules(tmp_path):
 
 def test_render():
     text = compat.render(
-        [compat.Result("o/r", "a.py", compat.OK, "команд: 1"), compat.Result("o/r", "b.py", compat.FAIL, "x | y")]
+        [compat.Result("o/r", "a.py", compat.OK, "commands: 1"), compat.Result("o/r", "b.py", compat.FAIL, "x | y")]
     )
-    assert "**1** из 2 (50%)" in text and "x \\| y" in text
+    assert "**1** of 2 (50%)" in text and "x \\| y" in text

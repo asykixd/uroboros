@@ -1,4 +1,4 @@
-name: Документация
+name: Docs
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
         with:
           path: site
 
-  # Сайт публикуется только со стабильной ветки. В настройках репозитория: Pages → Source: GitHub Actions.
+  # The site is published from master only. Repo settings: Pages → Source: GitHub Actions.
   deploy:
     if: github.ref == 'refs/heads/master'
     needs: build

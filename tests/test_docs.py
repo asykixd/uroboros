@@ -1,4 +1,4 @@
-"""Сгенерированные страницы документации (справочник команд, примеры) совпадают с кодом."""
+"""Generated doc pages (command reference, examples) match the code."""
 
 import importlib.util
 from pathlib import Path
@@ -11,4 +11,4 @@ def test_generated_docs_are_up_to_date():
     gen_docs = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gen_docs)
     for path, text in gen_docs.generate().items():
-        assert path.read_text("utf-8") == text, f"{path.name} устарел: запустите python scripts/gen_docs.py"
+        assert path.read_text("utf-8") == text, f"{path.name} is stale: run python scripts/gen_docs.py"

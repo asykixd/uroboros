@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse: не даёт читать и править data/ — там сессия Telegram и api_hash (доступ к аккаунту).
+# PreToolUse: blocks reading and editing data/: it holds the Telegram session and api_hash (account access).
 f=$(jq -r '.tool_input.file_path // .tool_input.path // empty')
 [[ -n $f ]] || exit 0
 case "$f" in
@@ -8,7 +8,7 @@ case "$f" in
 esac
 data="$CLAUDE_PROJECT_DIR/data"
 if [[ $abs == "$data" || $abs == "$data"/* ]]; then
-  echo "Доступ к data/ заблокирован: там сессия и ключи аккаунта. Если это действительно нужно — попроси пользователя." >&2
+  echo "Access to data/ is blocked: it holds the session and account keys. If you really need it, ask the user." >&2
   exit 2
 fi
 exit 0

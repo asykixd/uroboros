@@ -1,11 +1,11 @@
-name: Совместимость с Hikka
+name: Hikka compatibility
 
-# Скрипт исполняет чужие модули — запускаем его только на одноразовом runner'е GitHub, не локально.
+# The script executes third-party modules: run it only on a disposable GitHub runner, never locally.
 on:
   workflow_dispatch:
     inputs:
       limit:
-        description: "Сколько модулей брать из каждого репозитория (пусто — все)"
+        description: "Modules per repository (empty = all)"
         required: false
 
 jobs:

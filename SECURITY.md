@@ -1,21 +1,21 @@
-# Безопасность
+# Security policy
 
-Uroboros работает с доступом к Telegram-аккаунту, поэтому уязвимости здесь особенно опасны.
+Uroboros has access to a Telegram account, so vulnerabilities here are especially dangerous.
 
-## Как сообщить об уязвимости
+## Reporting
 
-**Не создавайте публичный issue.** Напишите приватно через
-[GitHub Security Advisories](https://github.com/asykixd/uroboros/security/advisories/new): опишите, что
-можно сделать, как это воспроизвести и на какой версии (`.info`).
+**Don't open a public issue.** Report privately via
+[GitHub Security Advisories](https://github.com/asykixd/uroboros/security/advisories/new): what can be done, how to
+reproduce it, and the version (`.info`).
 
-Особенно интересно всё, что позволяет:
+Of particular interest:
 
-- выполнить команду чужому пользователю в Telegram без выданных прав;
-- получить доступ к веб-панели входа без ссылки с токеном;
-- стороннему модулю обойти проверку при установке или защиту во время работы (сессия, `config.json`,
-  опасные запросы) — хотя это эвристика, а не песочница, обходы тоже чиним;
-- подменить модуль при скачивании или обновлении.
+- running a command as another Telegram user without granted access;
+- reaching the web login panel without the tokenized link;
+- a third-party module bypassing the install scan or runtime protection (session, `config.json`, dangerous
+  requests). It's a heuristic, not a sandbox, but bypasses get fixed;
+- tampering with a module during download or update.
 
-## Поддерживаемые версии
+## Supported versions
 
-Исправления выходят для последней версии в ветке `master`.
+Fixes ship for the latest version on `master`.

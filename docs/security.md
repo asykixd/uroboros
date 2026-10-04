@@ -1,84 +1,77 @@
-# Безопасность
+# Security
 
-Юзербот работает от имени вашего аккаунта, поэтому Uroboros защищает его с трёх сторон: кто может
-вызывать команды, какой код можно установить и что этот код может делать во время работы.
+A userbot acts as your account, so Uroboros guards it on three fronts: who can run commands, what code can be
+installed, and what that code can do at runtime.
 
-Это не песочница. Сторонний модуль выполняется в одном процессе с ботом, и решительный автор при желании обойдёт
-проверки. Они защищают от типичного вредного кода и от случайностей, а не от любого Python. Ставьте модули,
-которым доверяете.
+This is not a sandbox. Third-party modules run in the bot's process, and a determined author can get around the
+checks. They stop typical malicious code and accidents, not arbitrary Python. Install modules you trust.
 
-## Кто может вызывать команды
+## Who can run commands
 
-Свои сообщения (исходящие) — всегда. Команды из чужих сообщений выполняются, только если отправителю хватает
-уровня доступа:
+Your own (outgoing) messages always. Commands in other people's messages run only if the sender has enough access:
 
-| Уровень | Кто | Команды по умолчанию |
+| Level | Who | Default commands |
 |---|---|---|
-| `owner` | этот аккаунт и добавленные `.owner add` | всё, в том числе `.e`, `.t`, `.dlm`, `.ulm`, `.restore`, `.update` |
-| `sudo` | добавленные `.sudo add` | большинство команд |
-| `support` | добавленные `.support add` | справка, `.ping`, `.info` |
-| `everyone` | все | только команды, которым так выставили уровень |
+| `owner` | this account and users added with `.owner add` | everything, including `.e`, `.t`, `.dlm`, `.ulm`, `.restore`, `.update` |
+| `sudo` | added with `.sudo add` | most commands |
+| `support` | added with `.support add` | help, `.ping`, `.info` |
+| `everyone` | anyone | only commands explicitly set to this level |
 
-Каждый уровень включает следующие: `owner` может всё, что `sudo`, и так далее. Уровень любой команды меняется
-командой `.security <команда> <уровень>`, `.security <команда> default` возвращает уровень по умолчанию.
-`.security` без аргументов показывает группы, изменённые права, замороженные и доверенные модули.
+Each level includes the ones below it. Change a command's level with `.security <command> <level>`; reset with
+`.security <command> default`. `.security` alone shows groups, overridden permissions, frozen and trusted modules.
 
-## Проверка кода при установке
+## Code scanning on install
 
-Перед `.dlm`, `.lm`, `.uplm` и `.restore` Uroboros читает исходник модуля и ищет опасное:
+Before `.dlm`, `.lm`, `.uplm` and `.restore`, Uroboros reads the module source and looks for:
 
-- доступ к сессии: `client.session.save()`, `StringSession.save`, `auth_key`, `api_hash`, файлы `.session`,
+- session access: `client.session.save()`, `StringSession.save`, `auth_key`, `api_hash`, `.session` files,
   `uroboros.db`;
-- запросы, которыми угоняют аккаунт: завершение сеансов, удаление аккаунта, смена пароля 2FA или номера,
-  вход по QR, выход из аккаунта, траты звёзд и передача подарков;
-- скрытый код: `exec`/`eval` от `base64`, `zlib`, `marshal`;
-- системные настройки Uroboros: права доступа, защита от флуда, токен inline-бота.
+- account takeover requests: terminating sessions, deleting the account, changing 2FA or phone, QR login, logout,
+  spending stars, transferring gifts;
+- hidden code: `exec`/`eval` of `base64`, `zlib`, `marshal`;
+- Uroboros system settings: access rights, flood protection, inline bot token.
 
-Модуль с опасным кодом не установится, пока вы явно не подтвердите: кнопкой «Установить всё равно» или флагом
-`-f` (`.dlm -f`, `.uplm -f`, `.restore -f`). Это касается и модулей из подключённых репозиториев.
+A module with dangerous code isn't installed until you confirm explicitly: the "Install anyway" button or `-f`
+(`.dlm -f`, `.uplm -f`, `.restore -f`). This applies to modules from connected repos too.
 
-Подозрительное — переменные окружения, запуск команд системы, удаление файлов, `config.json`, `exec` от строки,
-подписка на каналы — показывается в ответе отдельным блоком, но установке не мешает.
+Suspicious things (environment variables, shell commands, file deletion, `config.json`, `exec` of a string, channel
+joins) are listed separately in the reply but don't block install.
 
-Модуль может объявить, что ему нужно: `# meta permissions: network, files`. Права показываются перед установкой,
-а если код использует необъявленное, вы увидите предупреждение. Подробнее — в
-[Как писать модули](modules.md#шапка-файла).
+A module can declare what it needs: `# meta permissions: network, files`. Permissions are shown before install, and
+undeclared usage triggers a warning. See [Writing modules](modules.md#file-header).
 
-## Источник и версия модуля
+## Module source and version
 
-- Модули скачиваются только по https, перенаправления на http не принимаются.
-- Модуль из неподключённого источника ставится только после подтверждения: видно, откуда он и сколько в нём строк.
-- Модули с GitHub закрепляются на коммите: файл скачивается по ссылке на конкретный SHA, и в подтверждении видно,
-  какой коммит ставится.
-- `.uplm` сначала показывает, что изменилось в каждом модуле, и обновляет после подтверждения.
-- Uroboros хранит sha256 файлов установленных модулей. Если файл изменили в обход Uroboros и в нём появился
-  опасный код, при запуске модуль не загрузится.
-- В `# requires:` допустимы только имена пакетов с версиями: без ссылок и опций pip.
+- Modules download over https only; redirects to http are rejected.
+- A module from an unconnected source needs confirmation showing its origin and line count.
+- GitHub modules are pinned to a commit: the file is fetched by SHA, and the confirmation shows which commit.
+- `.uplm` shows each module's diff and updates after confirmation.
+- Uroboros stores sha256 of installed module files. If a file was changed outside Uroboros and now contains
+  dangerous code, it won't load at startup.
+- `# requires:` accepts only package names with versions: no URLs or pip options.
 
-## Защита во время работы
+## Runtime protection
 
-Сторонний модуль не может:
+A third-party module can't:
 
-- читать `self.client.session`;
-- открывать, удалять и переименовывать файлы сессии, `config.json` и `uroboros.db`, передавать их в команды
-  системы;
-- отправлять запросы, которые угоняют аккаунт или тратят деньги (те же, что ищет проверка при установке).
+- read `self.client.session`;
+- open, delete or rename the session, `config.json` or `uroboros.db`, or pass them to shell commands;
+- send requests that hijack the account or spend money (the same ones the install scan looks for).
 
-Попытка заканчивается ошибкой `PermissionError`, действие не выполняется, а в «Избранное» приходит
-уведомление, какой модуль и что пытался сделать.
+The attempt raises `PermissionError`, nothing happens, and Saved Messages gets a notice naming the module and
+the action.
 
-Ограничения снимаются для модуля, опасный код которого вы подтвердили при установке, и для модуля, которому вы
-явно разрешили всё: `.security trust <модуль>`. Вернуть защиту — `.security untrust <модуль>`.
+Restrictions are lifted for a module whose dangerous code you confirmed on install, and for one you trust
+explicitly: `.security trust <module>`. Revert with `.security untrust <module>`.
 
-## Защита от флуда
+## Flood protection
 
-Запросы к Telegram из стороннего модуля считаются. Если модуль отправил слишком много запросов (по умолчанию
-больше 60 за 30 секунд), он замораживается на 5 минут, а вам приходит уведомление. Настройка —
-`.security flood <запросов> <секунд> <заморозка>`, выключить — `.security flood off`, разморозить —
-`.security unfreeze <модуль>`.
+Telegram requests from third-party modules are counted. A module that sends too many (default: more than 60 in
+30 seconds) is frozen for 5 minutes and you get notified. Configure with
+`.security flood <requests> <seconds> <freeze>`, disable with `.security flood off`, unfreeze with
+`.security unfreeze <module>`.
 
-## Данные
+## Data
 
-Сессия, `config.json` (api_id и api_hash) и база данных лежат в `data/`. Это доступ к аккаунту: не публикуйте
-эту папку и не отправляйте её никому. `.backup` сохраняет базу данных и модули, но не сессию и не
-`config.json`.
+The session, `config.json` (api_id and api_hash) and the database live in `data/`. That's access to your account:
+never publish or share this folder. `.backup` saves the database and modules, but not the session or `config.json`.
