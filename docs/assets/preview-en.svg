@@ -20,13 +20,13 @@
   <circle cx="36" cy="28" r="16" fill="#14b8a6" opacity=".2"/>
   <text x="36" y="34" font-size="16" text-anchor="middle">⭐</text>
   <text x="62" y="25" font-size="15" font-weight="600" fill="#e6f0ee">Saved Messages</text>
-  <text x="62" y="43" font-size="12" fill="#93a6a3">Uroboros 1.0.0 · online</text>
+  <text x="62" y="43" font-size="12" fill="#93a6a3">Uroboros · online</text>
 
   <!-- .info message -->
   <g filter="url(#shadow)">
     <rect x="300" y="76" width="396" height="178" rx="16" fill="#15302c"/>
   </g>
-  <text x="318" y="104" font-size="15" fill="#e6f0ee">🐍 <tspan font-weight="700">Uroboros</tspan> <tspan font-family="Menlo, monospace" font-size="13" fill="#5eead4">1.0.0</tspan></text>
+  <text x="318" y="104" font-size="15" fill="#e6f0ee">🐍 <tspan font-weight="700">Uroboros</tspan></text>
   <rect x="318" y="116" width="3" height="98" rx="1.5" fill="#14b8a6"/>
   <rect x="321" y="116" width="357" height="98" rx="4" fill="#14b8a6" opacity=".08"/>
   <g font-size="13" fill="#d7e6e3">

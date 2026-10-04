@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/preview.ru.svg" width="720" alt="Сообщения Uroboros в Telegram">
+  <img src="docs/assets/preview-ru.svg" width="720" alt="Сообщения Uroboros в Telegram">
 </p>
 
 ## ✨ Возможности
