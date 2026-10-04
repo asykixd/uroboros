@@ -1,4 +1,4 @@
-/* Фирменная тема Uroboros поверх mkdocs-material. */
+/* Uroboros theme on top of mkdocs-material. */
 :root {
   --md-primary-fg-color: #0f766e;
   --md-primary-fg-color--light: #14b8a6;
@@ -22,7 +22,7 @@
 .md-header, .md-tabs { background: var(--uro-grad); }
 [data-md-color-scheme="slate"] .md-header { background: #0f1a19; border-bottom: 1px solid var(--uro-border); }
 
-/* --- главная --- */
+/* --- home --- */
 .uro-hero { text-align: center; padding: 1.2rem 0 1.6rem; }
 .uro-hero img { width: 120px; height: 120px; filter: drop-shadow(0 12px 30px rgba(20, 184, 166, .35)); }
 .uro-hero h1 { font-size: 2.6rem; font-weight: 800; margin: .4rem 0 .2rem; letter-spacing: -.02em;
@@ -39,7 +39,7 @@
   transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgba(15, 118, 110, .55); border-color: var(--md-accent-fg-color);
 }
 
-/* Сообщение бота в стиле Telegram */
+/* Telegram-style bot message */
 .tg-chat { max-width: 26rem; margin: 1rem auto; padding: 1rem; border-radius: 18px;
            background: linear-gradient(160deg, #a7f3d0 0%, #99f6e4 50%, #a5f3fc 100%); }
 [data-md-color-scheme="slate"] .tg-chat { background: linear-gradient(160deg, #0f2a27, #0b1f2a); }

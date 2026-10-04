@@ -1,6 +1,6 @@
 # meta developer: @uroboros
 # requires_uroboros: 0.2
-"""Фоновая задача: раз в минуту проверяет напоминания и шлёт их в «Избранное»."""
+"""Background task: checks reminders every minute and sends them to Saved Messages."""
 
 import time
 
@@ -8,19 +8,19 @@ from uroboros import Module, command, loop, utils
 
 
 class Reminder(Module):
-    """Напоминания в «Избранное»"""
+    """Reminders in Saved Messages"""
 
     @command("remind", no_reply=True)
     async def remind(self, message):
-        """<минуты> <текст> — напомнить через N минут"""
+        """<minutes> <text> — remind in N minutes"""
         args = utils.get_args_raw(message).split(maxsplit=1)
         if len(args) != 2 or not args[0].isdigit():
-            await utils.answer(message, "❌ Использование: <code>remind 10 текст</code>")
+            await utils.answer(message, "❌ Usage: <code>remind 10 text</code>")
             return
         reminders = self.get("reminders", [])
         reminders.append([time.time() + int(args[0]) * 60, args[1]])
         self.set("reminders", reminders)
-        await utils.answer(message, f"✅ Напомню через {int(args[0])} мин")
+        await utils.answer(message, f"✅ Reminder in {int(args[0])} min")
 
     @loop(interval=60)
     async def check(self):

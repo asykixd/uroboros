@@ -11,6 +11,6 @@ COPY uroboros ./uroboros
 RUN pip install --no-cache-dir .
 
 VOLUME /data
-# Веб-панель первого входа: внутри контейнера слушает все адреса, снаружи — см. docker-compose.yml.
+# First-login web panel: listens on all addresses inside the container; see docker-compose.yml for outside.
 EXPOSE 8080
 CMD ["python", "-m", "uroboros", "--host", "0.0.0.0"]

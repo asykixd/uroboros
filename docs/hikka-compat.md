@@ -1,4 +1,4 @@
-# Совместимость с модулями Hikka/FTG
+# Hikka/FTG module compatibility
 
-Таблица ещё не собрана. Её делает `scripts/hikka_compat.py` (см. [hikka.md](hikka.md#таблица-совместимости)):
-скрипт исполняет модули из чужих репозиториев, поэтому его запускают в изоляции, например через GitHub Actions.
+Not built yet. `scripts/hikka_compat.py` generates it (see [hikka.md](hikka.md#compatibility-table)): the script
+executes modules from third-party repos, so it runs isolated, e.g. via GitHub Actions.

@@ -1,49 +1,46 @@
-# Установка
+# Install
 
-Uroboros работает везде, где есть Python 3.10+. При первом запуске он пишет в консоль ссылку на
-веб-панель входа: там вводятся `api_id` и `api_hash` (их выдают на https://my.telegram.org/apps),
-номер, код и пароль 2FA — или сканируется QR-код. Вход в консоли: `--cli`.
+Uroboros runs anywhere with Python 3.10+. On first run it prints a link to the web login panel: enter `api_id` and
+`api_hash` (from https://my.telegram.org/apps), phone, code and 2FA password, or scan a QR code. Console login:
+`--cli`.
 
-Данные лежат в `data/` рядом с программой (путь меняется переменной `UROBOROS_DATA`).
-Там сессия Telegram: это доступ к аккаунту, не показывайте её никому.
+Data lives in `data/` next to the program (override with `UROBOROS_DATA`). It contains the Telegram session, which
+is full access to your account: never share it.
 
-## Параметры запуска
+## Options
 
-| Параметр | Что делает |
+| Option | Description |
 |---|---|
-| `--cli` | вход в консоли вместо веб-панели |
-| `--host`, `--port` | адрес веб-панели входа (по умолчанию `127.0.0.1:8080`), или `UROBOROS_WEB_HOST`, `UROBOROS_WEB_PORT` |
-| `UROBOROS_DATA` | каталог данных (по умолчанию `./data`) |
-| `UROBOROS_API_ID`, `UROBOROS_API_HASH` | данные приложения Telegram вместо `config.json` |
-| `UROBOROS_BOT_TOKEN` | свой inline-бот вместо созданного автоматически |
+| `--cli` | log in from the console instead of the web panel |
+| `--host`, `--port` | web panel address (default `127.0.0.1:8080`), or `UROBOROS_WEB_HOST`, `UROBOROS_WEB_PORT` |
+| `UROBOROS_DATA` | data directory (default `./data`) |
+| `UROBOROS_API_ID`, `UROBOROS_API_HASH` | Telegram app credentials instead of `config.json` |
+| `UROBOROS_BOT_TOKEN` | your own inline bot instead of an auto-created one |
 
-## Обновление
+## Updating
 
-`.update` скачивает новости канала, показывает список изменений и ждёт подтверждения (`.update -f` — сразу).
-Новая версия ставится вместе с зависимостями; если они не встали или новая версия не запускается, git
-возвращается на прежнюю версию, и бот работает дальше.
+`.update` fetches the channel, shows the changelog and asks to confirm (`.update -f` skips confirmation). The new
+version is installed with its dependencies; if they fail or the new version doesn't start, git rolls back and the
+bot keeps running.
 
-- `.update channel beta` — каждый коммит в ветке, на которой стоит бот (по умолчанию): `master` — стабильная,
-  `dev` — разработка;
-- `.update channel stable` — только релизы (теги);
-- `.update notify off` — не присылать раз в сутки уведомление о новой версии.
+- `.update channel beta`: every commit on the bot's branch (default); `master` is stable, `dev` is development;
+- `.update channel stable`: releases (tags) only;
+- `.update notify off`: no daily new-version notice.
 
-Если Uroboros поставлен через pip, `.update` берёт новую версию с PyPI: канал `stable` — только релизы,
-`beta` — и версии `.devN`. Не встала или не запускается — возвращается прежняя.
+pip installs update from PyPI: `stable` gets releases, `beta` also gets `.devN` builds. Rollback works the same way.
 
-Ветка бота:
+Branches:
 
-- `.dev` — на какой ветке бот и какая версия;
-- `.dev on` — перейти на сборку из `dev`: новые возможности до проверки, версия с `-dev`;
-- `.dev off` — вернуться на стабильную `master`.
+- `.dev`: current branch and version;
+- `.dev on`: switch to `dev` builds (new features before testing, `-dev` versions);
+- `.dev off`: back to stable `master`.
 
-Перед переключением бот показывает, какая версия встанет, и ждёт подтверждения (`-f` — сразу). Если зависимости
-новой ветки не встали или она не запускается, бот возвращается на прежнюю ветку. В Docker ветка выбирается при
-сборке образа.
+The bot shows the target version and asks to confirm (`-f` skips). If the new branch's dependencies fail or it
+doesn't start, the bot returns to the previous branch. In Docker the branch is chosen at image build time.
 
-## Через pip
+## pip
 
-Без git и скриптов установки — в любой системе с Python 3.10+:
+No git or install scripts, any OS with Python 3.10+:
 
 ```bash
 python3 -m venv uroboros
@@ -51,35 +48,33 @@ uroboros/bin/pip install uroboros-userbot
 cd uroboros && bin/uroboros
 ```
 
-Данные будут в `uroboros/data`. Обновление — `.update` (с PyPI). Ветки `dev` и `master` в такой установке
-недоступны: для сборок из `dev` ставьте из git.
+Data goes to `uroboros/data`. Update with `.update` (from PyPI). Branches aren't available here: install from git
+for `dev` builds.
 
-## Linux и VPS
+## Linux and VPS
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/asykixd/uroboros/master/install.sh | sh
 ```
 
-Скрипт проверит Python и git, склонирует репозиторий в `~/uroboros` (другой каталог — `UROBOROS_DIR`),
-создаст виртуальное окружение и запустит бота. На Debian/Ubuntu может понадобиться
-`sudo apt install git python3 python3-venv`.
+The script checks Python and git, clones the repo to `~/uroboros` (override with `UROBOROS_DIR`), creates a
+virtualenv and starts the bot. Debian/Ubuntu may need `sudo apt install git python3 python3-venv`.
 
-На VPS без браузера откройте панель входа через SSH-туннель со своего компьютера:
+On a headless VPS, open the login panel through an SSH tunnel from your computer:
 
 ```bash
-ssh -L 8080:127.0.0.1:8080 пользователь@сервер
+ssh -L 8080:127.0.0.1:8080 user@server
 ```
 
-и перейдите по ссылке из консоли у себя в браузере.
+then open the link from the console in your local browser.
 
-### Служба systemd
+### systemd service
 
 ```bash
 sh ~/uroboros/install.sh --service
 ```
 
-Установит user service `uroboros`. Первый вход сделайте вручную (`cd ~/uroboros && .venv/bin/python -m uroboros`),
-затем:
+Installs the `uroboros` user service. Log in manually first (`cd ~/uroboros && .venv/bin/python -m uroboros`), then:
 
 ```bash
 systemctl --user enable --now uroboros
@@ -87,8 +82,8 @@ journalctl --user -u uroboros -f
 sudo loginctl enable-linger $USER
 ```
 
-Последняя команда нужна, чтобы служба работала, когда вы не залогинены. `.restart` и `.update`
-перезапускают процесс на месте, systemd это не мешает.
+The last command keeps the service running when you're logged out. `.restart` and `.update` restart the process in
+place; systemd is fine with that.
 
 ## Termux (Android)
 
@@ -96,16 +91,16 @@ sudo loginctl enable-linger $USER
 curl -fsSL https://raw.githubusercontent.com/asykixd/uroboros/master/install.sh | sh
 ```
 
-В Termux скрипт поставит `python`, `git` и `rust`: Rust нужен, чтобы собрать `pydantic-core` для inline-бота,
-сборка занимает несколько минут. Панель входа откройте в браузере на том же телефоне.
+In Termux the script installs `python`, `git` and `rust`: Rust builds `pydantic-core` for the inline bot, which
+takes a few minutes. Open the login panel in a browser on the same phone.
 
-Автозапуск при включении телефона — через приложение [Termux:Boot](https://f-droid.org/packages/com.termux.boot/):
+Autostart on boot via [Termux:Boot](https://f-droid.org/packages/com.termux.boot/):
 
 ```bash
 sh ~/uroboros/install.sh --boot
 ```
 
-Termux:Boot запускает бота без терминала, поэтому первый вход нужно сделать вручную.
+Termux:Boot starts the bot without a terminal, so log in manually first.
 
 ## Docker
 
@@ -115,13 +110,14 @@ docker compose up -d
 docker compose logs -f
 ```
 
-Ссылка на панель входа появится в логах; панель доступна только с этой машины (`127.0.0.1:8080`).
-Данные — в `./data`. Обновление: `git pull && docker compose up -d --build` (`.update` в Docker не работает).
+The login link appears in the logs; the panel is reachable only from this machine (`127.0.0.1:8080`). Data is in
+`./data`. Update with `git pull && docker compose up -d --build` (`.update` doesn't work in Docker).
 
 ## Windows
 
-1. Поставьте [Python 3.10+](https://www.python.org/downloads/) (галочка «Add python.exe to PATH») и [Git](https://git-scm.com/download/win).
-2. В PowerShell:
+1. Install [Python 3.10+](https://www.python.org/downloads/) (check "Add python.exe to PATH") and
+   [Git](https://git-scm.com/download/win).
+2. In PowerShell:
 
 ```powershell
 git clone https://github.com/asykixd/uroboros
@@ -131,8 +127,8 @@ python -m venv .venv
 .venv\Scripts\python -m uroboros
 ```
 
-Откройте ссылку из консоли в браузере. Окно консоли должно оставаться открытым: `.restart` и `.update`
-перезапускают бота в нём же.
+Open the link from the console in a browser. Keep the console window open: `.restart` and `.update` restart the bot
+in it.
 
 ## macOS
 
@@ -141,4 +137,5 @@ brew install python git
 curl -fsSL https://raw.githubusercontent.com/asykixd/uroboros/master/install.sh | sh
 ```
 
-Или вручную, как на Linux: `git clone`, `python3 -m venv .venv`, `.venv/bin/pip install -e .`, `.venv/bin/python -m uroboros`.
+Or manually, as on Linux: `git clone`, `python3 -m venv .venv`, `.venv/bin/pip install -e .`,
+`.venv/bin/python -m uroboros`.

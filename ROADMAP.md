@@ -1,201 +1,151 @@
 # Roadmap
 
-План развития Uroboros до 1.0 и после. Версии примерные: порядок важнее номеров.
-Отмеченное `[x]` уже сделано.
+Versions are approximate: order matters more than numbers. `[x]` is done.
 
-## Принципы
+## Principles
 
-- **Ядро маленькое, всё остальное — модули.** Встроенные команды пишутся на том же публичном API, что и сторонние.
-- **API похож на Hikka.** Адаптер совместимости должен остаться тонким слоем, а не вторым ядром.
-- **Обычный Telethon 1.x.** Форк, как Hikka-TL, не делаем. На Telethon 2 переходим только после его стабильного релиза.
-- **Работает везде, где есть Python 3.10+:** VPS/Linux, Termux, Windows, macOS. Новая зависимость должна ставиться в Termux без компиляции. Исключение — aiogram 3: его `pydantic-core` в Termux собирается через Rust (`pkg install rust`).
-- **Только русский язык.**
-- Ветки: `dev` — разработка, версия `X.Y.Z-dev`; `master` — стабильная, версия `X.Y.Z`. В `master` попадает только проверенное слиянием из `dev`. До перехода на эту схему релизы выходили как `vX.Y.Z-dev` (pre-release).
-
----
-
-## 0.1 — Ядро ✅ `v0.1.0b1`
-
-- [x] Логин через консоль, конфиг в `data/`, переменные окружения
-- [x] SQLite key-value с кешем (`db.get` / `db.set`, как в Hikka)
-- [x] Загрузчик: `exec` исходника, выгрузка по файлу, откат при падении `on_load`
-- [x] `# requires:` → `pip install`
-- [x] Диспетчер: префикс, пользовательские алиасы, вотчеры, ошибки в ответе
-- [x] `Module`, `@command`, `@watcher`, `ModuleConfig` / `ConfigValue`, валидаторы
-- [x] Установка с GitHub: ссылки, `owner/repo/модуль`, список модулей репозитория, подключённые репозитории
-- [x] Встроенные модули: help, loader, settings, config, eval, system
-- [x] Рестарт и `.update` через git
-- [x] Тесты ядра (без сети)
-
-## 0.1.x — Стабилизация ✅ `v0.1.0b2`, `v0.1.1b2`
-
-Цель: перевести ядро из беты в состояние «можно держать запущенным неделями».
-
-- [x] CI на GitHub Actions: pytest на Python 3.10–3.13, Linux, macOS и Windows
-- [x] Линтер и форматтер (ruff), проверка в CI
-- [x] Корректное завершение: `unload_all()` при выходе и рестарте, чтобы отработали `on_unload`
-- [x] Обработка `FloodWaitError` в `utils.answer` и диспетчере: подождать или сообщить, но не падать
-- [x] Рестарт на Windows: процесс-надзиратель вместо `Popen` и выхода
-- [x] `.logs [уровень]` — лог файлом в «Избранное» (не в текущий чат), ротация лога
-- [x] `.backup` / `.restore` — бэкап БД и установленных модулей одним архивом (без сессии)
-- [x] `.uplm [модуль]` — обновить сторонние модули из сохранённого источника
-- [x] Защита от повторного запуска с той же сессией (lock-файл в `data/`)
-- Исправления по отзывам пользователей — постоянная работа, а не этап: отзывов до выхода 1.0 нет, их разбираем в 1.x
-
-Безопасность модулей перенесена в 0.4.
-
-## 0.2 — Расширенный API модулей ✅
-
-Цель: модули умеют всё, что обычно нужно, без обращения к внутренностям ядра.
-
-- [x] `@loop(interval, autostart=True)` — фоновые задачи, автоматически останавливаются при выгрузке
-- [x] Автоочистка: обработчики, которые модуль повесил через `self.client.add_event_handler`, снимаются при выгрузке
-- [x] Шорткаты `self.get(key, default)` / `self.set(key, value)`
-- [x] Фильтры команд: `only_pm`, `only_groups`, `chats=[...]`, `no_reply` и т.п.
-- [x] Метаданные в шапке модуля: `# meta developer:`, `# meta version:`, `# requires_uroboros: 0.2`. Если версия ядра не подходит, модуль не грузится и пользователь получает понятное сообщение
-- [x] Библиотеки: общий код для нескольких модулей (`self.import_lib(url)`) с подсчётом ссылок
-- [x] `strings` с подстановкой (`self.strings("key", **kw)`), HTML-экранирование по умолчанию
-- [x] Хелперы в `utils`: `get_user`, `get_target`, `get_chat_id`, `get_reply`, `run_sync`, `answer_file`
-- [x] Хук `on_dlmod` — однократная настройка при первой установке модуля
-- [x] Документация по API в `docs/` и примеры модулей в `examples/`
-
-## 0.3 — Inline-бот ✅
-
-Цель: интерактивные формы и кнопки, как в Hikka.
-
-- [x] Бот на aiogram 3 в том же процессе, что и юзербот
-- [x] Автосоздание бота через @BotFather при первом запуске; токен можно задать и вручную (`.inlinebot`, `UROBOROS_BOT_TOKEN`)
-- [x] Включение inline-режима и inline feedback через BotFather автоматически
-- [x] `self.inline.form(message, text, buttons)` — сообщение с кнопками вместо своего исходящего
-- [x] `self.inline.list` (страницы), `self.inline.gallery` (картинки)
-- [x] Кнопки с колбэками, вводом текста и подтверждением; колбэки снимаются при выгрузке модуля
-- [x] Декораторы `@inline_handler` и `@callback_handler`
-- [x] Inline-версии встроенных команд: `.cfg` с кнопками, `.help` со страницами, подтверждение `.ulm`
-- [x] Проверить, что aiogram 3 (pydantic v2, `pydantic-core` на Rust) ставится в Termux. Итог: готовых пакетов нет, `pydantic-core` собирается через `pkg install rust`; aiogram оставлен обязательной зависимостью
-- [x] Проверка на живом аккаунте: создание бота через @BotFather, формы в личке, группе и «Избранном»
-
-## 0.4 — Доступ и безопасность
-
-Цель: аккаунтом можно делиться командами, и его сложнее случайно сломать.
-
-- [x] Владелец и группы доступа: `owner`, `sudo`, `support`
-- [x] Права на команду (`.security <команда> <группа>`), права по умолчанию задаются в `@command`
-- [x] Команды от других пользователей (входящие сообщения) — только при явной выдаче прав
-- [x] `.e`, `.t`, `.dlm` и `.ulm` по умолчанию доступны только владельцу
-- [x] Защита от флуда API: считать запросы и замораживать модули, которые шлют их слишком часто
-- [x] Перед установкой из неподключённого источника показывать, откуда модуль и сколько в нём строк, и просить подтверждение (кнопкой из 0.3)
-- [x] Предупреждать, если модуль обращается к файлам сессии, `config.json` или `os.environ`. Это эвристика, а не песочница
-
-### Безопасность модулей
-
-Строгая, но без песочницы: защита от опасного и чужого кода, а не от любого Python.
-
-- [x] Проверка исходника при установке, обновлении (`.uplm`) и восстановлении (`.restore`): опасное блокируется, пока пользователь явно не подтвердит (`-f`), подозрительное показывается в ответе
-- [x] `# requires:` принимает только имена пакетов с версиями, без ссылок и опций pip
-- [x] Модули скачиваются только по https
-- [x] Защита во время работы: сторонние модули не получают доступ к сессии, файлам в `data/` и запросам, которые угрожают аккаунту
-- [x] `.uplm` показывает изменения перед обновлением: хранить sha256 и исходник установленной версии, разницу — в развёрнутой цитате
-- [x] Закреплять модули на коммите: при установке узнавать SHA через GitHub API и хранить ссылку на него вместо `HEAD`, чтобы `.restore` и переустановка давали ту же версию
-- [x] Права в шапке модуля: `# meta permissions: network, files, env`; проверка исходника сравнивает объявленное с тем, что модуль делает
-
-## 0.5 — Веб-панель первого входа ✅
-
-Цель: установить юзербот без консольного диалога, в том числе на VPS и в Termux.
-
-- [x] aiohttp-сервер, который поднимается только когда нет сессии
-- [x] Шаги: api_id/api_hash → номер → код → пароль 2FA; вход по QR-коду
-- [x] Одноразовый токен в ссылке; по умолчанию слушает `127.0.0.1`
-- [x] Доступ с VPS через SSH-проброс или туннель, с инструкцией
-- [x] Консольный вход остаётся как запасной (`--cli`)
-- [x] После входа сервер выключается: панель не висит постоянно
-
-## 0.6 — Адаптер модулей Hikka
-
-Цель: большинство популярных модулей Hikka/FTG работают без правок.
-
-- [x] Распознавать модули Hikka: `from .. import loader, utils`, `from hikkatl`, `@loader.tds`
-- [x] Шимы в `sys.modules`: `hikkatl` → `telethon`, `loader`, `utils`, `..inline.types`
-- [x] `loader.Module`, `loader.command`, `loader.watcher`, `loader.loop`, `loader.tds`, суффикс `xxxcmd`, `client_ready(client, db)`
-- [x] `loader.ModuleConfig` / `ConfigValue` / `validators` в формате Hikka
-- [x] `strings` / `strings_ru`, `self.get` / `self.set`, `self.allmodules`, `self.lookup`
-- [x] `utils.*` Hikka: `answer`, `get_args*`, `escape_html`, `get_user`, `run_sync`, `get_link`, …
-- [x] `self.inline.form` и `@loader.inline_handler` поверх inline-бота из 0.3
-- [x] Декораторы прав Hikka (`@loader.owner`, `@loader.sudo`) поверх системы доступа из 0.4
-- [x] Набор проверки совместимости: `scripts/hikka_compat.py` загружает модули из hikariatama/ftg и других репозиториев и пишет таблицу (`docs/hikka-compat.md`)
-- Прогон набора совместимости в изоляции перенесён в 1.1: минуты GitHub Actions закончились, а исполнять чужие модули без изоляции нельзя
-- [x] Список того, что не поддерживается (возможности Hikka-TL, внутренности Hikka), с понятной ошибкой при загрузке ([docs/hikka.md](docs/hikka.md))
-
-## 0.7 — Установка и эксплуатация ✅
-
-Цель: поставить и обновлять бота одной командой.
-
-- [x] `install.sh` для Linux и Termux: зависимости, venv, первый запуск
-- [x] systemd-unit (user service) для VPS; автозапуск в Termux через Termux:Boot
-- [x] Docker-образ и `docker-compose.yml`, данные в volume
-- [x] Инструкции для Windows и macOS ([docs/install.md](docs/install.md))
-- [x] Каналы обновлений `stable` / `beta`; `.update` показывает changelog перед установкой
-- [x] Уведомление о новой версии (раз в сутки, отключается)
-- [x] Автобэкап БД в приватный чат или «Избранное» по расписанию (`.cfg backup interval 24`)
-- [x] `.dev on` / `.dev off` — переключение между веткой разработки `dev` и стабильной `master` с откатом при ошибке
-
-## 1.0 — Стабильный релиз
-
-Цель: публичный API, на который можно опираться.
-
-- [x] API модулей заморожен: semver, политика устаревания (deprecation-предупреждения минимум на одну минорную версию) — [docs/stability.md](docs/stability.md), слепок `tests/api_snapshot.json`
-- [x] Полная документация для разработчиков модулей: сайт на mkdocs (`mkdocs.yml`, публикация на GitHub Pages с `master`), справочник команд и примеры генерируются из кода
-- [x] Официальный репозиторий модулей [`uroboros-modules`](https://github.com/asykixd/uroboros-modules) (подключён по умолчанию) и шаблон репозитория для авторов
-- [x] Поиск модулей по подключённым репозиториям (`.search`)
-- [x] Пакет для PyPI: `pip install uroboros-userbot` (имя `uroboros` занято), `.update` с PyPI для таких установок, публикация из GitHub-релиза (`publish.yml`, trusted publishing)
-- [x] Покрытие тестами загрузчика, диспетчера, адаптера и inline-слоя (`pytest --cov=uroboros`)
+- **Small core, everything else is modules.** Built-in commands use the same public API as third-party ones.
+- **Hikka-like API**, so the compatibility adapter stays a thin layer.
+- **Plain Telethon 1.x.** No fork; Telethon 2 only after its stable release.
+- **Runs anywhere with Python 3.10+:** Linux/VPS, Termux, Windows, macOS. New dependencies must install in Termux
+  without compiling. Exception: aiogram 3 (`pydantic-core` builds with Rust, `pkg install rust`).
+- **English first.** Repo and docs are in English with a Russian version; the bot interface is Russian for now.
+- Branches: `dev` (`X.Y.Z-dev`) for development, `master` (`X.Y.Z`) stable, updated only by merging `dev`.
 
 ---
 
-## 1.1 — Надёжность и удобство для авторов модулей
+## 0.1 Core ✅ `v0.1.0b1`
 
-Цель: бот сам переживает сломанный модуль, а модули пишутся короче и проверяются без Telegram.
+- [x] Console login, config in `data/`, environment variables
+- [x] Cached SQLite key-value store (`db.get`/`db.set`, as in Hikka)
+- [x] Loader: `exec` of source, per-file unload, rollback on `on_load` failure; `# requires:` → `pip install`
+- [x] Dispatcher: prefix, user aliases, watchers, errors in replies
+- [x] `Module`, `@command`, `@watcher`, `ModuleConfig`/`ConfigValue`, validators
+- [x] GitHub install: URLs, `owner/repo/module`, repo listing, connected repos
+- [x] Built-in modules: help, loader, settings, config, eval, system
+- [x] Restart and `.update` via git; core tests (offline)
 
-### Совместимость
-- [ ] Прогнать набор совместимости с Hikka в изоляции (GitHub Actions или Docker без сети и с лимитами ресурсов) и разобрать частые ошибки
+## 0.1.x Stabilization ✅ `v0.1.0b2`, `v0.1.1b2`
 
-### Надёжность
-- [ ] Безопасный режим: если бот несколько раз подряд падает при запуске, загрузить только встроенные модули и сообщить в «Избранное», какой модуль виноват; флаг `--safe`
-- [ ] `.rollback <модуль>` — откат на одну из 2–3 предыдущих версий исходника (`data/modules/.history/`)
-- [ ] `.status` — аптайм, память, замороженные модули, состояние `@loop`-задач, ошибка inline-бота, последние `FloodWait`
-- [ ] `.report` — версии, список модулей и последний traceback одним сообщением для issue
+- [x] CI: pytest on Python 3.10–3.13, Linux, macOS, Windows; ruff
+- [x] Clean shutdown (`unload_all()` on exit and restart)
+- [x] `FloodWaitError` handling in `utils.answer` and the dispatcher
+- [x] Windows restart via a supervisor process
+- [x] `.logs [level]` to Saved Messages, log rotation
+- [x] `.backup`/`.restore` (database and modules, no session)
+- [x] `.uplm [module]`
+- [x] Lock file against running twice with one session
 
-### API модулей
-- [ ] Типизированные аргументы команд: `@command(args="<user> [причина...]")` — разбор, поиск пользователя, понятная ошибка и справка в `.help`
-- [ ] `await self.inline.ask(message, "Вопрос?", ["Да", "Нет"])` — диалог, который возвращает ответ прямо в команду
-- [ ] `@cron("0 9 * * *")` рядом с `@loop` — задачи по расписанию, которые переживают рестарт
-- [ ] Миграции данных модуля: `db_version = 2` и хук `on_migrate(old)`
-- [ ] `uroboros.testing` — публичные заглушки клиента, сообщения и inline для тестов модулей без Telegram
+## 0.2 Module API ✅
 
-### Инструменты
-- [ ] Горячая перезагрузка локальной папки модулей для разработки (`--dev`)
-- [ ] `uroboros new <имя>` — заготовка модуля; `uroboros check модуль.py` — проверка использования API и подсказка минимального `requires_uroboros` по истории `tests/api_snapshot.json`
+- [x] `@loop` background tasks, stopped on unload
+- [x] Auto-removal of handlers added via `self.client.add_event_handler`
+- [x] `self.get`/`self.set`
+- [x] Command filters: `only_pm`, `only_groups`, `chats=[...]`, `no_reply`, etc.
+- [x] Header metadata: `# meta ...`, `# requires_uroboros` with a core version check
+- [x] Libraries (`self.import_lib(url)`) with reference counting
+- [x] `self.strings("key", **kw)` with HTML escaping
+- [x] `utils`: `get_user`, `get_target`, `get_chat_id`, `get_reply`, `run_sync`, `answer_file`
+- [x] `on_dlmod` hook; docs and examples
 
-### Мелочи
-- [ ] «Возможно, вы имели в виду `.dlm`?» при опечатке в команде
-- [ ] `.help <модуль>` — описание, автор, версия и источник установки
+## 0.3 Inline bot ✅
 
-## После 1.0 (идеи)
+- [x] aiogram 3 bot in the userbot process, auto-created via @BotFather (or `.inlinebot`, `UROBOROS_BOT_TOKEN`)
+- [x] `self.inline.form`, `list`, `gallery`; buttons with callbacks, text input, confirmation
+- [x] `@inline_handler`, `@callback_handler`
+- [x] Inline versions of `.cfg`, `.help`, `.ulm` confirmation
+- [x] Verified in Termux (`pydantic-core` via `pkg install rust`) and on a live account
 
-- Несколько аккаунтов в одном процессе
-- Переход на Telethon 2, когда он стабилизируется (через слой совместимости для модулей)
-- Каталог модулей с рейтингом и проверкой
-- языки интерфейса - добавить английский
+## 0.4 Access and security ✅
 
-## Планируется
+- [x] `owner`, `sudo`, `support` groups; per-command permissions (`.security <command> <level>`)
+- [x] Commands from other users only with granted access; `.e`, `.t`, `.dlm`, `.ulm` owner-only
+- [x] Flood protection: freeze modules that send too many requests
+- [x] Confirmation for modules from unconnected sources
+- [x] Install-time scan (`.dlm`, `.uplm`, `.restore`): dangerous code blocked until confirmed (`-f`)
+- [x] `# requires:` limited to package names; https-only downloads
+- [x] Runtime protection: no access to the session, `data/` files or account-threatening requests
+- [x] `.uplm` shows diffs; sha256 of installed files; GitHub modules pinned to a commit
+- [x] `# meta permissions` checked against the code
 
-- Постоянная веб-панель управления: веб — только для первого входа
-- Собственный форк Telethon
+## 0.5 Web login panel ✅
 
-## Риски
+- [x] aiohttp server only when there's no session; shuts down after login
+- [x] api_id/api_hash → phone → code → 2FA, or QR code
+- [x] One-time token in the link, `127.0.0.1` by default, SSH tunnel instructions; `--cli` fallback
 
-| Риск | Что делаем |
+## 0.6 Hikka adapter ✅
+
+- [x] Detect Hikka modules; shims for `hikkatl` → `telethon`, `loader`, `utils`, `..inline.types`
+- [x] Hikka `Module`, decorators, `xxxcmd`, `client_ready`, config, validators, `strings_ru`, `utils.*`
+- [x] `self.inline.form` and `@loader.inline_handler` on the inline bot; Hikka access decorators
+- [x] Compatibility suite `scripts/hikka_compat.py` (isolated run moved to 1.1)
+- [x] Clear errors for unsupported features ([docs](docs/hikka.md))
+
+## 0.7 Install and operations ✅
+
+- [x] `install.sh` for Linux and Termux; systemd user service; Termux:Boot
+- [x] Docker image and `docker-compose.yml`
+- [x] Windows and macOS instructions ([docs](docs/install.md))
+- [x] `stable`/`beta` channels, changelog before update, daily new-version notice
+- [x] Scheduled backups (`.cfg backup interval 24`)
+- [x] `.dev on`/`.dev off` with rollback
+
+## 1.0 Stable ✅ `v1.0.0`
+
+- [x] Frozen module API: semver, deprecation policy ([docs](docs/stability.md)), `tests/api_snapshot.json`
+- [x] mkdocs site on GitHub Pages; command reference and examples generated from code
+- [x] Official [`uroboros-modules`](https://github.com/asykixd/uroboros-modules) repo (connected by default) and
+  repo template
+- [x] `.search` across connected repos
+- [x] PyPI package `uroboros-userbot`, `.update` from PyPI, publishing from GitHub releases
+- [x] Test coverage of loader, dispatcher, adapter and inline layer
+
+---
+
+## 1.1 Reliability and module authoring
+
+### Localization
+- [ ] English bot interface, Russian kept as an option (`.lang`); `strings_<lang>` for modules
+
+### Compatibility
+- [ ] Run the Hikka compatibility suite in isolation (Actions or Docker without network, with limits) and fix common
+  failures
+
+### Reliability
+- [ ] Safe mode: after repeated startup crashes load only built-in modules and report the culprit; `--safe`
+- [ ] `.rollback <module>`: restore one of the last 2–3 versions (`data/modules/.history/`)
+- [ ] `.status`: uptime, memory, frozen modules, `@loop` state, inline bot error, recent `FloodWait`
+- [ ] `.report`: versions, modules and last traceback in one message for an issue
+
+### Module API
+- [ ] Typed command arguments: `@command(args="<user> [reason...]")` with parsing, user lookup, errors and `.help`
+- [ ] `await self.inline.ask(message, "Question?", ["Yes", "No"])` returning the answer to the command
+- [ ] `@cron("0 9 * * *")` scheduled tasks that survive restarts
+- [ ] Module data migrations: `db_version = 2` and `on_migrate(old)`
+- [ ] `uroboros.testing`: public client, message and inline stubs for testing modules without Telegram
+
+### Tools
+- [ ] Hot reload of a local modules folder (`--dev`)
+- [ ] `uroboros new <name>` scaffold; `uroboros check module.py` API check and minimum `requires_uroboros` hint
+
+### Small things
+- [ ] "Did you mean `.dlm`?" on command typos
+- [ ] `.help <module>`: description, author, version, install source
+
+## Ideas
+
+- Multiple accounts in one process
+- Telethon 2 once stable (with a compatibility layer for modules)
+- Module catalog with ratings and review
+- Persistent web control panel
+- Own Telethon fork
+
+## Risks
+
+| Risk | Mitigation |
 |---|---|
-| aiogram 3 / pydantic-core не ставится в Termux | Проверено: собирается через `pkg install rust`, инструкция в README |
-| Модули Hikka завязаны на Hikka-TL | Ведём таблицу совместимости, неподдерживаемое явно отклоняем |
-| Баны аккаунтов за флуд | Защита от флуда в 0.4, предупреждение в README |
-| Telethon 1.x перестанет поддерживаться | Держим зависимость от Telethon в API модулей минимальной |
+| aiogram 3 / pydantic-core in Termux | Builds with `pkg install rust`, documented |
+| Hikka modules depend on Hikka-TL | Compatibility table, unsupported features rejected explicitly |
+| Account bans for flooding | Flood protection, warning in README |
+| Telethon 1.x end of support | Keep Telethon exposure in the module API minimal |

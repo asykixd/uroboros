@@ -1,5 +1,5 @@
 # requires_uroboros: 0.2
-"""Библиотека: общий код для нескольких модулей. Подключается через self.import_lib(url)."""
+"""Library: code shared by several modules. Imported with self.import_lib(url)."""
 
 from uroboros import Library
 

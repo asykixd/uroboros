@@ -1,59 +1,60 @@
-# Модули Hikka и FTG
+# Hikka and FTG modules
 
-Uroboros загружает модули Hikka и FTG без правок: `.dlm` и `.lm` сами узнают такой модуль
-(`from .. import loader, utils`, `loader.Module`, `@loader.tds`, `hikkatl`) и загружают его через адаптер.
+Uroboros loads Hikka and FTG modules unchanged: `.dlm` and `.lm` recognize them (`from .. import loader, utils`,
+`loader.Module`, `@loader.tds`, `hikkatl`) and load them through the adapter.
 
-## Как это работает
+## How it works
 
-Модуль Hikka исполняется как подмодуль пакета `uroboros.hikka.modules`, поэтому его
-`from .. import loader, utils` получает шимы Uroboros:
+A Hikka module runs as a submodule of `uroboros.hikka.modules`, so its `from .. import loader, utils` gets the
+Uroboros shims:
 
-- `loader` — `Module`, `Library`, декораторы `command`, `watcher`, `inline_handler`, `callback_handler`,
-  `loop`, `tag`, `raw_handler`, права `owner`, `sudo`, `support`, `unrestricted`, `ModuleConfig`,
-  `ConfigValue`, `validators`, `StopLoop`, `SelfUnload`;
-- `utils` — `answer`, `answer_file`, `get_args*`, `get_chat_id`, `get_target`, `get_user`, `escape_html`,
-  `run_sync`, `get_link`, `chunks`, `rand`, `smart_split`, `remove_html`, `mime_type`, служебные чаты модулей
-  `asset_channel`, `dnd`, `invite_inline_bot`, `set_avatar` и другие;
-- `validators` — все валидаторы Hikka с подсказками на русском;
-- `inline.types` — `InlineCall`, `InlineQuery`, `InlineMessage`;
-- `database` (`Database` для аннотаций), `version`, `main`, `security`, `types` — то немногое, на что ссылаются модули.
+- `loader`: `Module`, `Library`, decorators `command`, `watcher`, `inline_handler`, `callback_handler`, `loop`,
+  `tag`, `raw_handler`, access `owner`, `sudo`, `support`, `unrestricted`, `ModuleConfig`, `ConfigValue`,
+  `validators`, `StopLoop`, `SelfUnload`;
+- `utils`: `answer`, `answer_file`, `get_args*`, `get_chat_id`, `get_target`, `get_user`, `escape_html`, `run_sync`,
+  `get_link`, `chunks`, `rand`, `smart_split`, `remove_html`, `mime_type`, module service chats `asset_channel`,
+  `dnd`, `invite_inline_bot`, `set_avatar` and more;
+- `validators`: all Hikka validators;
+- `inline.types`: `InlineCall`, `InlineQuery`, `InlineMessage`;
+- `database` (`Database` for annotations), `version`, `main`, `security`, `types`: the few bits modules reference.
 
-`import hikkatl...` (форк Telethon из Hikka) и `herokutl` (из Heroku) отдают обычный Telethon.
-Модули с `# scope: hikka_only` загружаются: эта пометка значит «нужен Hikka, а не FTG».
+`import hikkatl...` (Hikka's Telethon fork) and `herokutl` (Heroku's) resolve to plain Telethon. Modules with
+`# scope: hikka_only` load: it means "needs Hikka, not FTG".
 
-Что переводится из Hikka:
+Mapping:
 
-| В Hikka | В Uroboros |
+| Hikka | Uroboros |
 |---|---|
-| `xxxcmd` и `@loader.command(ru_doc=..., alias=...)` | команда с описанием на русском и алиасами |
-| `@loader.watcher(only_pm=True, no_commands=True, ...)` | вотчер с фильтром по тегам Hikka |
-| `@loader.loop(interval, autostart)` | `@loop`, `self.<метод>.start()/stop()/status` |
-| `client_ready(client, db)`, `on_dlmod(client, db)` | вызываются после загрузки и при первой установке |
-| `strings` + `strings_ru` | строки на русском, `self.strings("ключ")` |
-| `self.get` / `self.set`, `self.db.get(владелец, ключ)` | то же хранилище, данные модуля — под именем класса, как в Hikka |
-| `self.inline.form(text, message, reply_markup=...)`, `list`, `gallery` | формы inline-бота Uroboros |
-| `@loader.owner`, `@loader.sudo`, `@loader.support`, `@loader.unrestricted` | уровни доступа `.security` |
+| `xxxcmd` and `@loader.command(ru_doc=..., alias=...)` | command with description and aliases |
+| `@loader.watcher(only_pm=True, no_commands=True, ...)` | watcher filtered by Hikka tags |
+| `@loader.loop(interval, autostart)` | `@loop`, `self.<method>.start()/stop()/status` |
+| `client_ready(client, db)`, `on_dlmod(client, db)` | called after load and on first install |
+| `strings` + `strings_ru` | `self.strings("key")` (Russian strings preferred for now) |
+| `self.get` / `self.set`, `self.db.get(owner, key)` | same storage, module data under the class name, as in Hikka |
+| `self.inline.form(text, message, reply_markup=...)`, `list`, `gallery` | Uroboros inline bot forms |
+| `@loader.owner`, `@loader.sudo`, `@loader.support`, `@loader.unrestricted` | `.security` access levels |
 
-Команды модулей Hikka по умолчанию доступны только владельцам — как в Hikka.
+Hikka module commands are owner-only by default, as in Hikka.
 
-## Что не поддерживается
+## Not supported
 
-При загрузке такой модуль получает понятную ошибку, а не падает посреди работы:
+Such modules fail at load with a clear error instead of breaking mid-run:
 
-- внутренности Hikka: `from ..tl_cache`, `from .._internal`, `from .. import translations` и любые подмодули, кроме перечисленных выше;
-- `import hikka` и Pyrogram-клиент Hikka (`hikkapyro`, `pyrogram`);
-- модули с `# scope: hikka_min` новее 1.6.3.
+- Hikka internals: `from ..tl_cache`, `from .._internal`, `from .. import translations` and any submodule not
+  listed above;
+- `import hikka` and Hikka's Pyrogram client (`hikkapyro`, `pyrogram`);
+- modules with `# scope: hikka_min` newer than 1.6.3.
 
-Работают с ограничениями:
+Partially supported:
 
-- групповые права Hikka (`@loader.group_admin`, `@loader.group_member`, `@loader.pm`) — команда доступна только владельцам;
-- `self.request_join` — Uroboros не вступает в каналы по просьбе модуля, метод возвращает `False`;
-- `db.pointer` и `self.pointer` возвращают обычные значения, а не «живые» списки и словари: изменения сохраняйте через `set`;
-- `self.invoke`, `utils.asset_forum_topic` (есть только в форке Heroku) — ошибка при вызове;
-- возможности Hikka-TL сверх обычного Telethon (например `client.hikka_me`) недоступны.
+- Hikka group permissions (`@loader.group_admin`, `@loader.group_member`, `@loader.pm`): the command is owner-only;
+- `self.request_join`: Uroboros doesn't join channels for modules, returns `False`;
+- `db.pointer` and `self.pointer` return plain values, not live lists and dicts: save changes with `set`;
+- `self.invoke`, `utils.asset_forum_topic` (Heroku fork only): error on call;
+- Hikka-TL features beyond Telethon (e.g. `client.hikka_me`) are unavailable.
 
-## Таблица совместимости
+## Compatibility table
 
-[hikka-compat.md](hikka-compat.md) собирает `scripts/hikka_compat.py`: он скачивает модули из популярных
-репозиториев и пробует их загрузить. Скрипт исполняет чужой код, поэтому запускайте его в изоляции —
-например вручную через GitHub Actions (workflow «Совместимость с Hikka»), таблица придёт артефактом.
+[hikka-compat.md](hikka-compat.md) is built by `scripts/hikka_compat.py`: it downloads modules from popular repos
+and tries to load them. The script executes third-party code, so run it isolated, e.g. manually via GitHub Actions
+(the "Hikka compatibility" workflow); the table comes as an artifact.

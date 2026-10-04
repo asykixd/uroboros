@@ -1,91 +1,172 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) in this repository.
 
-## Проект
+## Project
 
-Uroboros — модульный юзербот для Telegram (Python ≥3.10 + Telethon 1.x), аналог Hikka, написанный с нуля. Лицензия AGPL-3.0: код Hikka (тоже AGPL) можно переносить. Интерфейс и сообщения бота — только на русском. Ветки: `master` — стабильная, `dev` — разработка (см. «Ветки и версии»).
+Uroboros is a modular Telegram userbot (Python ≥3.10 + Telethon 1.x), a from-scratch Hikka alternative. AGPL-3.0, so
+Hikka code (also AGPL) may be ported. Branches: `master` stable, `dev` development (see "Branches and versions").
 
-## Команды
+**Language.** English is the primary language of the repo: README, docs, ROADMAP, CONTRIBUTING, templates, commit
+messages, code comments in new code. Write tersely. Docs come in pairs: `docs/<page>.md` (English) and
+`docs/<page>.ru.md` (Russian, mkdocs-static-i18n); `README.md` (English) and `README.ru.md`. Update both. The bot
+interface (`uroboros/` messages, `strings`, command docstrings) stays **Russian** until the user asks to translate
+it. The user writes in Russian; reply in Russian.
+
+## Commands
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установка для разработки
-.venv/bin/python -m uroboros                                 # запуск (без сессии — веб-панель входа, --cli — вход в консоли)
-.venv/bin/python -m pytest                                   # все тесты
-.venv/bin/python -m pytest tests/test_core.py::test_install_and_uninstall   # один тест
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'   # dev install
+.venv/bin/python -m uroboros                                      # run (no session: web login panel; --cli: console)
+.venv/bin/python -m pytest                                        # all tests
+.venv/bin/python -m pytest tests/test_core.py::test_install_and_uninstall   # one test
+.venv/bin/ruff check . && .venv/bin/ruff format --check .        # lint and format (same as CI)
+.venv/bin/mkdocs build --strict                                   # docs site
 ```
 
-```bash
-.venv/bin/ruff check . && .venv/bin/ruff format --check .   # линтер и форматтер (то же проверяет CI)
-```
+Tests are offline and don't need Telegram: `Loader` is built with `client=None` and `Database(":memory:")`,
+coroutines run via `asyncio.run` (no pytest-asyncio).
 
-Тесты не ходят в сеть и не требуют Telegram: `Loader` создаётся с `client=None` и `Database(":memory:")`, корутины гоняются через `asyncio.run` (pytest-asyncio не используется).
+`api_id`/`api_hash` can come from `UROBOROS_API_ID`/`UROBOROS_API_HASH` (override `config.json`). Runtime data is in
+`./data` (`UROBOROS_DATA`): `config.json`, `uroboros.session`, `uroboros.db`, `modules/`, `uroboros.log`,
+`uroboros.lock`. That's account access: never commit it, don't read it without need.
 
-`api_id`/`api_hash` можно передать через `UROBOROS_API_ID`/`UROBOROS_API_HASH`, они приоритетнее `config.json`. Данные рантайма лежат в `./data` (путь меняется через `UROBOROS_DATA`): `config.json` (api_id/api_hash), сессия `uroboros.session`, `uroboros.db`, `modules/`, `uroboros.log`, `uroboros.lock` (блокировка от второго экземпляра). Это доступ к аккаунту: не коммитить и не читать без нужды.
+## Architecture
 
-## Архитектура
+Startup in `main.py`: `parse_args` → `connect` (no session: `web.first_login`, aiohttp panel with a token link, shut
+down after login; `--cli` for console) → `Database` → `TelegramClient.start` → `InlineManager.start` →
+`Loader.load_all` → `Dispatcher.install` → `run_until_disconnected`. Restart: `utils.restart()` sets a flag and
+disconnects; `main()` unloads modules after the loop and calls `os.execv`. On Windows `main()` runs a supervisor
+(`supervise`) that restarts the child on exit code `RESTART_EXIT_CODE` (75).
 
-Поток запуска в `main.py`: `parse_args` → `connect` (нет сессии — `web.first_login`, aiohttp-панель с токеном в ссылке, выключается после входа; `--cli` — консоль) → `Database` → `TelegramClient.start` → `InlineManager.start` → `Loader.load_all` → `Dispatcher.install` → `run_until_disconnected`. Рестарт: `utils.restart()` выставляет флаг и отключает клиент, а `main()` после выхода из цикла выгружает модули и делает `os.execv`. На Windows `main()` сначала запускает надзирателя (`supervise`), который держит бота дочерним процессом и перезапускает его, когда тот выходит с кодом `RESTART_EXIT_CODE` (75).
+**Loader (`loader.py`).** Modules are `exec`'d into a `ModuleType`, not imported:
+- Built-ins from `uroboros/modules/*.py` are read as text, named `uroboros.modules.<stem>`.
+- Third-party modules are `uroboros.ext.<stem>_<n>`; source saved to `data/modules/<stem>.py`, origin to the DB
+  (`uroboros.loader`/`installed`: stem → url).
+- The unit of unloading is the file (stem): all `Module` subclasses in a file unload together.
+- Order in `_load` matters: conflict checks (can't replace a built-in, can't take another module's command), unload
+  replaced stems, register, `on_load`. If `on_load` fails the whole stem rolls back.
+- `# requires:` → `pip install` only on `ImportError`, one attempt.
+- The header is parsed before `exec`: `# meta key: value` → `inst._meta`; `# requires_uroboros: X` checks the core
+  version.
+- `LoadError` (`errors.py`, re-exported from `loader`) is shown to the user without a traceback. Downloads:
+  `download.py`.
 
-**Загрузчик (`loader.py`).** Модули загружаются не импортом, а через `exec` исходника в `ModuleType`:
-- Встроенные модули из `uroboros/modules/*.py` читаются как текст и получают имя `uroboros.modules.<stem>`.
-- Сторонние получают `uroboros.ext.<stem>_<n>`. Их исходник сохраняется в `data/modules/<stem>.py`, а источник — в БД (`uroboros.loader` / `installed`: stem → url).
-- Единица выгрузки — файл (stem): все классы-наследники `Module` из одного файла выгружаются вместе.
-- В `_load` порядок важен: сначала проверяются конфликты (нельзя заменить встроенный модуль, нельзя занять чужую команду), потом выгружаются заменяемые stem'ы, затем регистрация и `on_load`. Если `on_load` падает, весь stem откатывается.
-- `# requires:` → `pip install` только при `ImportError`, одна попытка.
-- Шапка файла читается до `exec`: `# meta ключ: значение` → `inst._meta`, `# requires_uroboros: X` — проверка версии ядра.
-- `LoadError` (`errors.py`, реэкспорт из `loader`) — ошибка, текст которой показывается пользователю. Диспетчер выводит её без traceback. Скачивание — `download.py`.
+**Dispatcher (`dispatcher.py`).** One `NewMessage` handler. Commands fire on outgoing messages, and on incoming ones
+only if the sender's level suffices (`security.py`: `owner` ⊃ `sudo` ⊃ `support` ⊃ `everyone`; groups and overrides
+in DB `uroboros.security`, default level from `@command(access=...)`, `"sudo"`). Resolution: prefix → user aliases
+(DB `uroboros.main`/`aliases`) → `Loader.get_command` (also handles `@command(aliases=...)`). Watchers get every
+message concurrently; their exceptions are only logged.
 
-**Диспетчер (`dispatcher.py`).** Один обработчик `NewMessage`. Команды срабатывают на исходящих сообщениях, а на входящих — только если отправителю хватает уровня (`security.py`: `owner` ⊃ `sudo` ⊃ `support` ⊃ `everyone`; группы и переопределения — в БД `uroboros.security`, уровень по умолчанию — `@command(access=...)`, `"sudo"`). Цепочка разрешения: префикс → пользовательские алиасы (БД, `uroboros.main`/`aliases`) → `Loader.get_command`, которая учитывает и алиасы из `@command(aliases=...)`. Вотчеры получают все сообщения параллельно, их исключения только логируются.
-
-**API модулей** (публичный — то, что экспортирует `uroboros/__init__.py`):
-- `Module` с `on_load`/`on_unload`.
-- Декораторы `@command`, `@watcher`.
-- `ModuleConfig`/`ConfigValue` и `validators` — валидаторы принимают и строки, потому что `.cfg` передаёт значение текстом.
+**Module API** (public = what `uroboros/__init__.py` exports):
+- `Module` with `on_load`/`on_unload`.
+- `@command`, `@watcher`.
+- `ModuleConfig`/`ConfigValue` and `validators` (validators accept strings, since `.cfg` passes text).
 - `@loop`, `Library`.
 - `@inline_handler`, `@callback_handler`, `self.inline.form` / `list` / `gallery` (`InlineCall`, `InlineError`).
-- `utils`: `answer`, `answer_file`, `get_args_raw`, `get_args`, `get_reply`, `get_user`, `get_target`, `get_chat_id`, `run_sync`, `quote`, `escape_html`, `Html`, `get_prefix`.
+- `utils`: `answer`, `answer_file`, `get_args_raw`, `get_args`, `get_reply`, `get_user`, `get_target`,
+  `get_chat_id`, `run_sync`, `quote`, `escape_html`, `Html`, `get_prefix`.
 
-Загрузчик проставляет модулю `client`, `loader`, `inline`, `db` (`ModuleDB`, owner = имя модуля), оборачивает `strings` в `Strings` (вызов `self.strings("key", **kw)` экранирует подстановки) и привязывает `config` к БД (ключ `__config__`). При выгрузке stem'а загрузчик останавливает `@loop`-задачи (`loops.py`), снимает обработчики Telethon, чьи функции объявлены в файле модуля, и выгружает библиотеки (`Library`, `self.import_lib`), у которых не осталось модулей-пользователей. Исходники библиотек кешируются в `data/modules/libs/`, ссылки — в БД (`uroboros.loader`/`libs`). `on_dlmod` вызывается в `Loader.install` только если stem ещё не был установлен.
+The loader sets `client`, `loader`, `inline`, `db` (`ModuleDB`, owner = module name) on modules, wraps `strings` in
+`Strings` (`self.strings("key", **kw)` escapes substitutions) and binds `config` to the DB (key `__config__`). On
+stem unload it stops `@loop` tasks (`loops.py`), removes Telethon handlers whose functions are defined in the module
+file, and unloads libraries (`Library`, `self.import_lib`) with no remaining users. Library sources are cached in
+`data/modules/libs/`, URLs in DB `uroboros.loader`/`libs`. `on_dlmod` is called in `Loader.install` only if the stem
+wasn't installed before.
 
-Документация — сайт на mkdocs (`mkdocs.yml`, страницы в `docs/`, сборка `.venv/bin/mkdocs build --strict`, публикация с `master` — `.github/workflows/docs.yml`). `docs/commands.md` и `docs/examples.md` генерируются `scripts/gen_docs.py` из кода, `tests/test_docs.py` проверяет, что они актуальны: поменяли команду или пример — перегенерируйте. Для авторов модулей — `docs/modules.md`, модель безопасности — `docs/security.md`. Публичный API зафиксирован в `tests/api_snapshot.json` (политика — `docs/stability.md`): изменили сознательно — `UPDATE_API_SNAPSHOT=1 pytest tests/test_public_api.py`, ломать — только через `uroboros.deprecation.deprecated`. Примеры из `examples/` загружаются в `tests/test_examples.py`: при изменении API их нужно обновлять. Пример с `# requires_uroboros: X` не загрузится, если `__version__` меньше X, поэтому версия в `dev` и `master` должна быть не меньше той, что требуют примеры (суффикс `-dev` при сравнении не учитывается). API намеренно повторяет Hikka (`utils.answer`, `strings`, `config`), чтобы будущий адаптер совместимости был тонким.
+Docs: mkdocs site (`mkdocs.yml`, pages in `docs/`, `.venv/bin/mkdocs build --strict`, published from `master` by
+`.github/workflows/docs.yml`). `docs/commands{,.ru}.md` and `docs/examples{,.ru}.md` are generated by
+`scripts/gen_docs.py`; `tests/test_docs.py` checks they're current: changed a command or example, regenerate. Module
+authors: `docs/modules.md`; security model: `docs/security.md`. The public API is recorded in
+`tests/api_snapshot.json` (policy: `docs/stability.md`): for intentional changes run
+`UPDATE_API_SNAPSHOT=1 pytest tests/test_public_api.py`; breaking changes only via
+`uroboros.deprecation.deprecated`. `examples/` (English) load in `tests/test_examples.py`: update them when the API
+changes. An example with `# requires_uroboros: X` won't load if `__version__` is below X, so `dev` and `master`
+versions must be at least what examples require (`-dev` ignored in comparison). The API mirrors Hikka on purpose
+(`utils.answer`, `strings`, `config`) to keep the compat adapter thin.
 
-**Защита от флуда (`ratelimit.py`).** `UroborosClient` (`client.py`) считает запросы стороннего модуля, чей контекст выставлен в `current_module` (`module_context` вокруг команд, вотчеров, `@loop`, хуков и колбэков). Превысил лимит — `ModuleFrozen` до конца заморозки, уведомление в «Избранное». Настройки — БД `uroboros.security`/`flood`.
+**Flood protection (`ratelimit.py`).** `UroborosClient` (`client.py`) counts requests of the third-party module set
+in `current_module` (`module_context` around commands, watchers, `@loop`, hooks, callbacks). Over the limit:
+`ModuleFrozen` until the freeze ends, notice to Saved Messages. Settings: DB `uroboros.security`/`flood`.
 
-**Inline-бот (`inline/`).** aiogram 3 в том же процессе, `InlineManager` (`loader.inline`). Ошибка запуска бота не роняет юзербот: причина в `manager.error`, её показывает `.inlinebot`. Токен: `UROBOROS_BOT_TOKEN` → БД (`uroboros.inline`/`token`) → создание через @BotFather (`botfather.py`, там же включаются inline-режим и inline feedback). Форма: юзербот делает inline-запрос к своему боту с id формы и отправляет результат (`click`). `inline_message_id` бот узнаёт из `chosen_inline_result` или из первого нажатия. Кнопки ввода подставляют `@бот <id> `, текст приходит в `chosen_inline_result`, служебное сообщение `INPUT_MARKER` юзербот удаляет. Формы (`Unit`) живут в памяти и снимаются при выгрузке stem'а. Отвечает бот только владельцу и `always_allow`. Модули получают прокси `self.inline` (`inline.Inline`). Тесты подменяют бота и клиента заглушками из `tests/fake_inline.py`.
+**Inline bot (`inline/`).** aiogram 3 in the same process, `InlineManager` (`loader.inline`). A bot startup failure
+doesn't crash the userbot: the reason is in `manager.error`, shown by `.inlinebot`. Token: `UROBOROS_BOT_TOKEN` → DB
+(`uroboros.inline`/`token`) → created via @BotFather (`botfather.py`, which also enables inline mode and inline
+feedback). Forms: the userbot makes an inline query to its bot with the form id and sends the result (`click`). The
+bot learns `inline_message_id` from `chosen_inline_result` or the first press. Input buttons prefill `@bot <id> `,
+text arrives in `chosen_inline_result`, and the userbot deletes the `INPUT_MARKER` service message. Forms (`Unit`)
+live in memory and are removed on stem unload. The bot answers only the owner and `always_allow`. Modules get the
+`self.inline` proxy (`inline.Inline`). Tests stub the bot and client with `tests/fake_inline.py`.
 
-**БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed, hashes — sha256 файлов, pins — ссылки на установленную версию в коммите GitHub), `uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands).
+**DB (`database.py`).** Synchronous key-value on `sqlite3` with an in-memory cache (like Hikka's sync
+`db.get`/`db.set`). `get` returns a deepcopy; values go through JSON (tuple → list). System owners: `uroboros.main`
+(prefix, aliases), `uroboros.loader` (installed, hashes = sha256 of files, pins = commit-pinned GitHub URLs),
+`uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands).
 
-**GitHub (`github.py`).** Преобразует blob-ссылки и короткие пути `owner/repo/path` в адреса `raw.githubusercontent.com/.../HEAD/...`, а списки модулей репозитория получает через GitHub contents API. В `.dlm` разбор идёт по порядку: `owner/repo` → показать список модулей; ссылка или путь → скачать; просто имя → искать в подключённых репозиториях (БД модуля Loader, ключ `repos`; пока ключа нет — официальный `asykixd/uroboros-modules`, `DEFAULT_REPOS`).
+**GitHub (`github.py`).** Converts blob URLs and short `owner/repo/path` into
+`raw.githubusercontent.com/.../HEAD/...`, lists repo modules via the contents API. `.dlm` resolution order:
+`owner/repo` → list modules; URL or path → download; bare name → search connected repos (Loader module DB, key
+`repos`; default `asykixd/uroboros-modules`, `DEFAULT_REPOS`).
 
-## Стиль сообщений бота
+## Bot message style
 
-Все ответы — HTML через `utils.answer`: свой исходящий текст он редактирует, если текст длиннее 4096 символов — отправляет файлом. Стиль — «карточки» (`utils.card(title, body, hint=...)`):
-- заголовок начинается с одного эмодзи-статуса и жирного текста: ✅ успех, ❌ ошибка, ⏳ процесс, 🚨 опасное, ⚠️ предупреждение, 📦 модули, ⚙️ настройки, 🔐 доступ, 🗑 удаление, 🔗 репозитории, 🏷 алиасы, 🆕 обновления, 🌿 ветки, 💾 бэкап, 🤖 inline-бот;
-- тело — в цитате, у каждой строки своя уместная иконка по смыслу поля (⏱ время, 📦 модули, 👤 пользователь, 🔗 источник, 📌 коммит, 🔐 права, 📏 размер, 🐍 версия), в списках без своей иконки — `▸`;
-- подсказка «что делать дальше» — последней строкой: `💡 <i>...</i>` (`hint=`);
-- эмодзи только уместные: одна на строку, по смыслу, без украшательства; в кнопках-действиях — иконка действия (📥 Установить, 🗑 Удалить, ✖️ Отмена, ◀️ Назад), кнопки-списки (имена модулей, ключей) — без иконок;
-- у встроенных команд `@command(emoji=...)` — иконка в `.help` и справочнике команд;
-- длинное и traceback — в `utils.quote(..., expandable=True)`, код — в `<pre>`.
+All replies are HTML via `utils.answer`: it edits your own outgoing message and sends text over 4096 chars as a file.
+Style is "cards" (`utils.card(title, body, hint=...)`):
+- the title starts with one status emoji and bold text: ✅ success, ❌ error, ⏳ in progress, 🚨 dangerous,
+  ⚠️ warning, 📦 modules, ⚙️ settings, 🔐 access, 🗑 removal, 🔗 repos, 🏷 aliases, 🆕 updates, 🌿 branches,
+  💾 backup, 🤖 inline bot;
+- the body is a quote, each line with one meaningful icon for its field (⏱ time, 📦 modules, 👤 user, 🔗 source,
+  📌 commit, 🔐 rights, 📏 size, 🐍 version); list items without their own icon use `▸`;
+- the next-step hint is the last line: `💡 <i>...</i>` (`hint=`);
+- emoji only where meaningful, one per line; action buttons get an action icon (📥 Install, 🗑 Delete, ✖️ Cancel,
+  ◀️ Back), list buttons (module or key names) none;
+- built-in commands set `@command(emoji=...)` for `.help` and the command reference;
+- long text and tracebacks in `utils.quote(..., expandable=True)`, code in `<pre>`.
 
-## Планы и ограничения
+## Plans and constraints
 
-План по версиям — в `ROADMAP.md` (сделанное отмечено `[x]`). Принципы оттуда, которые влияют на код:
-- ядро маленькое: встроенные модули (`uroboros/modules/`) пишутся только на публичном API, как сторонние;
-- только обычный Telethon 1.x — без форков и без перехода на Telethon 2 до его стабильного релиза;
-- новая зависимость должна ставиться в Termux без компиляции (исключение — aiogram 3: `pydantic-core` там собирается через Rust, так решил пользователь);
+Roadmap: `ROADMAP.md` (done items `[x]`). Principles affecting code:
+- small core: built-in modules (`uroboros/modules/`) use only the public API, like third-party ones;
+- plain Telethon 1.x only: no forks, no Telethon 2 before its stable release;
+- new dependencies must install in Termux without compiling (exception: aiogram 3, whose `pydantic-core` builds
+  with Rust; the user decided that).
 
-**Адаптер Hikka (`hikka/`).** `hikka.is_hikka` узнаёт модуль, `check_supported` отклоняет внутренности Hikka. Модуль исполняется с `__package__ = uroboros.hikka.modules`, поэтому `from .. import loader, utils` берёт шимы из `uroboros/hikka/`. `hikka.loader.Module.__init_subclass__` переводит метки Hikka (`is_command`, суффиксы `cmd`/`watcher`/`_inline_handler`, `InfiniteLoop`) в атрибуты декораторов Uroboros; `_bind` (хук, который зовёт загрузчик) подменяет `db` на БД в стиле Hikka, `inline` — на `HikkaInline`. `hikkatl` → Telethon — `hikka/aliases.py`. Таблица совместимости — `scripts/hikka_compat.py` (исполняет чужой код: запускать только в изоляции).
+**Hikka adapter (`hikka/`).** `hikka.is_hikka` detects a module, `check_supported` rejects Hikka internals. Modules
+run with `__package__ = uroboros.hikka.modules`, so `from .. import loader, utils` gets the shims in
+`uroboros/hikka/`. `hikka.loader.Module.__init_subclass__` translates Hikka markers (`is_command`, `cmd`/`watcher`/
+`_inline_handler` suffixes, `InfiniteLoop`) into Uroboros decorator attributes; `_bind` (a loader hook) swaps `db`
+for a Hikka-style DB and `inline` for `HikkaInline`. `hikkatl` → Telethon: `hikka/aliases.py`. Compat table:
+`scripts/hikka_compat.py` (executes third-party code: run isolated only).
 
-**Проверка исходников (`scan.py`).** AST-эвристика перед установкой: `Loader.install` бросает `scan.UnsafeModuleError` на опасном коде, если не передан `force=True` (кнопка подтверждения или `-f` в `.dlm`/`.lm`/`.uplm`/`.restore`); подозрительное команды показывают в ответе. Встроенные модули не проверяются. Загрузчик хранит sha256 файлов сторонних модулей (БД `uroboros.loader`/`hashes`): если файл изменили в обход Uroboros и в нём опасный код, `load_all` его не грузит. `.uplm` показывает разницу (`difflib`) и ждёт подтверждения, `-f` — сразу. Модули с GitHub качаются по ссылке на коммит (`github.pin`: SHA через API, без API — по исходной ссылке); `installed` хранит исходную ссылку для обновлений, `pins` — закреплённую.
+**Source scan (`scan.py`).** AST heuristics before install: `Loader.install` raises `scan.UnsafeModuleError` on
+dangerous code unless `force=True` (confirm button or `-f` in `.dlm`/`.lm`/`.uplm`/`.restore`); suspicious findings
+are shown in replies. Built-ins aren't scanned. The loader stores sha256 of third-party files (DB
+`uroboros.loader`/`hashes`): if a file changed outside Uroboros and contains dangerous code, `load_all` skips it.
+`.uplm` shows a `difflib` diff and waits for confirmation (`-f` skips). GitHub modules are fetched by commit
+(`github.pin`: SHA via API, falling back to the original URL); `installed` keeps the original URL for updates,
+`pins` the pinned one.
 
-**Защита во время работы (`guard.py`).** `Guard` (`loader.guard`) ограничивает сторонние модули, кроме доверенных (`uroboros.loader`/`trusted`: модуль поставлен с подтверждённым опасным кодом или `.security trust`): `UroborosClient.__call__` не пропускает опасные запросы (`BLOCKED_REQUESTS`), свойство `UroborosClient.session` не отдаёт сессию коду из `uroboros.ext.*`/`uroboros.lib.*`/модулей Hikka (по `sys._getframe`), audit hook (`guard.activate`, ставится в `main.run`) не даёт открывать/удалять сессию, `config.json` и `uroboros.db` и передавать их в команды, пока выставлен `current_module`. Блокировка — `ModuleBlocked` (`LoadError` и `PermissionError`) и уведомление в «Избранное». Это не песочница. Модули Hikka без адаптера не загрузятся.
+**Runtime guard (`guard.py`).** `Guard` (`loader.guard`) restricts third-party modules except trusted ones
+(`uroboros.loader`/`trusted`: installed with confirmed dangerous code, or `.security trust`):
+`UroborosClient.__call__` blocks dangerous requests (`BLOCKED_REQUESTS`), the `UroborosClient.session` property hides
+the session from code in `uroboros.ext.*`/`uroboros.lib.*`/Hikka modules (via `sys._getframe`), and an audit hook
+(`guard.activate`, installed in `main.run`) prevents opening/deleting the session, `config.json` and `uroboros.db`
+or passing them to commands while `current_module` is set. Blocking raises `ModuleBlocked` (`LoadError` and
+`PermissionError`) and notifies Saved Messages. Not a sandbox. Hikka modules won't load without the adapter.
 
-## Ветки и версии
+## Branches and versions
 
-- **Вся работа — в `dev`.** Коммиты и push только туда. В `master` напрямую не коммитить.
-- **В `master` — только слиянием `dev`**, и только после локальных проверок (`ruff check`, `ruff format --check`, `pytest`) и **явного подтверждения пользователя** на это слияние. Порядок — скилл `/promote`.
-- **Версия зависит от ветки:** в `dev` — `X.Y.Z-dev`, в `master` — `X.Y.Z` (одинаково в `pyproject.toml` и `uroboros/__init__.py`; pip нормализует `-dev` в `.dev0`). При слиянии в `master` суффикс снимается в merge-коммите. `tests/test_version.py` проверяет это по текущей ветке.
-- Установка через pip (без git) обновляется с PyPI: `updater.check_pip`/`install_pip`, канал `stable` — версии без суффикса, `beta` — и `.devN`; `.dev` там недоступна.
-- Канал `.update beta` следует за веткой, на которой стоит бот, поэтому `dev` и `master` обновляются независимо. `.dev on`/`.dev off` (`updater.prepare_switch`/`switch`) переключают ветку бота с откатом, если новая не запускается.
-- **Релизы** (теги, GitHub-релизы) не делаются, пока пользователь не попросит. Когда попросит — только из `master` после `/promote`: тег `vX.Y.Z`, `gh release create` с заметками на русском (скилл `/release`); релиз публикует пакет `uroboros-userbot` на PyPI (`publish.yml`). Номер версии подтверждать у пользователя. Старые теги `v0.1.0b1`, `v0.1.0b2`, `v0.1.1b2` и `v*-dev` выпущены по прежним правилам.
+- **All work happens in `dev`.** Commit and push only there; never commit to `master` directly (a hook blocks it).
+- **`master` is updated only by merging `dev`**, after local checks (`ruff check`, `ruff format --check`, `pytest`)
+  and the user's **explicit approval** of that merge. Procedure: `/promote`.
+- **Version depends on the branch:** `X.Y.Z-dev` in `dev`, `X.Y.Z` in `master` (same in `pyproject.toml` and
+  `uroboros/__init__.py`; pip normalizes `-dev` to `.dev0`). The suffix is dropped in the merge commit.
+  `tests/test_version.py` checks this per branch.
+- pip installs (no git) update from PyPI: `updater.check_pip`/`install_pip`; `stable` channel = versions without a
+  suffix, `beta` = also `.devN`; `.dev` isn't available there.
+- `.update beta` follows the bot's branch, so `dev` and `master` update independently. `.dev on`/`.dev off`
+  (`updater.prepare_switch`/`switch`) switch the branch with rollback if the new one doesn't start.
+- **Releases** (tags, GitHub releases) only when the user asks, only from `master` after `/promote`: tag `vX.Y.Z`,
+  `gh release create` with English notes (`/release`); the release publishes `uroboros-userbot` to PyPI
+  (`publish.yml`). Confirm the version number with the user. Old tags `v0.1.0b1`, `v0.1.0b2`, `v0.1.1b2` and
+  `v*-dev` followed earlier rules.

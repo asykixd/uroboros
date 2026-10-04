@@ -1,19 +1,19 @@
 # meta developer: @uroboros
 # requires_uroboros: 0.2
-"""Фильтры команд и поиск пользователя: ответом, по @username или в личке."""
+"""Command filters and user lookup: by reply, @username or private chat."""
 
 from uroboros import Module, command, utils
 
 
 class Who(Module):
-    """Информация о пользователе"""
+    """User info"""
 
     @command("who")
     async def who(self, message):
-        """[@username | id] — кто это (или ответом на сообщение)"""
+        """[@username | id] — who is this (or reply to a message)"""
         user = await utils.get_target(message)
         if user is None:
-            await utils.answer(message, "❌ Ответьте на сообщение или укажите @username")
+            await utils.answer(message, "❌ Reply to a message or pass @username")
             return
         name = getattr(user, "first_name", None) or getattr(user, "title", "")
         await utils.answer(
@@ -23,5 +23,5 @@ class Who(Module):
 
     @command("pmonly", only_pm=True)
     async def pmonly(self, message):
-        """— работает только в личных сообщениях"""
-        await utils.answer(message, "✅ Это личные сообщения")
+        """— works in private chats only"""
+        await utils.answer(message, "✅ This is a private chat")

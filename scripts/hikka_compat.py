@@ -1,11 +1,11 @@
-"""Проверка совместимости с модулями Hikka/FTG: скачать модули из репозиториев и попробовать загрузить.
+"""Hikka/FTG module compatibility check: download modules from repos and try to load them.
 
-    .venv/bin/python scripts/hikka_compat.py            # таблица в docs/hikka-compat.md
-    .venv/bin/python scripts/hikka_compat.py --limit 20 # не больше 20 модулей из репозитория
+    .venv/bin/python scripts/hikka_compat.py            # table in docs/hikka-compat.md
+    .venv/bin/python scripts/hikka_compat.py --limit 20 # at most 20 modules per repo
 
-Модули загружаются без Telegram: вместо клиента — заглушка, вместо БД — SQLite в памяти.
-Зависимости из ``# requires:`` не ставятся: такие модули помечаются отдельно.
-Нужна сеть (GitHub API и raw.githubusercontent.com).
+Modules load without Telegram: a stub client and an in-memory SQLite database.
+``# requires:`` dependencies aren't installed; such modules are marked separately.
+Needs network (GitHub API and raw.githubusercontent.com).
 """
 
 from __future__ import annotations
@@ -82,10 +82,10 @@ def fake_client() -> mock.MagicMock:
 
 
 async def check_source(source: str, tmp: Path) -> tuple[str, str]:
-    """Пробует загрузить модуль: (статус, подробности)."""
+    """Tries to load a module: (status, details)."""
 
     async def no_pip(packages):
-        raise MissingRequirements("нужны пакеты: " + " ".join(packages))
+        raise MissingRequirements("needs packages: " + " ".join(packages))
 
     db = Database(":memory:")
     loader = core_loader.Loader(fake_client(), db, tmp)
@@ -95,14 +95,14 @@ async def check_source(source: str, tmp: Path) -> tuple[str, str]:
             instances = await asyncio.wait_for(loader.install(source, "file:compat.py", force=True), TIMEOUT)
         commands = sum(len(loader.module_commands(inst)) for inst in instances)
         await asyncio.wait_for(loader.unload_all(), TIMEOUT)
-        return OK, f"команд: {commands}"
+        return OK, f"commands: {commands}"
     except MissingRequirements as e:
         return DEPS, str(e)
     except LoadError as e:
         return FAIL, str(e).splitlines()[0][:200]
     except asyncio.TimeoutError:
-        return FAIL, "загрузка зависла"
-    except BaseException as e:  # модуль может бросить что угодно, вплоть до SystemExit
+        return FAIL, "load hung"
+    except BaseException as e:  # a module may raise anything, even SystemExit
         return FAIL, f"{type(e).__name__}: {e}".splitlines()[0][:200]
     finally:
         db.close()
@@ -115,13 +115,13 @@ async def run(repos: list[str], limit: int | None) -> list[Result]:
             try:
                 modules = list_modules(repo)
             except Exception as e:
-                print(f"{repo}: не удалось получить список ({e})", file=sys.stderr)
+                print(f"{repo}: failed to list ({e})", file=sys.stderr)
                 continue
             for name, url in modules[:limit]:
                 try:
                     source = _get(url).decode("utf-8")
                 except Exception as e:
-                    results.append(Result(repo, name, FAIL, f"не скачался: {e}"))
+                    results.append(Result(repo, name, FAIL, f"download failed: {e}"))
                     continue
                 status, detail = await check_source(source, Path(tmp))
                 results.append(Result(repo, name, status, detail))
@@ -133,18 +133,18 @@ def render(results: list[Result]) -> str:
     counts = Counter(r.status for r in results)
     total = len(results) or 1
     lines = [
-        "# Совместимость с модулями Hikka/FTG",
+        "# Hikka/FTG module compatibility",
         "",
-        "Таблицу собирает `scripts/hikka_compat.py`: он скачивает модули из репозиториев и загружает их",
-        "в Uroboros без Telegram (клиент — заглушка). Зависимости из `# requires:` не ставятся.",
-        "«Загружается» значит, что модуль исполнился, зарегистрировал команды и прошёл `client_ready`;",
-        "работу самих команд с настоящим аккаунтом это не проверяет.",
+        "Built by `scripts/hikka_compat.py`: it downloads modules from repos and loads them into Uroboros",
+        "without Telegram (stub client). `# requires:` dependencies aren't installed.",
+        '"Loads" means the module executed, registered commands and passed `client_ready`;',
+        "commands aren't tested against a real account.",
         "",
-        f"- {OK} загружается: **{counts[OK]}** из {len(results)} ({counts[OK] * 100 // total}%)",
-        f"- {DEPS} нужны зависимости (без них не проверить): **{counts[DEPS]}**",
-        f"- {FAIL} не загружается: **{counts[FAIL]}**",
+        f"- {OK} loads: **{counts[OK]}** of {len(results)} ({counts[OK] * 100 // total}%)",
+        f"- {DEPS} needs dependencies (can't check without them): **{counts[DEPS]}**",
+        f"- {FAIL} fails: **{counts[FAIL]}**",
         "",
-        "| Репозиторий | Модуль | | Подробности |",
+        "| Repo | Module | | Details |",
         "|---|---|---|---|",
     ]
     for r in results:
@@ -155,11 +155,11 @@ def render(results: list[Result]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--limit", type=int, default=None, help="сколько модулей брать из каждого репозитория")
-    parser.add_argument("--repo", action="append", help="проверить только этот репозиторий (можно несколько)")
+    parser.add_argument("--limit", type=int, default=None, help="modules per repo")
+    parser.add_argument("--repo", action="append", help="check only this repo (repeatable)")
     parser.add_argument("--output", type=Path, default=OUTPUT)
     args = parser.parse_args()
-    logging.basicConfig(level=logging.CRITICAL)  # ошибки модулей — в таблице, не в консоли
+    logging.basicConfig(level=logging.CRITICAL)  # module errors go to the table, not the console
 
     results = asyncio.run(run(args.repo or REPOS, args.limit))
     args.output.write_text(render(results), "utf-8")

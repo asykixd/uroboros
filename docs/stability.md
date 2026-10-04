@@ -1,40 +1,41 @@
-# Стабильность API
+# API stability
 
-С версии 1.0 Uroboros следует [semver](https://semver.org/lang/ru/): `МАЖОРНАЯ.МИНОРНАЯ.ПАТЧ`.
+Since 1.0 Uroboros follows [semver](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
-- **Патч** (`1.0.1`) — только исправления.
-- **Минорная** (`1.1.0`) — новые возможности; написанные модули продолжают работать.
-- **Мажорная** (`2.0.0`) — может удалять устаревшее. Перед ней — список изменений и инструкция.
+- **Patch** (`1.0.1`): fixes only.
+- **Minor** (`1.1.0`): new features; existing modules keep working.
+- **Major** (`2.0.0`): may remove deprecated APIs, with a changelog and migration notes.
 
-Версии с флагом `-dev` (`1.1.0-dev`) — сборки из ветки `dev`: появившееся в них может ещё поменяться,
-пока не попадёт в `master`. Гарантии выше относятся к версиям без флага.
+`-dev` versions (`1.1.0-dev`) are `dev` branch builds: new things there may change before reaching `master`. The
+guarantees above apply to versions without the suffix.
 
-## Что входит в публичный API
+## Public API
 
-То, на что можно опираться в модулях:
+What modules can rely on:
 
-- всё, что экспортирует `uroboros` (`Module`, `Library`, `ModuleConfig`, `ConfigValue`, `command`, `watcher`,
+- everything exported by `uroboros` (`Module`, `Library`, `ModuleConfig`, `ConfigValue`, `command`, `watcher`,
   `loop`, `StopLoop`, `inline_handler`, `callback_handler`, `LoadError`, `InlineError`, `utils`, `validators`);
-- функции `uroboros.utils`, валидаторы `uroboros.validators`, исключения `uroboros.errors`;
-- атрибуты и методы модуля: `client`, `db`, `loader`, `inline`, `config`, `strings`, `get`, `set`, `import_lib`,
-  хуки `on_load`, `on_unload`, `on_dlmod`;
-- `self.inline`: `form`, `list`, `gallery`, `markup`, `available`, `bot`; `InlineCall`, `InlineMessage`, `InlineQuery`;
-- параметры декораторов и формат кнопок;
-- шапка файла: `# meta`, `# requires`, `# requires_uroboros`.
+- `uroboros.utils` functions, `uroboros.validators`, `uroboros.errors` exceptions;
+- module attributes and methods: `client`, `db`, `loader`, `inline`, `config`, `strings`, `get`, `set`,
+  `import_lib`, hooks `on_load`, `on_unload`, `on_dlmod`;
+- `self.inline`: `form`, `list`, `gallery`, `markup`, `available`, `bot`; `InlineCall`, `InlineMessage`,
+  `InlineQuery`;
+- decorator parameters and button format;
+- file header: `# meta`, `# requires`, `# requires_uroboros`.
 
-Не входят: внутренности загрузчика, диспетчера и inline-менеджера (`self.loader.*` кроме списка модулей и команд),
-модуль `uroboros.hikka` (адаптер следует за Hikka, а не за semver), всё, что начинается с `_`.
+Not included: loader, dispatcher and inline manager internals (`self.loader.*` beyond module and command lists),
+`uroboros.hikka` (the adapter follows Hikka, not semver), anything starting with `_`.
 
-Сигнатуры публичного API зафиксированы в `tests/api_snapshot.json`: тест `tests/test_public_api.py` падает,
-если что-то пропало или изменилось без обновления слепка.
+Public signatures are recorded in `tests/api_snapshot.json`: `tests/test_public_api.py` fails if anything disappears
+or changes without updating the snapshot.
 
-## Устаревание
+## Deprecation
 
-Ничего не удаляется сразу. Устаревшее имя:
+Nothing is removed at once. A deprecated name:
 
-1. помечается `uroboros.deprecation.deprecated(since=..., removed_in=..., alternative=...)`;
-2. продолжает работать минимум одну минорную версию, выдавая `DeprecationWarning` и одно предупреждение в лог;
-3. удаляется не раньше следующей мажорной версии и попадает в её список изменений.
+1. is marked with `uroboros.deprecation.deprecated(since=..., removed_in=..., alternative=...)`;
+2. keeps working for at least one minor version, emitting `DeprecationWarning` and one log warning;
+3. is removed no earlier than the next major version and listed in its changelog.
 
 ```python
 from uroboros.deprecation import deprecated

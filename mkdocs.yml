@@ -1,5 +1,5 @@
 site_name: Uroboros
-site_description: Модульный юзербот для Telegram на Python и Telethon
+site_description: Modular Telegram userbot on Python and Telethon
 site_url: https://asykixd.github.io/uroboros/
 repo_url: https://github.com/asykixd/uroboros
 repo_name: asykixd/uroboros
@@ -8,14 +8,13 @@ copyright: AGPL-3.0
 
 theme:
   name: material
-  language: ru
+  language: en
   logo: assets/logo.svg
   favicon: assets/logo.svg
   font:
     text: Inter
     code: JetBrains Mono
   features:
-    - navigation.instant
     - navigation.sections
     - navigation.top
     - navigation.footer
@@ -31,14 +30,14 @@ theme:
       accent: custom
       toggle:
         icon: material/weather-night
-        name: Тёмная тема
+        name: Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: custom
       accent: custom
       toggle:
         icon: material/weather-sunny
-        name: Светлая тема
+        name: Light mode
 
 extra_css:
   - stylesheets/extra.css
@@ -47,10 +46,37 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/asykixd/uroboros
-      name: Uroboros на GitHub
+      name: Uroboros on GitHub
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/uroboros-userbot/
-      name: uroboros-userbot на PyPI
+      name: uroboros-userbot on PyPI
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      reconfigure_material: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: ru
+          name: Русский
+          build: true
+          site_description: Модульный юзербот для Telegram на Python и Telethon
+          nav_translations:
+            Home: Главная
+            Install: Установка
+            Commands: Команды
+            Security: Безопасность
+            Module authors: Для авторов модулей
+            Writing modules: Как писать модули
+            Examples: Примеры
+            API stability: Стабильность API
+            Hikka and FTG modules: Модули Hikka и FTG
+            Adapter: Адаптер
+            Compatibility: Совместимость
 
 markdown_extensions:
   - admonition
@@ -73,14 +99,14 @@ markdown_extensions:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 nav:
-  - Главная: README.md
-  - Установка: install.md
-  - Команды: commands.md
-  - Безопасность: security.md
-  - Для авторов модулей:
-      - Как писать модули: modules.md
-      - Примеры: examples.md
-      - Стабильность API: stability.md
-  - Модули Hikka и FTG:
-      - Адаптер: hikka.md
-      - Совместимость: hikka-compat.md
+  - Home: index.md
+  - Install: install.md
+  - Commands: commands.md
+  - Security: security.md
+  - Module authors:
+      - Writing modules: modules.md
+      - Examples: examples.md
+      - API stability: stability.md
+  - Hikka and FTG modules:
+      - Adapter: hikka.md
+      - Compatibility: hikka-compat.md

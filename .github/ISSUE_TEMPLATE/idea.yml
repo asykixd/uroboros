@@ -1,11 +1,11 @@
-name: 💡 Идея
-description: Предложить новую возможность
-labels: [идея]
+name: 💡 Idea
+description: Suggest a feature
+labels: [enhancement]
 body:
   - type: textarea
     id: idea
     attributes:
-      label: Что хочется
-      description: Какую задачу это решит и как вы это себе представляете
+      label: What you want
+      description: What problem it solves and how you see it working
     validations:
       required: true

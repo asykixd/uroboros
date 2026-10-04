@@ -1,8 +1,8 @@
-name: Публикация на PyPI
+name: Publish to PyPI
 
-# Запускается, когда на GitHub публикуется релиз (тег vX.Y.Z из master).
-# Один раз нужно настроить на pypi.org: Publishing → Add a trusted publisher → GitHub,
-# проект uroboros-userbot, владелец asykixd, репозиторий uroboros, workflow publish.yml, окружение pypi.
+# Runs when a GitHub release is published (tag vX.Y.Z from master).
+# One-time setup on pypi.org: Publishing → Add a trusted publisher → GitHub,
+# project uroboros-userbot, owner asykixd, repo uroboros, workflow publish.yml, environment pypi.
 on:
   release:
     types: [published]

@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: 🔐 Уязвимость
+  - name: 🔐 Vulnerability
     url: https://github.com/asykixd/uroboros/security/advisories/new
-    about: Сообщите приватно, не в публичном issue
-  - name: 📦 Модули
+    about: Report privately, not in a public issue
+  - name: 📦 Modules
     url: https://github.com/asykixd/uroboros-modules
-    about: Официальные модули и шаблон своего репозитория
+    about: Official modules and a template for your own repo

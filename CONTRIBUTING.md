@@ -1,13 +1,13 @@
-# Как помочь проекту
+# Contributing
 
-Спасибо, что хотите помочь! Интерфейс, сообщения бота, документация и коммиты — на русском.
+Thanks for helping! Docs and commits are in English; the bot interface is in Russian for now.
 
-## Ветки
+## Branches
 
-- `dev` — разработка, сюда и присылайте pull request'ы;
-- `master` — стабильные версии, попадают туда только из `dev` после проверки.
+- `dev`: development, send pull requests here;
+- `master`: stable releases, updated only by merging `dev`.
 
-## Перед pull request'ом
+## Before a pull request
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
@@ -15,12 +15,13 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
 .venv/bin/python -m pytest
 ```
 
-- Тесты не ходят в сеть и не требуют Telegram — новые тоже должны работать так.
-- Публичный API зафиксирован в `tests/api_snapshot.json`, правила изменения — [docs/stability.md](docs/stability.md).
-- Поменяли встроенную команду или пример — перегенерируйте справочник: `python scripts/gen_docs.py`.
-- Сообщения бота — «карточками» через `utils.card(...)`, правила — в [docs/modules.md](docs/modules.md#оформление-ответов).
+- Tests don't touch the network or Telegram; keep it that way.
+- The public API is recorded in `tests/api_snapshot.json`; see [docs/stability.md](docs/stability.md).
+- Changed a built-in command or an example? Regenerate the reference: `python scripts/gen_docs.py`.
+- Bot replies are cards via `utils.card(...)`, see [docs/modules.md](docs/modules.md#reply-style).
+- Docs pages come in pairs: `page.md` (English) and `page.ru.md` (Russian). Update both.
 
-## Модули
+## Modules
 
-Свои модули лучше держать в собственном репозитории — шаблон:
-[uroboros-modules](https://github.com/asykixd/uroboros-modules). Полезные модули можно предложить туда.
+Keep your modules in your own repo, using [uroboros-modules](https://github.com/asykixd/uroboros-modules) as a
+template. Useful modules can be proposed there.

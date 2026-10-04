@@ -413,13 +413,13 @@ def test_counter_example(env):
     asyncio.run(env.loader.get_command("counter").func(FakeMessage()))
     press(env.manager, "+")
     press(env.manager, "+")
-    assert env.bot.edits()[-1]["text"] == "🔢 <b>Счёт:</b> <code>2</code>"
-    press(env.manager, "Сбросить")
+    assert env.bot.edits()[-1]["text"] == "🔢 <b>Count:</b> <code>2</code>"
+    press(env.manager, "Reset")
     press(env.manager, "✅ Да")
-    assert env.bot.edits()[-1]["text"] == "🔢 <b>Счёт:</b> <code>0</code>"
+    assert env.bot.edits()[-1]["text"] == "🔢 <b>Count:</b> <code>0</code>"
 
     asyncio.run(env.manager._on_inline_query(SimpleNamespace(id="q", query="count 5", from_user=user())))
-    assert env.bot.inline_answers[-1][0].title == "Счётчик с 5"
+    assert env.bot.inline_answers[-1][0].title == "Counter from 5"
 
 
 def test_markup_for_bot_messages(env):

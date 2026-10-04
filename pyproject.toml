@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "uroboros-userbot"
 version = "1.0.0-dev"
-description = "Модульный юзербот для Telegram"
+description = "Modular Telegram userbot on Telethon"
 readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.10"
@@ -34,7 +34,7 @@ Issues = "https://github.com/asykixd/uroboros/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6"]
-docs = ["mkdocs-material>=9.5"]
+docs = ["mkdocs-material>=9.5", "mkdocs-static-i18n>=1.2"]
 
 [project.scripts]
 uroboros = "uroboros.main:main"
@@ -52,15 +52,15 @@ venv = ".venv"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-# Примеры кода в документации короткие и не всегда полные — форматтер их не трогает.
+# Doc code snippets are short and partial; the formatter leaves them alone.
 extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
-# Интерфейс на русском: кириллица в строках и комментариях — норма.
+# The bot UI is Russian: Cyrillic in strings and comments is expected.
 ignore = ["RUF001", "RUF002", "RUF003", "SIM108"]
 
 [tool.ruff.lint.per-file-ignores]
-# В модулях strings — обычный словарь класса, как в Hikka.
+# Module strings is a plain class dict, as in Hikka.
 "examples/*" = ["RUF012"]
 "tests/hikka/*" = ["RUF012"]
