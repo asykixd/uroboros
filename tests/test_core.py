@@ -275,3 +275,17 @@ def test_requires_rejects_urls_and_options(spec):
 def test_download_requires_https():
     with pytest.raises(LoadError, match="только по https"):
         asyncio.run(download.download("http://example.com/mod.py"))
+
+
+def test_system_exit_in_module_is_a_load_error(loader):
+    with pytest.raises(LoadError, match="SystemExit"):
+        asyncio.run(loader.load_source("raise SystemExit(1)\n", origin="file:x.py"))
+    source = (
+        "from uroboros import Module\n"
+        "class Quitter(Module):\n"
+        "    async def on_load(self):\n"
+        "        raise SystemExit(2)\n"
+    )
+    with pytest.raises(LoadError, match="SystemExit"):
+        asyncio.run(loader.load_source(source, origin="file:q.py"))
+    assert loader.get_module("quitter") is None

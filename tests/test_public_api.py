@@ -35,7 +35,12 @@ def describe(obj):
 
 
 def public(module, names=None):
-    names = names or [n for n in vars(module) if not n.startswith("_")]
+    # Имена из typing (Any, Callable…) — не API модуля; их сигнатуры к тому же меняются между версиями Python.
+    names = names or [
+        n
+        for n, obj in vars(module).items()
+        if not n.startswith("_") and getattr(obj, "__module__", None) not in ("typing", "collections.abc")
+    ]
     result = {}
     for name in sorted(names):
         obj = getattr(module, name)

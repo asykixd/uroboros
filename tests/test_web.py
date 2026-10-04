@@ -83,7 +83,7 @@ def test_api_step_saves_credentials(tmp_path):
         assert flow.state == "phone" and flow.config.api_id == 123
 
     asyncio.run(scenario())
-    assert json.loads((tmp_path / "config.json").read_text()) == {"api_id": 123, "api_hash": API_HASH}
+    assert json.loads((tmp_path / "config.json").read_text(encoding="utf-8")) == {"api_id": 123, "api_hash": API_HASH}
 
 
 def test_phone_code_password(tmp_path):
