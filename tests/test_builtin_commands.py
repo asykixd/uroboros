@@ -85,6 +85,8 @@ def test_search_in_connected_repos(builtin_loader, monkeypatch):
         return listings[repo]
 
     monkeypatch.setattr(github, "list_modules", fake_list)
+    assert loader.get_module("loader")._repos() == ["asykixd/uroboros-modules"]  # официальные — по умолчанию
+    assert "delrepo" in loader.commands and "Отключён" not in run_command(loader, ".delrepo asykixd/uroboros-modules")
     assert "Нет подключённых" in run_command(loader, ".search weather")
 
     loader.get_module("loader").db.set("repos", ["a/mods", "b/broken"])

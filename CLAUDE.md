@@ -56,7 +56,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # установк�
 
 **БД (`database.py`).** Синхронный key-value на `sqlite3` с кешем в памяти (как синхронные `db.get`/`db.set` в Hikka). `get` отдаёт deepcopy, значения проходят через JSON (tuple становится list). Системные владельцы ключей: `uroboros.main` (prefix, aliases), `uroboros.loader` (installed, hashes — sha256 файлов, pins — ссылки на установленную версию в коммите GitHub), `uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands).
 
-**GitHub (`github.py`).** Преобразует blob-ссылки и короткие пути `owner/repo/path` в адреса `raw.githubusercontent.com/.../HEAD/...`, а списки модулей репозитория получает через GitHub contents API. В `.dlm` разбор идёт по порядку: `owner/repo` → показать список модулей; ссылка или путь → скачать; просто имя → искать в подключённых репозиториях (БД модуля Loader, ключ `repos`).
+**GitHub (`github.py`).** Преобразует blob-ссылки и короткие пути `owner/repo/path` в адреса `raw.githubusercontent.com/.../HEAD/...`, а списки модулей репозитория получает через GitHub contents API. В `.dlm` разбор идёт по порядку: `owner/repo` → показать список модулей; ссылка или путь → скачать; просто имя → искать в подключённых репозиториях (БД модуля Loader, ключ `repos`; пока ключа нет — официальный `asykixd/uroboros-modules`, `DEFAULT_REPOS`).
 
 ## Стиль сообщений бота
 

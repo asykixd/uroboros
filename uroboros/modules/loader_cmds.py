@@ -11,6 +11,7 @@ MAX_SIZE = download.MAX_SIZE
 SEARCH_CACHE = 600
 SEARCH_LIMIT = 30
 CANCEL = {"text": "Отмена", "action": "close"}
+DEFAULT_REPOS = ("asykixd/uroboros-modules",)  # официальные модули: подключены, пока пользователь не отключит
 DIFF_LINES = 40  # строк разницы на модуль
 DIFF_BUDGET = 2500  # символов разницы на всё сообщение: оно должно влезть в 4096 вместе с остальным
 
@@ -71,7 +72,7 @@ class Loader(Module):
     """Установка и удаление модулей, репозитории на GitHub"""
 
     def _repos(self):
-        return self.db.get("repos", [])
+        return self.db.get("repos", list(DEFAULT_REPOS))
 
     def _trusted(self, url):
         repo = github.repo_of(url)
