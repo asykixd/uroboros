@@ -8,3 +8,5 @@ data/
 site/
 .coverage
 htmlcov/
+.DS_Store
+ROADMAP.md

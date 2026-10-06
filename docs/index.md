@@ -113,4 +113,3 @@ phone and code, or log in by QR code. Then type `.help` in any chat. The bot spe
 - 🧩 [Writing modules](modules.md) and [examples](examples.md)
 - 🔁 [Hikka and FTG modules](hikka.md)
 - 📐 [API stability](stability.md)
-- 🗺 [Roadmap](https://github.com/asykixd/uroboros/blob/master/ROADMAP.md)

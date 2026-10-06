@@ -16,7 +16,7 @@ Only on the user's direct request. Releases come **from `master`**, version with
    .venv/bin/python -m pytest -q
    ```
    If `gh run list --branch master -L 1` shows a finished run, it must be green.
-4. **ROADMAP.md:** finished items of the stage are `[x]` (edit in `dev`, then `/promote`).
+4. **ROADMAP.md** (local, gitignored): mark finished items `[x]`.
 5. **Tag:** `git tag -a vX.Y.Z -m "Uroboros X.Y.Z"` on the `master` commit, `git push origin vX.Y.Z`.
 6. **GitHub release:** concise English notes from commits since the previous release (`git log <prev-tag>..master --oneline --no-merges`), grouped: new, Hikka adapter, fixes, for module authors. Then
    ```bash

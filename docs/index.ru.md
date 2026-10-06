@@ -113,4 +113,3 @@ hide:
 - 🧩 [Как писать модули](modules.md) и [примеры](examples.md)
 - 🔁 [Модули Hikka и FTG](hikka.md)
 - 📐 [Стабильность API](stability.md)
-- 🗺 [План развития](https://github.com/asykixd/uroboros/blob/master/ROADMAP.md)
