@@ -25,6 +25,7 @@ log = logging.getLogger("uroboros")
 
 
 UNLOAD_TIMEOUT = 15
+_background: set[asyncio.Task] = set()  # strong refs: the loop keeps only weak ones to tasks
 NO_SESSION = (
     "Нет сессии Telegram, а вход в консоли без терминала невозможен (служба, Termux:Boot). "
     "Войдите один раз вручную: python -m uroboros"
@@ -38,7 +39,13 @@ def handle_sigterm(client) -> None:
     loop = asyncio.get_running_loop()
     # Windows: обработчики сигналов в цикле asyncio не поддерживаются.
     with contextlib.suppress(NotImplementedError, RuntimeError):
-        loop.add_signal_handler(signal.SIGTERM, lambda: loop.create_task(client.disconnect()))
+        loop.add_signal_handler(signal.SIGTERM, lambda: _spawn(client.disconnect()))
+
+
+def _spawn(coro) -> None:
+    task = asyncio.get_running_loop().create_task(coro)
+    _background.add(task)
+    task.add_done_callback(_background.discard)
 
 
 def notify_frozen(client, name: str, settings: dict) -> None:
@@ -57,7 +64,7 @@ def notify_frozen(client, name: str, settings: dict) -> None:
         except Exception:
             log.exception("Не удалось сообщить о заморозке модуля %s", name)
 
-    asyncio.get_running_loop().create_task(send())
+    _spawn(send())
 
 
 def notify_blocked(client, name: str, action: str) -> None:
@@ -75,7 +82,7 @@ def notify_blocked(client, name: str, action: str) -> None:
 
     # Блокировка вне цикла событий (например, в потоке) — хватит записи в логе.
     with contextlib.suppress(RuntimeError):
-        asyncio.get_running_loop().create_task(send())
+        _spawn(send())
 
 
 async def shutdown(loader: Loader) -> None:
