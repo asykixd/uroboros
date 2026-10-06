@@ -237,6 +237,92 @@ def test_update_command_from_pypi(builtin_loader, pip_install, monkeypatch):
     asyncio.run(system.update(message))
     assert "PyPI 1.2.0" in message.edits[-1] and "релизах на GitHub" in message.edits[-1]
 
-    message = FakeMessage(".dev on")
+    message = FakeMessage(".dev")
     asyncio.run(system.dev(message))
-    assert message.edits[-1].startswith("❌ <b>Ветки доступны только при установке из git")
+    assert "<code>master</code>" in message.edits[-1]
+
+
+OLD_SHA, NEW_SHA = "a" * 40, "b" * 40
+
+
+@pytest.fixture
+def pip_dev(pip_install, monkeypatch):
+    """pip-установка, переключаемая между PyPI и архивами dev; ``state["url"]`` — direct_url.json."""
+    state = {"url": "", "calls": [], "fail": None}
+
+    async def dev_head():
+        return NEW_SHA
+
+    async def source(url):
+        assert url.endswith(f"/{NEW_SHA}/uroboros/__init__.py")
+        return '__version__ = "1.3.0-dev"\n'
+
+    async def fake_run(*args):
+        state["calls"].append(args)
+        if state["fail"] and state["fail"] in args:
+            return 1, "boom"
+        return 0, ""
+
+    monkeypatch.setattr(updater, "_direct_url", lambda: state["url"])
+    monkeypatch.setattr(updater, "_dev_head", dev_head)
+    monkeypatch.setattr(updater, "download_source", source)
+    monkeypatch.setattr(updater, "run_process", fake_run)
+    monkeypatch.setattr(updater, "_compare", lambda old, new: ["bbbbbbb Новое", "ccccccc Ещё"])
+    return state
+
+
+def test_pip_branch_from_direct_url(pip_dev):
+    assert updater.pip_branch() == "master" and updater.pip_commit() is None
+    pip_dev["url"] = updater.archive_url(OLD_SHA)
+    assert updater.pip_branch() == "dev" and updater.pip_commit() == OLD_SHA
+    pip_dev["url"] = "https://example.com/archive/" + OLD_SHA + ".zip"
+    assert updater.pip_commit() is None
+
+
+def test_pip_switch_to_dev_and_back(pip_dev):
+    target = asyncio.run(updater.prepare_switch_pip("dev", "1.2.0"))
+    assert (target.previous, target.version, target.spec) == ("master", "1.3.0-dev", updater.archive_url(NEW_SHA))
+    asyncio.run(updater.switch_pip(target))
+    first, second, check = pip_dev["calls"]
+    assert "--force-reinstall" in first and "--no-deps" in first and first[-1] == target.spec
+    assert "--force-reinstall" not in second and second[-1] == target.spec and "-c" in check
+
+    pip_dev["url"], pip_dev["calls"] = target.spec, []
+    with pytest.raises(updater.UpdateError, match="Уже стоит ветка dev"):
+        asyncio.run(updater.prepare_switch_pip("dev", "1.3.0-dev"))
+    target = asyncio.run(updater.prepare_switch_pip("master", "1.3.0-dev"))
+    assert (target.previous, target.spec) == ("dev", "uroboros-userbot==1.2.0")
+
+
+def test_pip_switch_rolls_back_to_dev_archive(pip_dev):
+    pip_dev["url"] = updater.archive_url(OLD_SHA)
+    target = asyncio.run(updater.prepare_switch_pip("master", "1.3.0-dev"))
+    pip_dev["fail"] = "-c"
+    with pytest.raises(updater.InstallError) as error:
+        asyncio.run(updater.switch_pip(target))
+    assert error.value.rolled_back
+    assert pip_dev["calls"][-1][-1] == updater.archive_url(OLD_SHA)
+
+
+def test_check_pip_on_dev_follows_commits(pip_dev):
+    pip_dev["url"] = updater.archive_url(OLD_SHA)
+    update = asyncio.run(updater.check_pip("stable", "1.3.0-dev"))
+    assert update.target == updater.archive_url(NEW_SHA) and update.label == "dev bbbbbbb"
+    assert update.commits == ["bbbbbbb Новое", "ccccccc Ещё"]
+    pip_dev["url"] = updater.archive_url(NEW_SHA)
+    assert asyncio.run(updater.check_pip("beta", "1.3.0-dev")) is None
+
+
+def test_dev_command_on_pip(builtin_loader, pip_dev, monkeypatch):
+    monkeypatch.delenv("UROBOROS_DOCKER", raising=False)
+    system = builtin_loader.get_module("system")
+    restarted = []
+
+    async def fake_restart(message):
+        restarted.append(message)
+
+    system.restart = fake_restart
+    message = FakeMessage(".dev on -f")
+    asyncio.run(system.dev(message))
+    assert restarted and any(updater.archive_url(NEW_SHA) in call for call in pip_dev["calls"])
+    assert system.db.get("channel") == "beta"

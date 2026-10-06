@@ -48,8 +48,9 @@ uroboros/bin/pip install uroboros-userbot
 cd uroboros && bin/uroboros
 ```
 
-Data goes to `uroboros/data`. Update with `.update` (from PyPI). Branches aren't available here: install from git
-for `dev` builds.
+Data goes to `uroboros/data`. Update with `.update` (from PyPI). `.dev on` works without git too: the bot installs
+the latest `dev` commit as a GitHub archive, and `.update` then follows `dev` commits; `.dev off` returns to the
+latest PyPI release.
 
 ## Linux and VPS
 

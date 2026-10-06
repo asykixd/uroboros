@@ -51,8 +51,9 @@ uroboros/bin/pip install uroboros-userbot
 cd uroboros && bin/uroboros
 ```
 
-Данные будут в `uroboros/data`. Обновление — `.update` (с PyPI). Ветки `dev` и `master` в такой установке
-недоступны: для сборок из `dev` ставьте из git.
+Данные будут в `uroboros/data`. Обновление — `.update` (с PyPI). `.dev on` работает и без git: бот ставит
+последний коммит `dev` архивом с GitHub, и дальше `.update` следит за коммитами `dev`; `.dev off` возвращает
+последний релиз с PyPI.
 
 ## Linux и VPS
 
