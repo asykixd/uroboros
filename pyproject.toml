@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uroboros-userbot"
-version = "1.1.0-dev"
+version = "1.0.1-dev"
 description = "Modular Telegram userbot on Telethon"
 readme = "README.md"
 license = "AGPL-3.0-only"
