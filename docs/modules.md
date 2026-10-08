@@ -231,7 +231,8 @@ async def on_load(self):
 ## Inline bot
 
 An aiogram 3 bot runs alongside the userbot. On first run Uroboros creates it via @BotFather and enables inline
-mode. Use your own with `.inlinebot <token>` or `UROBOROS_BOT_TOKEN`. Modules use it to show messages with buttons.
+mode. If @BotFather refuses (for example, the account already has 20 bots), Uroboros doesn't retry on
+every start: run `.inlinebot new` or use your own bot with `.inlinebot <token>` or `UROBOROS_BOT_TOKEN`. Modules use it to show messages with buttons.
 
 ```python
 @command("counter")

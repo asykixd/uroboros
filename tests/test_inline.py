@@ -388,6 +388,25 @@ def test_start_recreates_revoked_bot(monkeypatch):
     assert started == ["new-token"] and manager.db.get(OWNER, "token") == "new-token"
 
 
+def test_start_does_not_retry_refused_creation(monkeypatch):
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    manager, started = start_env(monkeypatch, {"new-token"})
+    calls = []
+
+    async def refuse(client):
+        calls.append(client)
+        raise InlineError("@BotFather ответил неожиданно: Sorry, you can't add more than 20 bots.")
+
+    monkeypatch.setattr(botfather, "create_bot", refuse)
+    asyncio.run(manager.start())
+    asyncio.run(manager.start())
+    assert len(calls) == 1 and "20 bots" in manager.error and ".inlinebot new" in manager.error
+
+    monkeypatch.setattr(botfather, "create_bot", lambda client: asyncio.sleep(0, "new-token"))
+    asyncio.run(manager.create_bot())
+    assert started == ["new-token"] and manager.db.get(OWNER, "create_failed") is None
+
+
 def test_start_keeps_env_token(monkeypatch):
     monkeypatch.setenv(TOKEN_ENV, "env-token")
     manager, started = start_env(monkeypatch, {"new-token"})

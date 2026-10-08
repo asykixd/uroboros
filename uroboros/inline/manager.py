@@ -133,13 +133,22 @@ class InlineManager:
                 if self.token_from_env or not isinstance(e, TokenRejected):
                     raise
                 log.warning("Токен inline-бота недействителен, создаю нового бота")
-        await self.create_bot()
+        failed = self.db.get(OWNER, "create_failed")
+        if failed:
+            raise InlineError(f"{failed}. Новый бот: .inlinebot new, свой: .inlinebot <токен>")
+        try:
+            await self.create_bot()
+        except InlineError as e:
+            # @BotFather отказал (например, у аккаунта уже 20 ботов) — не повторяем при каждом запуске.
+            self.db.set(OWNER, "create_failed", str(e))
+            raise
 
     async def create_bot(self) -> None:
         """Создаёт нового бота через @BotFather и запускает его."""
         await self.stop()
         token = await botfather.create_bot(self.client)
         self.db.set(OWNER, "token", token)
+        self.db.delete(OWNER, "create_failed")
         with contextlib.suppress(Exception):
             # Чтобы бот мог писать владельцу в личку.
             username = (await self._check_token(token)).username
@@ -154,6 +163,7 @@ class InlineManager:
         await self.stop()
         self.db.set(OWNER, "token", token)
         self.db.delete(OWNER, "disabled")
+        self.db.delete(OWNER, "create_failed")
         await self._run(token)
 
     async def disable(self) -> None:
