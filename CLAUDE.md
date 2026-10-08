@@ -7,7 +7,7 @@ Guidance for Claude Code (claude.ai/code) in this repository.
 Uroboros is a modular Telegram userbot (Python ≥3.10 + Telethon 1.x), a from-scratch Hikka alternative. AGPL-3.0, so
 Hikka code (also AGPL) may be ported. Branches: `master` stable, `dev` development (see "Branches and versions").
 
-**Language.** English is the primary language of the repo: README, docs, ROADMAP, CONTRIBUTING, templates, commit
+**Language.** English is the primary language of the repo: README, docs, CONTRIBUTING, templates, commit
 messages, code comments in new code. Write tersely. Docs come in pairs: `docs/<page>.md` (English) and
 `docs/<page>.ru.md` (Russian, mkdocs-static-i18n); `README.md` (English) and `README.ru.md`. Update both. The bot
 interface (`uroboros/` messages, `strings`, command docstrings) stays **Russian** until the user asks to translate
@@ -125,7 +125,7 @@ Style is "cards" (`utils.card(title, body, hint=...)`):
 
 ## Plans and constraints
 
-Roadmap: `ROADMAP.md` (done items `[x]`). Principles affecting code:
+Roadmap: local `ROADMAP.md` (gitignored, not on GitHub; done items `[x]`). Principles affecting code:
 - small core: built-in modules (`uroboros/modules/`) use only the public API, like third-party ones;
 - plain Telethon 1.x only: no forks, no Telethon 2 before its stable release;
 - new dependencies must install in Termux without compiling (exception: aiogram 3, whose `pydantic-core` builds

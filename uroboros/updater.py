@@ -1,7 +1,8 @@
 """Обновление из git: каналы ``stable`` (последний тег) и ``beta`` (ветка), список изменений, откат.
 
 Ветки: ``master`` — стабильная, ``dev`` — разработка; ``switch`` переключает между ними.
-Установка через pip (без git) обновляется с PyPI: ``check_pip`` / ``install_pip``.
+Установка через pip (без git) обновляется с PyPI: ``check_pip`` / ``install_pip``. Ветка ``dev`` в ней —
+архив коммита с GitHub (``pip install .../archive/<sha>.zip``): ``prepare_switch_pip`` / ``switch_pip``.
 
 Обновление — только перемотка вперёд (``merge --ff-only``): локальные коммиты и правки не теряются,
 а если версия расходится с каналом, обновление отменяется с понятной причиной.
@@ -19,6 +20,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import github
+from .download import download_source
 from .errors import LoadError
 
 REPO_DIR = Path(__file__).resolve().parent.parent
@@ -30,6 +33,9 @@ VERSION_RE = re.compile(r'^__version__\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
 BRANCHES = ("master", "dev")
 PYPI_URL = "https://pypi.org/pypi/{}/json"
 VERSION_KEY_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(.*)$")
+GITHUB_REPO = "asykixd/uroboros"
+ARCHIVE_URL = "https://github.com/{repo}/archive/{sha}.zip"
+ARCHIVE_RE = re.compile(r"^https://github\.com/[\w.-]+/[\w.-]+/archive/([0-9a-f]{40})\.zip$")
 
 
 class UpdateError(LoadError):
@@ -145,6 +151,7 @@ class Switch:
     previous: str  # ветка сейчас
     version: str  # версия в целевой ветке
     current_version: str
+    spec: str = ""  # что ставить через pip (установка без git)
 
 
 async def current_branch() -> str:
@@ -245,33 +252,149 @@ def _pypi_releases(dist: str) -> dict[str, list]:
         return json.load(response)["releases"]
 
 
+async def _releases(dist: str) -> dict[str, list]:
+    try:
+        return await asyncio.to_thread(_pypi_releases, dist)
+    except Exception as e:
+        raise UpdateError(f"Не удалось узнать версии на PyPI: {e}") from e
+
+
+def _require_dist() -> str:
+    dist = distribution()
+    if dist is None:
+        raise UpdateError("Uroboros установлен не через pip")
+    return dist
+
+
+def _direct_url() -> str:
+    """Откуда pip поставил пакет (PEP 610, ``direct_url.json``); пусто — с PyPI."""
+    dist = distribution()
+    if dist is None:
+        return ""
+    try:
+        raw = importlib.metadata.distribution(dist).read_text("direct_url.json")
+        return json.loads(raw).get("url", "") if raw else ""
+    except Exception:
+        return ""
+
+
+def pip_commit() -> str | None:
+    """SHA коммита dev, из архива которого поставлен Uroboros; None — версия с PyPI."""
+    match = ARCHIVE_RE.match(_direct_url())
+    return match[1] if match else None
+
+
+def pip_branch() -> str:
+    return "dev" if pip_commit() else "master"
+
+
+def archive_url(sha: str) -> str:
+    return ARCHIVE_URL.format(repo=GITHUB_REPO, sha=sha)
+
+
+def _current_spec(dist: str, current: str) -> str:
+    """Чем вернуть установленную сейчас версию, если новая не встанет."""
+    sha = pip_commit()
+    return archive_url(sha) if sha else f"{dist}=={current}"
+
+
+async def _dev_head() -> str:
+    try:
+        return await asyncio.to_thread(github.resolve_commit, GITHUB_REPO, "dev")
+    except Exception as e:
+        raise UpdateError(f"Не удалось узнать последний коммит dev на GitHub: {e}") from e
+
+
+def _compare(old: str, new: str) -> list[str]:
+    request = urllib.request.Request(
+        f"https://api.github.com/repos/{GITHUB_REPO}/compare/{old}...{new}",
+        headers={"User-Agent": "Uroboros", "Accept": "application/vnd.github+json"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        commits = json.load(response).get("commits", [])
+    lines = [f"{c['sha'][:7]} {c['commit']['message'].splitlines()[0]}" for c in reversed(commits)]
+    return lines[: MAX_CHANGELOG + 1]
+
+
+async def _dev_update(installed: str) -> Update | None:
+    sha = await _dev_head()
+    if sha == installed:
+        return None
+    try:
+        commits = await asyncio.to_thread(_compare, installed, sha)
+    except Exception:
+        commits = []  # список изменений — не главное, ставить можно и без него
+    return Update(target=archive_url(sha), label=f"dev {sha[:7]}", sha=sha, commits=commits)
+
+
 async def check_pip(channel: str, current: str) -> Update | None:
     """Есть ли на PyPI версия новее ``current`` в канале ``channel``."""
     if channel not in CHANNELS:
         raise UpdateError(f"Канал — {' или '.join(CHANNELS)}")
-    dist = distribution()
-    if dist is None:
-        raise UpdateError("Uroboros установлен не через pip")
-    try:
-        releases = await asyncio.to_thread(_pypi_releases, dist)
-    except Exception as e:
-        raise UpdateError(f"Не удалось узнать версии на PyPI: {e}") from e
-    latest = latest_release(releases, channel)
+    dist = _require_dist()
+    installed = pip_commit()
+    if installed:
+        return await _dev_update(installed)  # ветка dev: следим за её коммитами, а не за PyPI
+    latest = latest_release(await _releases(dist), channel)
     if latest is None or (version_key(current) or (0, 0, 0, 0)) >= version_key(latest):
         return None
     return Update(target=f"{dist}=={latest}", label=f"PyPI {latest}", sha=latest)
 
 
 async def install_pip(update: Update, current: str) -> None:
-    """Ставит версию с PyPI. Если она не встала или не запускается — возвращает ``current``."""
-    dist = update.target.split("==", 1)[0]
+    """Ставит версию с PyPI или архив dev. Если она не встала или не запускается — возвращает ``current``."""
+    await _pip_replace(update.target, _current_spec(_require_dist(), current))
+
+
+async def prepare_switch_pip(branch: str, current_version: str) -> Switch:
+    """Как ``prepare_switch``, но для установки через pip: dev — архив последнего коммита, master — релиз с PyPI."""
+    if branch not in BRANCHES:
+        raise UpdateError(f"Ветки: {', '.join(BRANCHES)}")
+    dist = _require_dist()
+    previous = pip_branch()
+    if previous == branch:
+        raise UpdateError(f"Уже стоит ветка {branch}")
+    if branch == "dev":
+        sha = await _dev_head()
+        source = await download_source(f"{github.RAW}/{GITHUB_REPO}/{sha}/uroboros/__init__.py")
+        match = VERSION_RE.search(source)
+        return Switch(branch, previous, match[1] if match else "?", current_version, spec=archive_url(sha))
+    version = latest_release(await _releases(dist), "stable")
+    if version is None:
+        raise UpdateError("На PyPI ещё нет релизов")
+    return Switch(branch, previous, version, current_version, spec=f"{dist}=={version}")
+
+
+async def switch_pip(target: Switch) -> None:
+    """Ставит ветку через pip. При ошибке возвращает прежнюю версию и бросает ``InstallError``."""
+    await _pip_replace(target.spec, _current_spec(_require_dist(), target.current_version))
+
+
+def _pip_steps(spec: str) -> list[tuple[str, ...]]:
     pip = (sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check")
+    if ARCHIVE_RE.match(spec):
+        # Версия в архивах dev одна и та же (X.Y.Z.dev0), без переустановки pip решит, что всё уже стоит.
+        # --no-deps — чтобы не пересобирать зависимости (pydantic-core в Termux), они ставятся вторым шагом.
+        return [(*pip, "--force-reinstall", "--no-deps", spec), (*pip, spec)]
+    return [(*pip, spec)]
+
+
+async def _run_steps(spec: str) -> tuple[int, str]:
+    code, output = 0, ""
+    for step in _pip_steps(spec):
+        code, output = await run_process(*step)
+        if code != 0:
+            break
+    return code, output
+
+
+async def _pip_replace(spec: str, rollback_spec: str) -> None:
     stage = "Не удалось установить новую версию"
-    code, output = await run_process(*pip, update.target)
+    code, output = await _run_steps(spec)
     if code == 0:
         stage = "Новая версия не запускается"
         code, output = await run_process(sys.executable, "-c", "import uroboros.main")
     if code == 0:
         return
-    rollback, rollback_output = await run_process(*pip, f"{dist}=={current}")
+    rollback, rollback_output = await _run_steps(rollback_spec)
     raise InstallError(stage, output[-2000:], rolled_back=rollback == 0, rollback_output=rollback_output)

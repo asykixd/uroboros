@@ -55,9 +55,9 @@ class System(Module):
             f"📦 Модулей: <code>{len(self.loader.modules)}</code> · команд: <code>{len(self.loader.commands)}</code>",
             f"⌨️ Префикс: <code>{prefix}</code>",
         ]
-        if updater.is_git_checkout() and not updater.in_docker():
+        if (updater.is_git_checkout() or updater.is_pip_install()) and not updater.in_docker():
             with contextlib.suppress(Exception):
-                lines.append(f"🌿 Ветка: <code>{utils.escape_html(await updater.current_branch())}</code>")
+                lines.append(f"🌿 Ветка: <code>{utils.escape_html(await self._branch())}</code>")
         text = utils.card(f"🐍 <b>Uroboros</b> <code>{uroboros.__version__}</code>", lines)
         text += utils.quote(
             f"🐍 Python <code>{platform.python_version()}</code> · 📡 Telethon <code>{telethon.__version__}</code>\n"
@@ -235,11 +235,11 @@ class System(Module):
                 ),
             )
             return
-        if not updater.is_git_checkout():
-            await utils.answer(message, "❌ <b>Ветки доступны только при установке из git</b>")
+        if not updater.is_git_checkout() and not updater.is_pip_install():
+            await utils.answer(message, "❌ <b>Ветки доступны только при установке из git или через pip</b>")
             return
         if not args:
-            branch = await updater.current_branch()
+            branch = await self._branch()
             other, about = (
                 ("off", "🧪 Сборка разработки: новое, но ещё не проверенное")
                 if branch == "dev"
@@ -272,7 +272,10 @@ class System(Module):
             return
 
         await utils.answer(message, f"⏳ <b>Скачиваю ветку {branch}...</b>")
-        target = await updater.prepare_switch(branch, uroboros.__version__)
+        if updater.is_git_checkout():
+            target = await updater.prepare_switch(branch, uroboros.__version__)
+        else:
+            target = await updater.prepare_switch_pip(branch, uroboros.__version__)
         if force:
             await self._switch(target, lambda text: utils.answer(message, text), message)
             return
@@ -286,6 +289,10 @@ class System(Module):
             except InlineError:
                 pass
         await utils.answer(message, text + f"\n💡 <i>Переключить: <code>{prefix}dev {args[0]} -f</code></i>")
+
+    @staticmethod
+    async def _branch():
+        return await updater.current_branch() if updater.is_git_checkout() else updater.pip_branch()
 
     def _switch_text(self, target):
         old, new = utils.escape_html(target.current_version), utils.escape_html(target.version)
@@ -313,7 +320,8 @@ class System(Module):
         if target.branch == "dev":
             self.db.set("channel", "beta")  # stable — теги master, в dev их нет
         await report(f"⏳ <b>Переключаюсь на {target.branch}</b> · ставлю зависимости...")
-        await self._apply(updater.switch(target), report, message, f"🔄 <b>Ветка {target.branch}</b> · перезапуск...")
+        action = updater.switch(target) if updater.is_git_checkout() else updater.switch_pip(target)
+        await self._apply(action, report, message, f"🔄 <b>Ветка {target.branch}</b> · перезапуск...")
 
     async def _channel(self, message, args):
         if args:
