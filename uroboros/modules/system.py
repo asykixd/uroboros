@@ -317,11 +317,13 @@ class System(Module):
         await self._switch(target, report, None)
 
     async def _switch(self, target, report, message):
-        if target.branch == "dev":
-            self.db.set("channel", "beta")  # stable — теги master, в dev их нет
+        async def action():
+            await (updater.switch(target) if updater.is_git_checkout() else updater.switch_pip(target))
+            if target.branch == "dev":
+                self.db.set("channel", "beta")  # stable — теги master, в dev их нет
+
         await report(f"⏳ <b>Переключаюсь на {target.branch}</b> · ставлю зависимости...")
-        action = updater.switch(target) if updater.is_git_checkout() else updater.switch_pip(target)
-        await self._apply(action, report, message, f"🔄 <b>Ветка {target.branch}</b> · перезапуск...")
+        await self._apply(action(), report, message, f"🔄 <b>Ветка {target.branch}</b> · перезапуск...")
 
     async def _channel(self, message, args):
         if args:

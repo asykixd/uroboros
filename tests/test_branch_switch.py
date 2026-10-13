@@ -130,3 +130,23 @@ def test_dev_command_reports_errors(system, repo):
     with pytest.raises(updater.UpdateError, match="Уже стоит ветка master"):
         run(system, ".dev off")
     assert run(system, ".dev nope").startswith("❌")
+
+
+def test_diverged_branch_rolls_back(repo):
+    sh(repo, "switch", "-q", "--track", "-c", "dev", "origin/dev")
+    commit_version(repo, "9.9.9-dev")  # локальный коммит, которого нет в origin
+    sh(repo, "switch", "-q", "master")
+    sh(repo.parent / "origin", "switch", "-q", "dev")
+    commit_version(repo.parent / "origin", "1.2.0-dev")
+    sh(repo.parent / "origin", "switch", "-q", "master")
+    target = asyncio.run(updater.prepare_switch("dev", "1.0.0"))
+    with pytest.raises(updater.InstallError, match="расходится") as error:
+        asyncio.run(updater.switch(target))
+    assert error.value.rolled_back and sh(repo, "rev-parse", "--abbrev-ref", "HEAD") == "master"
+
+
+def test_failed_dev_switch_keeps_channel(system, repo):
+    CHECKS["-c"] = (1, "ImportError: boom")
+    system.db.set("channel", "stable")
+    assert "boom" in run(system, ".dev on -f")
+    assert system.db.get("channel") == "stable" and not system.restarted

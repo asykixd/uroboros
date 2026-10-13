@@ -184,8 +184,13 @@ async def switch(target: Switch) -> None:
         await _git_ok("switch", target.branch)
         code, output = await git("merge", "--ff-only", f"origin/{target.branch}")
         if code != 0:
-            await git("switch", target.previous)
-            raise UpdateError(f"Локальная ветка {target.branch} расходится с origin: {output[-500:]}")
+            back, back_output = await git("switch", target.previous)
+            raise InstallError(
+                f"Локальная ветка {target.branch} расходится с origin",
+                output[-2000:],
+                rolled_back=back == 0,
+                rollback_output=back_output,
+            )
     else:
         await _git_ok("switch", "--track", "-c", target.branch, f"origin/{target.branch}")
     await _finish(("switch", target.previous))
