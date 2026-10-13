@@ -10,3 +10,4 @@ site/
 htmlcov/
 .DS_Store
 ROADMAP.md
+/graphify-out
