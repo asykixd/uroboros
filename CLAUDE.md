@@ -151,8 +151,15 @@ are shown in replies. Built-ins aren't scanned. The loader stores sha256 of thir
 `UroborosClient.__call__` blocks dangerous requests (`BLOCKED_REQUESTS`), the `UroborosClient.session` property hides
 the session from code in `uroboros.ext.*`/`uroboros.lib.*`/Hikka modules (via `sys._getframe`), and an audit hook
 (`guard.activate`, installed in `main.run`) prevents opening/deleting the session, `config.json` and `uroboros.db`
-or passing them to commands while `current_module` is set. Blocking raises `ModuleBlocked` (`LoadError` and
+or passing them to commands while `current_module` is set. `Guard.check_db` (hooked into `Database._check`) blocks
+writes to `uroboros.*` owners and reads of the bot token or the whole DB; core code writing on a module's behalf
+wraps it in `module_context(None)`. Module top-level code and `__init__` run under `PendingModule` so they are
+restricted too; libraries are scanned on every load. Blocking raises `ModuleBlocked` (`LoadError` and
 `PermissionError`) and notifies Saved Messages. Not a sandbox. Hikka modules won't load without the adapter.
+
+**Backups (`backup.py`).** The manifest records the account id (`owner`). `.restore` of a foreign backup needs `-f`
+and keeps current `uroboros.security`, `uroboros.inline` and `trusted` (`keep_account_settings`). After `apply` the
+DB is frozen (writes ignored) until the restart.
 
 ## Branches and versions
 
