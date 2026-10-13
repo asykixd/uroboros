@@ -47,3 +47,21 @@ def test_flood_wait_while_reporting_is_swallowed(tmp_path):
     dispatcher = make_dispatcher(tmp_path)
     command = Command(CommandInfo("flood", (), ""), flood, module=None)
     asyncio.run(dispatcher._run_command(command, "flood", FakeMessage(fail_edit=True)))
+
+
+async def leave(message):
+    raise SystemExit(0)
+
+
+def test_sys_exit_in_command_is_reported(tmp_path):
+    dispatcher = make_dispatcher(tmp_path)
+    command = Command(CommandInfo("leave", (), ""), leave, module=None)
+    message = FakeMessage()
+    asyncio.run(dispatcher._run_command(command, "leave", message))
+    assert "SystemExit" in message.edits[-1]
+
+
+def test_sys_exit_in_watcher_is_logged(tmp_path, caplog):
+    watcher = type("W", (), {"func": staticmethod(leave), "module": type("M", (), {"name": "Demo"})()})()
+    asyncio.run(Dispatcher._run_watcher(watcher, FakeMessage()))
+    assert "Demo" in caplog.text

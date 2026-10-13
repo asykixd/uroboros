@@ -102,7 +102,7 @@ class Dispatcher:
                     f"⏳ Telegram ограничил частоту запросов, повторите через {utils.format_duration(e.seconds)}"
                 ),
             )
-        except Exception:
+        except (Exception, SystemExit):  # sys.exit() в модуле не должен останавливать бота
             log.exception("Ошибка в команде %s", used_name)
             tb = traceback.format_exc(limit=-5)
             await self._report(
@@ -127,5 +127,5 @@ class Dispatcher:
             pass  # о заморозке уже сообщили, вотчер просто пропускает сообщения
         except FloodWaitError as e:
             log.warning("Вотчер модуля %s: флуд-лимит Telegram, ждать %d с", watcher.module.name, e.seconds)
-        except Exception:
+        except (Exception, SystemExit):
             log.exception("Ошибка в вотчере модуля %s", watcher.module.name)

@@ -578,7 +578,7 @@ class InlineManager:
         if self._allowed(None, query.from_user.id):
             try:
                 results = await self._inline_results(query)
-            except Exception:
+            except (Exception, SystemExit):
                 log.exception("Ошибка при ответе на inline-запрос %r", query.query)
         if results is not None:
             await self.bot.answer_inline_query(query.id, results, cache_time=0, is_personal=True)
@@ -661,7 +661,7 @@ class InlineManager:
         try:
             with module_context(self._module_of(unit.stem)):
                 await button["handler"](call, value, *button.get("args", ()), **button.get("kwargs", {}))
-        except Exception:
+        except (Exception, SystemExit):
             log.exception("Ошибка в обработчике ввода «%s»", button["text"])
 
     async def _on_callback(self, query: Any) -> None:
@@ -755,7 +755,7 @@ class InlineManager:
                 await coro
         except LoadError as e:
             await call.answer(str(e)[:200], show_alert=True)
-        except Exception:
+        except (Exception, SystemExit):
             log.exception("Ошибка в %s", where)
             await call.answer("❌ Ошибка, подробности в логах (.logs)", show_alert=True)
 
