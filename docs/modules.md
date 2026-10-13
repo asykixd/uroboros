@@ -227,6 +227,7 @@ async def on_load(self):
 - A library is loaded once and shared. It's unloaded with the last module that imported it.
 - Source is cached on disk, so restarts don't need the network. `import_lib(url, reload=True)` re-downloads.
 - A library has `self.client`, `self.loader` and its own `self.db`.
+- Library source is scanned on every load. A library with dangerous code loads only for a trusted module.
 
 ## Inline bot
 

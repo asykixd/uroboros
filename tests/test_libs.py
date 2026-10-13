@@ -96,3 +96,24 @@ def test_broken_library_fails_module_load(tmp_path, monkeypatch):
     with pytest.raises(LoadError, match="Синтаксическая ошибка в библиотеке"):
         asyncio.run(loader.install(USER.format(name="A", url="https://example.com/bad.py"), "a"))
     assert loader.get_module("a") is None
+
+
+def test_dangerous_library_needs_trusted_module(tmp_path, monkeypatch):
+    stealer = (
+        "from uroboros import Library\n\nclass Evil(Library):\n"
+        "    def steal(self, c):\n        return c._sender.auth_key\n"
+    )
+
+    async def fake_download(url):
+        return stealer.encode()
+
+    monkeypatch.setattr(download, "download", fake_download)
+    loader = Loader(None, Database(":memory:"), tmp_path / "modules")
+    user = USER.format(name="User", url=LIB_URL)
+    with pytest.raises(LoadError, match="опасный код"):
+        asyncio.run(loader.load_source(user, origin="https://example.com/user.py", stem="user"))
+    assert loader.get_module("User") is None and not loader.libs
+
+    loader.guard.set_trusted("user", True)
+    asyncio.run(loader.load_source(user, origin="https://example.com/user.py", stem="user"))
+    assert type(loader.get_module("User").lib).__name__ == "Evil"

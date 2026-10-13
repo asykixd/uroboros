@@ -524,6 +524,13 @@ class Loader:
             return entry.obj
 
         source = await self._lib_source(url, refresh=reload)
+        # Проверяется при каждой загрузке: библиотеку могут обновить или подменить в кеше уже после установки модуля.
+        report = scan.scan(source)
+        if report.dangerous and self.guard.restricted(user):
+            raise LoadError(
+                f"В библиотеке {url} опасный код: {scan.summary(report.dangerous)}. "
+                f"Если доверяете модулю {user.name}: .security trust {user._stem}"
+            )
         obj, modname = await self._load_lib(source, url)
         users = {user._stem}
         if entry is not None:
