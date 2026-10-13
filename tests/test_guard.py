@@ -59,7 +59,7 @@ def test_files_in_data_dir_are_protected(env):
         call(loader, "demo", f"readfile {data_dir / 'modules' / '..' / 'uroboros.db-journal'}")
     assert blocked and blocked[0][0] == "Demo"
     # Встроенные модули и ядро не ограничиваются.
-    assert open(data_dir / "config.json").read() == "{}"  # noqa: SIM115
+    assert (data_dir / "config.json").read_text() == "{}"
 
 
 def test_trusted_module_is_not_restricted(env):
@@ -151,7 +151,7 @@ def test_module_cannot_touch_system_settings(env):
 
 def test_module_top_level_code_is_restricted(env):
     loader, data_dir, blocked = env
-    source = MODULE.replace("class Demo", f"open({str(data_dir / 'config.json')!r})\n\nclass Demo")
+    source = MODULE.replace("class Demo", f"open({str(data_dir / 'config.json')!r}).close()\n\nclass Demo")
     with pytest.raises(guard.ModuleBlocked, match=r"config\.json"):
         asyncio.run(loader.load_source(source, origin="https://example.com/demo.py", stem="demo"))
     assert blocked[-1][0] == "demo"

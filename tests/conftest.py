@@ -21,6 +21,22 @@ class FakeMessage:
         return self
 
 
+@pytest.fixture(autouse=True)
+def close_databases(monkeypatch):
+    """Тесты создают Database(":memory:") где угодно: закрываем все, чтобы не копились ResourceWarning."""
+    opened = []
+    init = Database.__init__
+
+    def tracked(self, *args, **kwargs):
+        init(self, *args, **kwargs)
+        opened.append(self)
+
+    monkeypatch.setattr(Database, "__init__", tracked)
+    yield
+    for db in opened:
+        db.close()
+
+
 @pytest.fixture
 def builtin_loader(tmp_path):
     db = Database(":memory:")
