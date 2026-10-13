@@ -209,6 +209,7 @@ class Loader:
         self.inline_handlers: dict[str, InlineHandler] = {}  # имя → обработчик @бот <имя>
         self.callback_handlers: list[CallbackHandler] = []
         self.libs: dict[str, LoadedLib] = {}  # url → библиотека
+        self._sources: dict[str, tuple[str, str, str | None]] = {}  # stem → (исходник, origin, filename)
         self._counter = itertools.count()
 
     # --- поиск ---
@@ -244,10 +245,10 @@ class Loader:
             if not path.exists():
                 log.warning("Файл модуля %s пропал, пропускаю", path)
                 continue
-            source = path.read_text("utf-8")
-            if not self._check_hash(stem, source, hashes):
-                continue
             try:
+                source = path.read_text("utf-8")
+                if not self._check_hash(stem, source, hashes):
+                    continue
                 await self.load_source(source, origin=origin, stem=stem, filename=str(path))
             except Exception:
                 log.exception("Не удалось загрузить модуль %s", stem)
@@ -379,8 +380,14 @@ class Loader:
             if not classes:
                 sys.modules.pop(modname, None)
                 raise LoadError("В файле нет ни одного класса-наследника Module")
-            instances = [cls() for cls in classes]
-        stem = stem or make_stem(instances[0].name)
+            try:
+                instances = [cls() for cls in classes]
+            except Exception as e:
+                sys.modules.pop(modname, None)
+                if isinstance(e, LoadError):
+                    raise
+                raise LoadError(f"Ошибка при создании модуля: {e!r}") from e
+        stem = stem or self._free_stem(make_stem(instances[0].name), instances)
 
         # Какие уже загруженные файлы заменяются этим.
         replaced: set[str] = set()
@@ -420,32 +427,41 @@ class Loader:
                     raise LoadError(f"Inline-команда {info.name} уже занята модулем {taken_inline[info.name]}")
                 taken_inline[info.name] = inst.name
 
+        previous = {old: self._sources[old] for old in replaced if old in self._sources}
         for old_stem in replaced:
             await self.unload_stem(old_stem)
 
-        for inst in instances:
-            inst._stem = stem
-            inst._origin = origin
-            inst._meta = meta
-            inst.strings = Strings(inst.strings)
-            inst.client = self.client
-            inst.loader = self
-            inst.db = ModuleDB(self.db, inst.name)
-            inst.inline = Inline(self, inst)
-            if isinstance(inst.config, ModuleConfig):
-                inst.config._bind(inst.db)
-            inst._bind(self)
-            self._register(inst)
+        try:
+            for inst in instances:
+                inst._stem = stem
+                inst._origin = origin
+                inst._meta = meta
+                inst.strings = Strings(inst.strings)
+                inst.client = self.client
+                inst.loader = self
+                inst.db = ModuleDB(self.db, inst.name)
+                inst.inline = Inline(self, inst)
+                if isinstance(inst.config, ModuleConfig):
+                    inst.config._bind(inst.db)
+                inst._bind(self)
+                self._register(inst)
 
-        for inst in instances:
-            try:
-                with module_context(inst):
-                    await inst.on_load()
-            except (Exception, SystemExit) as e:
-                log.exception("Ошибка в on_load модуля %s", inst.name)
-                await self.unload_stem(stem)
-                detail = str(e) if isinstance(e, LoadError) else repr(e)
-                raise LoadError(f"Ошибка при запуске модуля {inst.name}: {detail}") from e
+            for inst in instances:
+                try:
+                    with module_context(inst):
+                        await inst.on_load()
+                except (Exception, SystemExit) as e:
+                    log.exception("Ошибка в on_load модуля %s", inst.name)
+                    detail = str(e) if isinstance(e, LoadError) else repr(e)
+                    raise LoadError(f"Ошибка при запуске модуля {inst.name}: {detail}") from e
+        except Exception as e:
+            await self.unload_stem(stem)
+            sys.modules.pop(modname, None)
+            await self._reload_previous(previous)
+            if isinstance(e, LoadError):
+                raise
+            raise LoadError(f"Не удалось подключить модуль: {e!r}") from e
+        self._sources[stem] = (source, origin, filename)
 
         for inst in instances:
             for task in inst._loops:
@@ -453,6 +469,26 @@ class Loader:
                     task.start()
             log.info("Загружен модуль %s (%s)", inst.name, origin)
         return instances, replaced
+
+    async def _reload_previous(self, previous: dict[str, tuple[str, str, str | None]]) -> None:
+        """Новая версия не запустилась: возвращаем то, что она заменила."""
+        for old_stem, (source, origin, filename) in previous.items():
+            try:
+                await self._load(source, origin=origin, stem=old_stem, filename=filename)
+            except Exception:
+                log.exception("Не удалось вернуть прежнюю версию модуля %s", old_stem)
+
+    def _free_stem(self, base: str, instances: list[Module]) -> str:
+        """Имя файла для нового стороннего модуля, не занятое другим модулем и встроенными."""
+        if not base.strip("_"):
+            base = "module"  # имя целиком не латиницей
+        names = {inst.name.lower() for inst in instances}
+        taken = {m._stem for m in self.modules.values() if m.name.lower() not in names}
+        taken |= {path.stem for path in BUILTIN_DIR.glob("*.py")}
+        stem, number = base, 2
+        while stem in taken:
+            stem, number = f"{base}_{number}", number + 1
+        return stem
 
     async def _exec(self, code, modname: str, source: str, package: str | None = None) -> ModuleType:
         if package is not None:
@@ -478,6 +514,11 @@ class Loader:
                 # Иначе модуль останавливает весь бот (в Python 3.10–3.11 — даже из задачи asyncio).
                 sys.modules.pop(modname, None)
                 raise LoadError(f"Модуль завершил программу при загрузке (SystemExit: {e})") from e
+            except Exception as e:
+                sys.modules.pop(modname, None)
+                if isinstance(e, LoadError):
+                    raise
+                raise LoadError(f"Ошибка в коде модуля: {e!r}") from e
             except BaseException:
                 sys.modules.pop(modname, None)
                 raise
@@ -615,6 +656,7 @@ class Loader:
     async def unload_stem(self, stem: str) -> list[Module]:
         """Выгружает все модули, загруженные из одного файла."""
         removed = [m for m in self.modules.values() if m._stem == stem]
+        self._sources.pop(stem, None)
         for inst in removed:
             for task in inst._loops:
                 await task.wait_stopped()

@@ -289,3 +289,46 @@ def test_system_exit_in_module_is_a_load_error(loader):
     with pytest.raises(LoadError, match="SystemExit"):
         asyncio.run(loader.load_source(source, origin="file:q.py"))
     assert loader.get_module("quitter") is None
+
+
+def test_failed_update_restores_previous_version(loader):
+    run(loader.install(DEMO, "a"))
+    broken = DEMO.replace("self.loaded = True", "raise RuntimeError('boom')").replace('"hi"', '"hey"')
+    with pytest.raises(LoadError, match="boom"):
+        run(loader.install(broken, "b"))
+    assert loader.get_command("hi").module.loaded and loader.get_command("hey") is None
+    assert loader.installed() == {"demo": "a"}
+
+    bad_init = DEMO.replace("self.loaded = False", "self.loaded = 1 / 0")
+    with pytest.raises(LoadError, match="ZeroDivisionError"):
+        run(loader.install(bad_init, "c"))
+    assert loader.get_command("hi") is not None
+
+
+def test_module_code_errors_are_load_errors(loader):
+    with pytest.raises(LoadError, match="Ошибка в коде модуля: NameError"):
+        run(loader.install("from uroboros import Module\nundefined_name\nclass X(Module):\n    pass\n", "x"))
+    import sys
+
+    assert not [name for name in sys.modules if name.startswith("uroboros.ext.module_")]
+
+
+def test_stems_do_not_collide(loader):
+    run(loader.load_all())
+    weather = "from uroboros import Module\nclass Погода(Module):\n    pass\n"
+    music = "from uroboros import Module\nclass Музыка(Module):\n    pass\n"
+    builtin_like = "from uroboros import Module\nclass Loader_Cmds(Module):\n    pass\n"
+    stems = [run(loader.install(src, "x"))[0]._stem for src in (weather, music, builtin_like)]
+    assert stems == ["module", "module_2", "loader_cmds_2"]
+    assert run(loader.install(weather, "y"))[0]._stem == "module"  # обновление — тот же файл
+    run(loader.uninstall("Loader_Cmds"))
+    assert loader.get_command("dlm") is not None
+
+
+def test_unreadable_module_file_does_not_stop_startup(loader, db, tmp_path):
+    run(loader.install(DEMO, "a"))
+    run(loader.install("from uroboros import Module\nclass Other(Module):\n    pass\n", "b"))
+    (tmp_path / "modules" / "demo.py").write_bytes("# \xff\n".encode("cp1251", errors="ignore") + b"\xff\xfe")
+    fresh = Loader(None, db, tmp_path / "modules")
+    run(fresh.load_all())
+    assert fresh.get_module("other") is not None and fresh.get_module("demo") is None
