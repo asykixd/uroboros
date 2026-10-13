@@ -13,6 +13,7 @@ from .ratelimit import ModuleFrozen, module_context
 log = logging.getLogger(__name__)
 
 LOOP_ATTR = "_uroboros_loop"
+STOP_TIMEOUT = 5  # секунд на остановку задачи при выгрузке модуля
 
 
 class StopLoop(Exception):
@@ -78,9 +79,14 @@ class Loop:
         if task is None:
             return
         task.cancel()
-        if task.get_loop() is not asyncio.get_running_loop():
-            return  # задача из другого (уже закрытого) цикла событий — ждать нечего
-        await asyncio.gather(task, return_exceptions=True)
+        if task.get_loop() is not asyncio.get_running_loop() or task is asyncio.current_task():
+            return  # задача из закрытого цикла событий или выгружает сама себя — ждать нечего
+        await asyncio.wait({task}, timeout=STOP_TIMEOUT)
+        if not task.done():
+            # Тело задачи глотает CancelledError: не даём ему заблокировать выгрузку модуля.
+            log.error(
+                "Фоновая задача %s.%s не остановилась за %d с", self.module_name, self.func.__name__, STOP_TIMEOUT
+            )
 
     async def __call__(self) -> Any:
         """Один вызов вне расписания."""
@@ -97,6 +103,6 @@ class Loop:
                 return
             except ModuleFrozen:
                 pass  # о заморозке уже сообщили; задача продолжит после разморозки
-            except Exception:
+            except (Exception, SystemExit):
                 log.exception("Ошибка в фоновой задаче %s.%s", self.module_name, self.func.__name__)
             await asyncio.sleep(self.interval)
