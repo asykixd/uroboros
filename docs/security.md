@@ -29,7 +29,7 @@ Before `.dlm`, `.lm`, `.uplm` and `.restore`, Uroboros reads the module source a
 - account takeover requests: terminating sessions, deleting the account, changing 2FA or phone, QR login, logout,
   spending stars, transferring gifts;
 - hidden code: `exec`/`eval` of `base64`, `zlib`, `marshal`;
-- Uroboros system settings: access rights, flood protection, inline bot token.
+- Uroboros system settings and protection: access rights, trusted modules, flood protection, inline bot token.
 
 A module with dangerous code isn't installed until you confirm explicitly: the "Install anyway" button or `-f`
 (`.dlm -f`, `.uplm -f`, `.restore -f`). This applies to modules from connected repos too.

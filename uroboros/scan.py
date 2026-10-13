@@ -36,6 +36,7 @@ DANGER_NAMES = {
     "auth_key": "читает ключ авторизации (сессию)",
     "api_hash": "читает api_hash",
     "_uroboros_session": "читает сессию в обход защиты",
+    "set_trusted": "снимает с модулей защиту Uroboros",
 }
 WARNING_NAMES = {
     "GetAuthorizationsRequest": "получает список сеансов аккаунта",
@@ -71,11 +72,14 @@ WARNING_DOTTED = {
 DANGER_DOTTED = {
     "marshal.loads": "исполняет скрытый байткод (marshal)",
     "uroboros.ratelimit": "обходит защиту от флуда",
+    "uroboros.guard": "отключает защиту Uroboros",
 }
 # Части имён: self.loader.security.owner → права доступа Uroboros.
 DANGER_PARTS = {
     "loader.security": "меняет права доступа Uroboros",
     "loader.ratelimit": "обходит защиту от флуда",
+    "loader.guard": "отключает защиту Uroboros",
+    "client._sender": "читает ключ авторизации (сессию)",
     "session.save": "выгружает сессию в строку",
     "StringSession.save": "выгружает сессию в строку",
 }
@@ -86,7 +90,11 @@ WARNING_PARTS = {
 DANGER_STRINGS = [
     (re.compile(r"\.session(-journal)?\b", re.IGNORECASE), "обращается к файлу сессии"),
     (re.compile(r"\buroboros\.db\b"), "читает базу данных Uroboros"),
-    (re.compile(r"^uroboros\.(inline|security)$"), "читает системные настройки Uroboros (токен бота, права доступа)"),
+    (
+        re.compile(r"^uroboros\.(main|loader|inline|security)\b"),
+        "читает системные настройки Uroboros (токен бота, права доступа, доверенные модули)",
+    ),
+    (re.compile(r"^(auth_key|_uroboros_session|_sender)$"), "читает ключ авторизации (сессию)"),
     (re.compile(r"^UROBOROS_(API_ID|API_HASH|BOT_TOKEN)$"), "читает ключи Uroboros из окружения"),
 ]
 WARNING_STRINGS = [

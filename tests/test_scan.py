@@ -43,6 +43,13 @@ def test_safe_module_has_no_findings():
         ("self.loader.security.owner = 1", "права доступа"),
         ("db.get('uroboros.inline', 'token')", "токен бота"),
         ("await client.log_out()", "выходит из аккаунта"),
+        ("self.db.raw.set('uroboros.loader', 'trusted', [])", "доверенные модули"),
+        ("self.db.raw.get('uroboros.main', 'prefix')", "системные настройки"),
+        ("self.loader.guard.set_trusted('x', True)", "снимает с модулей защиту"),
+        ("import uroboros.guard", "отключает защиту"),
+        ("vars(self.client)['_uroboros_session']", "ключ авторизации"),
+        ("getattr(s, 'auth_key')", "ключ авторизации"),
+        ("self.client._sender.auth_key", "ключ авторизации"),
     ],
 )
 def test_dangerous(code, text):
