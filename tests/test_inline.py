@@ -238,6 +238,19 @@ def test_module_api_and_unload(env):
     assert env.bot.answers()[-1] == (STALE, False)
 
 
+def test_callback_data_presses_do_not_pile_up_units(env):
+    asyncio.run(env.loader.install(MODULE, "file:buttons.py"))
+    before = len(env.manager._units)
+    chat = SimpleNamespace(id=OWNER_ID)
+    message = SimpleNamespace(chat=chat, message_id=7, html_text="x")
+    for _ in range(3):
+        query = SimpleNamespace(id="cb", data="demo:1", from_user=user(), inline_message_id=None, message=message)
+        asyncio.run(env.manager._on_callback(query))
+    stranger = SimpleNamespace(id="cb", data="demo:1", from_user=user(999), inline_message_id="im-s", message=None)
+    asyncio.run(env.manager._on_callback(stranger))
+    assert len(env.manager._units) == before + 1 and env.bot.answers()[-1] == (FOREIGN, True)
+
+
 def test_inline_handler_name_conflict(env):
     asyncio.run(env.loader.install(MODULE, "file:buttons.py"))
     other = MODULE.replace("class Buttons", "class Other").replace('"buttons"', '"other"')

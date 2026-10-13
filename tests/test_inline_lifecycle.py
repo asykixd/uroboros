@@ -140,6 +140,42 @@ def test_create_bot(manager, monkeypatch):
     assert manager.client.sent == [("good_bot", "/start")]
 
 
+def test_enable_does_not_start_second_poller(manager):
+    manager.db.set(m.OWNER, "token", "good")
+
+    async def scenario():
+        await manager.start()
+        first = manager._dp
+        await manager.enable()
+        await asyncio.sleep(0)
+        assert manager._dp is not first and first.stopped.is_set() and len(manager.client.handlers) == 1
+        await manager.stop()
+
+    asyncio.run(scenario())
+
+
+def test_failed_replacement_keeps_old_bot(manager, monkeypatch):
+    VALID["noinline"] = SimpleNamespace(id=2, username="noinline_bot", supports_inline_queries=False)
+    manager.db.set(m.OWNER, "token", "good")
+
+    async def refuse(client):
+        raise InlineError("@BotFather ответил неожиданно: Sorry, you can't add more than 20 bots.")
+
+    monkeypatch.setattr(botfather, "create_bot", refuse)
+
+    async def scenario():
+        await manager.start()
+        with pytest.raises(InlineError, match="20 bots"):
+            await manager.create_bot()
+        assert manager.ready and manager.bot_username == "good_bot"
+        with pytest.raises(InlineError, match="inline-режим"):
+            await manager.set_token("noinline")
+        assert manager.ready and manager.db.get(m.OWNER, "token") == "good"
+        await manager.stop()
+
+    asyncio.run(scenario())
+
+
 def test_userbot_deletes_input_marker(manager):
     deleted = []
 

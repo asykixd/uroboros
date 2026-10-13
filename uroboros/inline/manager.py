@@ -144,8 +144,7 @@ class InlineManager:
             raise
 
     async def create_bot(self) -> None:
-        """Создаёт нового бота через @BotFather и запускает его."""
-        await self.stop()
+        """Создаёт нового бота через @BotFather и запускает его. Старый работает, пока новый не готов."""
         token = await botfather.create_bot(self.client)
         self.db.set(OWNER, "token", token)
         self.db.delete(OWNER, "create_failed")
@@ -159,12 +158,11 @@ class InlineManager:
         """Заменяет бота на бота с этим токеном. Неверный токен — InlineError, старый бот продолжает работать."""
         if self.token_from_env:
             raise InlineError(f"Токен задан переменной окружения {TOKEN_ENV}, сначала уберите её")
-        await self._check_token(token)
-        await self.stop()
+        bot, me = await self._prepare(token)
         self.db.set(OWNER, "token", token)
         self.db.delete(OWNER, "disabled")
         self.db.delete(OWNER, "create_failed")
-        await self._run(token)
+        await self._launch(bot, me)
 
     async def disable(self) -> None:
         await self.stop()
@@ -198,6 +196,11 @@ class InlineManager:
             raise TokenRejected("Токен бота недействителен: бот удалён или токен отозван") from None
 
     async def _run(self, token: str) -> None:
+        bot, me = await self._prepare(token)
+        await self._launch(bot, me)
+
+    async def _prepare(self, token: str) -> tuple[Any, Any]:
+        """Проверяет бота и включает ему inline-режим. Ничего не меняет, если бот не годится."""
         bot = self._make_bot(token)
         try:
             me = await self._get_me(bot)
@@ -217,7 +220,10 @@ class InlineManager:
         except BaseException:
             await bot.session.close()
             raise
+        return bot, me
 
+    async def _launch(self, bot: Any, me: Any) -> None:
+        await self.stop()  # иначе два опроса getUpdates одного бота мешают друг другу
         dp = Dispatcher()
         dp.inline_query.register(self._on_inline_query)
         dp.chosen_inline_result.register(self._on_chosen)
@@ -679,28 +685,31 @@ class InlineManager:
         if not handlers:
             await InlineCall(self, Unit(id="", stem=None, text="", buttons=[]), query).answer(STALE)
             return
-        unit = self._unit_for_query(query, handlers[0].module._stem)
-        call = InlineCall(self, unit, query)
         if not self._allowed(None, query.from_user.id):
-            await call.answer(FOREIGN, show_alert=True)
+            await InlineCall(self, Unit(id="", stem=None, text="", buttons=[]), query).answer(FOREIGN, show_alert=True)
             return
+        call = InlineCall(self, self._unit_for_query(query, handlers[0].module._stem), query)
         for handler in handlers:
             await self._guard(call, handler.func(call), f"@callback_handler модуля {handler.module.name}")
         await call.answer()
 
     def _unit_for_query(self, query: Any, stem: str | None) -> Unit:
         """Сообщение, на котором нажата кнопка с ``data``: чтобы ``call.edit`` работал и здесь."""
+        message = getattr(query, "message", None)
+        bot_message = (message.chat.id, message.message_id) if message is not None else None
         for unit in self._units.values():
             if query.inline_message_id and unit.inline_message_id == query.inline_message_id:
                 return unit
-        message = getattr(query, "message", None)
+            if bot_message is not None and unit.bot_message == bot_message:
+                return unit
+        self._prune()
         unit = Unit(
             id=_new_id(),
             stem=stem,
             text=getattr(message, "html_text", None) or "",
             buttons=[],
             inline_message_id=query.inline_message_id,
-            bot_message=(message.chat.id, message.message_id) if message is not None else None,
+            bot_message=bot_message,
         )
         self._units[unit.id] = unit
         return unit
