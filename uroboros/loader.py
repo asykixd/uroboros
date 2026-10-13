@@ -570,7 +570,7 @@ class Loader:
         if report.dangerous and self.guard.restricted(user):
             raise LoadError(
                 f"В библиотеке {url} опасный код: {scan.summary(report.dangerous)}. "
-                f"Если доверяете модулю {user.name}: .security trust {user._stem}"
+                f"Если доверяете модулю {user.name}: .security trust {user.name}"
             )
         obj, modname = await self._load_lib(source, url)
         users = {user._stem}
