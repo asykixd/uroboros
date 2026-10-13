@@ -123,6 +123,34 @@ def test_qr_login(tmp_path):
     asyncio.run(scenario())
 
 
+def test_failed_qr_refresh_backs_off(tmp_path, monkeypatch):
+    monkeypatch.setattr(web, "QR_RETRY", 0.05, raising=False)
+    attempts = []
+
+    class OfflineQR(FakeQR):
+        async def wait(self, timeout=None):
+            raise asyncio.TimeoutError
+
+        async def recreate(self):
+            attempts.append(1)
+            raise ConnectionError("нет сети")
+
+    async def scenario():
+        flow, telegram = make_flow(tmp_path, config(tmp_path))
+
+        async def qr_login():
+            return OfflineQR()
+
+        telegram.qr_login = qr_login
+        await flow.start_qr()
+        await asyncio.sleep(0.12)
+        assert flow.state == "qr" and "нет сети" in flow.error
+        await flow.back()
+
+    asyncio.run(scenario())
+    assert 1 <= len(attempts) <= 4
+
+
 def test_http_requires_token(tmp_path):
     async def scenario():
         flow, _ = make_flow(tmp_path, config(tmp_path))

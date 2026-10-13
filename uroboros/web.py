@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
 QR_REFRESH = 3  # как часто страница с QR-кодом проверяет, отсканирован ли он
+QR_RETRY = 5  # пауза перед новой попыткой, если новый QR-код получить не удалось
 FINISH_DELAY = 1  # успеть отдать страницу «Готово» перед выключением
 
 
@@ -168,6 +169,8 @@ class LoginFlow:
                 await self.qr.wait()
             except asyncio.TimeoutError:
                 await self._step(self.qr.recreate)  # код живёт ~30 с — показываем новый
+                if self.error is not None:
+                    await asyncio.sleep(QR_RETRY)  # без паузы — цикл запросов и трейсбеков в логе
                 continue
             except SessionPasswordNeededError:
                 self.state = "password"
