@@ -60,6 +60,7 @@ A third-party module can't:
 - change Uroboros system settings in the database (`uroboros.*`: access levels, trusted modules, the bot token),
   read the inline bot token or dump the whole database.
 
+This covers the module's top-level code and `__init__` too, and libraries it loads with `self.import_lib`.
 The attempt raises `PermissionError`, nothing happens, and Saved Messages gets a notice naming the module and
 the action.
 

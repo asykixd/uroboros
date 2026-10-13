@@ -141,6 +141,15 @@ def check_core_version(source: str) -> None:
 
 
 @dataclass
+class PendingModule:
+    """Модуль, код которого ещё исполняется при загрузке: для защиты и лимитов это сторонний модуль."""
+
+    name: str
+    _stem: str | None
+    is_builtin: bool = False
+
+
+@dataclass
 class LoadedLib:
     obj: Any  # экземпляр Library или Python-модуль
     modname: str
@@ -284,7 +293,7 @@ class Loader:
         if report.dangerous and not force:
             raise scan.UnsafeModuleError(report)
         installed = self.installed()
-        instances, replaced = await self._load(source, origin=origin)
+        instances, replaced = await self._load(source, origin=origin, trusted=bool(report.dangerous))
         stem = instances[0]._stem
 
         if stem not in installed:
@@ -334,7 +343,9 @@ class Loader:
         origin: str,
         stem: str | None = None,
         filename: str | None = None,
+        trusted: bool = False,
     ) -> tuple[list[Module], set[str]]:
+        """``trusted`` — опасный код модуля подтвердили, его загрузку защита не ограничивает."""
         builtin = origin == "builtin"
         package = None
         if builtin:
@@ -354,19 +365,21 @@ class Loader:
         except SyntaxError as e:
             raise LoadError(f"Синтаксическая ошибка: {e}") from e
 
-        pymod = await self._exec(code, modname, source, package)
-        if package is not None:
-            meta = {**hikka.module_meta(pymod), **meta}
-        classes = [
-            obj
-            for obj in vars(pymod).values()
-            if isinstance(obj, type) and issubclass(obj, Module) and obj is not Module and obj.__module__ == modname
-        ]
-        if not classes:
-            sys.modules.pop(modname, None)
-            raise LoadError("В файле нет ни одного класса-наследника Module")
-
-        instances = [cls() for cls in classes]
+        trusted = builtin or trusted or (stem is not None and stem in self.guard.trusted())
+        # Код модуля на верхнем уровне и в __init__ ограничен так же, как его команды.
+        with module_context(None if trusted else PendingModule(stem or modname.rsplit(".", 1)[-1], stem)):
+            pymod = await self._exec(code, modname, source, package)
+            if package is not None:
+                meta = {**hikka.module_meta(pymod), **meta}
+            classes = [
+                obj
+                for obj in vars(pymod).values()
+                if isinstance(obj, type) and issubclass(obj, Module) and obj is not Module and obj.__module__ == modname
+            ]
+            if not classes:
+                sys.modules.pop(modname, None)
+                raise LoadError("В файле нет ни одного класса-наследника Module")
+            instances = [cls() for cls in classes]
         stem = stem or make_stem(instances[0].name)
 
         # Какие уже загруженные файлы заменяются этим.

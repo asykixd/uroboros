@@ -147,3 +147,19 @@ def test_module_cannot_touch_system_settings(env):
     loader.guard.set_trusted("demo", True)
     with module_context(module):
         module.db.raw.set("uroboros.security", "owner", [42])
+
+
+def test_module_top_level_code_is_restricted(env):
+    loader, data_dir, blocked = env
+    source = MODULE.replace("class Demo", f"open({str(data_dir / 'config.json')!r})\n\nclass Demo")
+    with pytest.raises(guard.ModuleBlocked, match=r"config\.json"):
+        asyncio.run(loader.load_source(source, origin="https://example.com/demo.py", stem="demo"))
+    assert blocked[-1][0] == "demo"
+
+    opener = f"    def __init__(self):\n        open({str(data_dir / 'config.json')!r})\n"
+    init = MODULE.replace("class Demo(Module):\n", "class Demo(Module):\n" + opener)
+    with pytest.raises(guard.ModuleBlocked):
+        asyncio.run(loader.load_source(init, origin="https://example.com/demo.py", stem="demo"))
+
+    loader.guard.set_trusted("demo", True)
+    asyncio.run(loader.load_source(source, origin="https://example.com/demo.py", stem="demo"))
