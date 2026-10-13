@@ -80,9 +80,11 @@ def notify_blocked(client, name: str, action: str) -> None:
         except Exception:
             log.exception("Не удалось сообщить о блокировке модуля %s", name)
 
-    # Блокировка вне цикла событий (например, в потоке) — хватит записи в логе.
-    with contextlib.suppress(RuntimeError):
-        _spawn(send())
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return  # блокировка вне цикла событий (например, в потоке) — хватит записи в логе
+    _spawn(send())
 
 
 async def shutdown(loader: Loader) -> None:

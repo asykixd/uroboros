@@ -63,3 +63,47 @@ def test_cli_without_terminal_explains_how_to_log_in(monkeypatch):
     monkeypatch.setattr(main.sys, "stdin", SimpleNamespace(isatty=lambda: False))
     with pytest.raises(SystemExit, match="Войдите один раз вручную"):
         connect(monkeypatch, ["--cli"], CONFIG, authorized=False)
+
+
+class Saved:
+    def __init__(self, fail=False):
+        self.sent = []
+        self.fail = fail
+
+    async def send_message(self, chat, text, **kwargs):
+        if self.fail:
+            raise ConnectionError("offline")
+        self.sent.append((chat, text))
+
+
+def test_notifications_go_to_saved_messages(caplog):
+    async def scenario(client):
+        main.notify_frozen(client, "Spam<b>", {"limit": 60, "window": 30, "freeze": 300})
+        main.notify_blocked(client, "Evil", "удалить аккаунт")
+        await asyncio.sleep(0)
+
+    client = Saved()
+    asyncio.run(scenario(client))
+    (frozen, blocked) = client.sent
+    assert frozen[0] == "me" and "Spam&lt;b&gt;" in frozen[1] and "60" in frozen[1]
+    assert "удалить аккаунт" in blocked[1] and "security trust Evil" in blocked[1]
+
+    asyncio.run(scenario(Saved(fail=True)))
+    assert "Не удалось сообщить" in caplog.text
+    main.notify_blocked(Saved(), "Evil", "x")  # вне цикла событий — только лог
+
+
+def test_shutdown_does_not_hang_on_stuck_module(monkeypatch, caplog):
+    monkeypatch.setattr(main, "UNLOAD_TIMEOUT", 0.01)
+
+    class Stuck:
+        async def unload_all(self):
+            await asyncio.sleep(10)
+
+    class Broken:
+        async def unload_all(self):
+            raise RuntimeError("boom")
+
+    asyncio.run(main.shutdown(Stuck()))
+    asyncio.run(main.shutdown(Broken()))
+    assert "не выгрузились" in caplog.text and "Ошибка при выгрузке" in caplog.text
