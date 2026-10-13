@@ -120,3 +120,30 @@ def test_security_trust_command(builtin_loader):
     message = FakeMessage(".security untrust demo")
     asyncio.run(run(message))
     assert "снова под защитой" in message.edits[-1] and loader.guard.trusted() == set()
+
+
+def test_module_cannot_touch_system_settings(env):
+    loader, _, blocked = env
+    module = loader.get_module("demo")
+    loader.db.set("uroboros.inline", "token", "123:abc")
+    with module_context(module):
+        module.db.set("own", 1)
+        assert module.db.raw.get("uroboros.main", "prefix", ".") == "."
+        with pytest.raises(guard.ModuleBlocked, match="системные настройки"):
+            module.db.raw.set("uroboros." + "security", "owner", [42])
+        with pytest.raises(guard.ModuleBlocked):
+            loader.guard.set_trusted("demo", True)
+        with pytest.raises(guard.ModuleBlocked):
+            module.db.raw.delete("uroboros.loader", "hashes")
+        with pytest.raises(guard.ModuleBlocked, match="токен"):
+            module.db.raw.get("uroboros.inline", "token")
+        with pytest.raises(guard.ModuleBlocked):
+            module.db.raw.dump()
+        with pytest.raises(guard.ModuleBlocked):
+            module.db.raw.replace_all({})
+    assert loader.db.get("uroboros.security", "owner") is None and loader.guard.trusted() == set()
+    assert module.db.get("own") == 1 and len(blocked) == 6
+
+    loader.guard.set_trusted("demo", True)
+    with module_context(module):
+        module.db.raw.set("uroboros.security", "owner", [42])

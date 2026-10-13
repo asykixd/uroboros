@@ -56,7 +56,9 @@ A third-party module can't:
 
 - read `self.client.session`;
 - open, delete or rename the session, `config.json` or `uroboros.db`, or pass them to shell commands;
-- send requests that hijack the account or spend money (the same ones the install scan looks for).
+- send requests that hijack the account or spend money (the same ones the install scan looks for);
+- change Uroboros system settings in the database (`uroboros.*`: access levels, trusted modules, the bot token),
+  read the inline bot token or dump the whole database.
 
 The attempt raises `PermissionError`, nothing happens, and Saved Messages gets a notice naming the module and
 the action.

@@ -9,6 +9,8 @@
 - запросы к Telegram (``UroborosClient.__call__``): завершение сеансов, удаление аккаунта, смена пароля 2FA
   и номера, вход по QR, выход из аккаунта, траты звёзд и подарков;
 - ``client.session`` (``UroborosClient.session``): читать сессию из кода стороннего модуля нельзя;
+- БД (``Database``): менять системные настройки (``uroboros.*``: права доступа, доверенные модули, токен бота)
+  и читать токен inline-бота;
 - файлы (audit hook Python): открыть, удалить, переименовать сессию, ``config.json`` и ``uroboros.db``,
   передать их пути в команду системы.
 """
@@ -61,6 +63,7 @@ FILE_EVENTS = {
     "sqlite3.connect": 1,
 }
 PROCESS_EVENTS = {"os.system", "subprocess.Popen", "os.exec", "os.posix_spawn", "os.spawn"}
+SECRET_KEYS = {("uroboros.inline", "token")}
 MODULE_PACKAGES = ("uroboros.ext.", "uroboros.lib.", "uroboros.hikka.modules.")
 
 _active: Guard | None = None
@@ -77,6 +80,7 @@ class Guard:
         self.data_dir = Path(os.path.realpath(data_dir))
         self.secrets = tuple(str(self.data_dir / name) for name in SECRET_FILES)
         self.on_block = None  # функция(имя модуля, что пытался сделать): уведомить пользователя
+        loader.db._check = self.check_db
 
     # --- доверенные модули ---
 
@@ -111,6 +115,19 @@ class Guard:
             action = BLOCKED_REQUESTS.get(type(item).__name__)
             if action:
                 raise self.block(module.name, action)
+
+    # --- БД ---
+
+    def check_db(self, action: str, owner: str, key: str | None) -> None:
+        """``key`` None — вся БД сразу (``dump``, ``replace_all``)."""
+        if action == "get" and key is not None and (owner, key) not in SECRET_KEYS:
+            return
+        module = current_module.get()
+        if not self.restricted(module):
+            return
+        if action == "get":
+            raise self.block(module.name, "читать токен inline-бота и всю базу данных")
+        raise self.block(module.name, f"менять системные настройки Uroboros ({owner.rstrip('.')})")
 
     # --- сессия ---
 

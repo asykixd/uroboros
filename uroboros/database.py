@@ -9,11 +9,13 @@ from __future__ import annotations
 import copy
 import json
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 MAIN_OWNER = "uroboros.main"
 LOADER_OWNER = "uroboros.loader"
+SYSTEM_PREFIX = "uroboros."
 
 
 class Database:
@@ -27,18 +29,24 @@ class Database:
             " PRIMARY KEY (owner, key))"
         )
         self._conn.commit()
+        # Guard: функция(действие, владелец, ключ), которая не даёт сторонним модулям трогать системные настройки.
+        self._check: Callable[[str, str, str | None], None] | None = None
         self._cache: dict[tuple[str, str], Any] = {
             (owner, key): json.loads(value)
             for owner, key, value in self._conn.execute("SELECT owner, key, value FROM kv")
         }
 
     def get(self, owner: str, key: str, default: Any = None) -> Any:
+        if self._check is not None and owner.startswith(SYSTEM_PREFIX):
+            self._check("get", owner, key)
         try:
             return copy.deepcopy(self._cache[(owner, key)])
         except KeyError:
             return default
 
     def set(self, owner: str, key: str, value: Any) -> None:
+        if self._check is not None and owner.startswith(SYSTEM_PREFIX):
+            self._check("set", owner, key)
         data = json.dumps(value, ensure_ascii=False)
         self._conn.execute(
             "INSERT OR REPLACE INTO kv (owner, key, value) VALUES (?, ?, ?)",
@@ -49,12 +57,16 @@ class Database:
         self._cache[(owner, key)] = json.loads(data)
 
     def delete(self, owner: str, key: str) -> None:
+        if self._check is not None and owner.startswith(SYSTEM_PREFIX):
+            self._check("set", owner, key)
         self._conn.execute("DELETE FROM kv WHERE owner = ? AND key = ?", (owner, key))
         self._conn.commit()
         self._cache.pop((owner, key), None)
 
     def dump(self) -> dict[str, dict[str, Any]]:
         """Всё содержимое: владелец → ключ → значение."""
+        if self._check is not None:
+            self._check("get", SYSTEM_PREFIX, None)
         result: dict[str, dict[str, Any]] = {}
         for (owner, key), value in self._cache.items():
             result.setdefault(owner, {})[key] = copy.deepcopy(value)
@@ -62,6 +74,8 @@ class Database:
 
     def replace_all(self, data: dict[str, dict[str, Any]]) -> None:
         """Заменяет всё содержимое одной транзакцией."""
+        if self._check is not None:
+            self._check("set", SYSTEM_PREFIX, None)
         rows = [
             (owner, key, json.dumps(value, ensure_ascii=False))
             for owner, keys in data.items()

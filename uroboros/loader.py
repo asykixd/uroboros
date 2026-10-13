@@ -528,7 +528,8 @@ class Loader:
         self.libs_dir.mkdir(parents=True, exist_ok=True)
         path.write_bytes(source.encode("utf-8"))
         cache[url] = path.name
-        self.db.set(LOADER_OWNER, "libs", cache)
+        with module_context(None):  # служебная запись ядра, хотя библиотеку подключает модуль
+            self.db.set(LOADER_OWNER, "libs", cache)
         return source
 
     async def _load_lib(self, source: str, url: str) -> tuple[Any, str]:
