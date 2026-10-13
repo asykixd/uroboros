@@ -36,7 +36,7 @@ class Backup(Module):
         )
 
     async def _send(self, chat, title):
-        data = await asyncio.to_thread(backup.create, self.db.raw, self.loader.modules_dir)
+        data = await asyncio.to_thread(backup.create, self.db.raw, self.loader.modules_dir, self.loader.security.me_id)
         file = io.BytesIO(data)
         file.name = backup.file_name()
         prefix = utils.get_prefix(self.db.raw)
@@ -45,7 +45,7 @@ class Backup(Module):
             file,
             caption=utils.card(
                 f"💾 <b>{title}</b>",
-                ["🗄 База данных и модули", "🔒 Без сессии и ключей"],
+                ["🗄 База данных и модули", "🔒 Без сессии и config.json", "⚠️ Внутри токен inline-бота: не пересылайте"],
                 hint=f"восстановить: ответьте на файл <code>{utils.escape_html(prefix)}restore</code>",
             ),
             parse_mode="html",
@@ -73,7 +73,7 @@ class Backup(Module):
 
     @command("restore", access="owner", emoji="♻️")
     async def restore_cmd(self, message):
-        """[-f] (ответом на бэкап) — восстановить БД и модули и перезапуститься; -f — и с опасным кодом"""
+        """[-f] (ответом на бэкап) — восстановить БД и модули и перезапуститься; -f — чужой бэкап или опасный код"""
         force = utils.get_args_raw(message).strip() == "-f"
         reply = await message.get_reply_message()
         if not reply or not reply.file:
@@ -86,22 +86,29 @@ class Backup(Module):
         await utils.answer(message, "⏳ <b>Восстанавливаю бэкап...</b>")
         data = await reply.download_media(bytes)
         # Разбор архива — в потоке, запись — здесь: соединение SQLite привязано к основному потоку.
-        dump, modules = await asyncio.to_thread(backup.parse, data)
-        reports = {stem: scan.scan(source) for stem, source in modules.items()}
+        archive = await asyncio.to_thread(backup.parse, data)
+        reports = {stem: scan.scan(source) for stem, source in archive.modules.items()}
         dangerous = {stem: report for stem, report in reports.items() if report.dangerous}
-        if dangerous and not force:
-            lines = [
+        foreign = archive.is_foreign(self.loader.security.me_id)
+        if (dangerous or foreign) and not force:
+            lines = []
+            if foreign:
+                source = f"аккаунта <code>{archive.owner}</code>" if archive.owner else "неизвестного аккаунта"
+                lines += [f"👤 Бэкап с {source}, а не с вашего", "🔐 Права доступа и inline-бот останутся ваши"]
+            lines += [
                 f"🧩 <b>{utils.escape_html(stem)}</b>: {scan.summary(r.dangerous)}" for stem, r in dangerous.items()
             ]
+            title = (
+                "🚨 <b>Бэкап не восстановлен: в модулях опасный код</b>" if dangerous else "⚠️ <b>Это чужой бэкап</b>"
+            )
             hint = utils.escape_html(utils.get_prefix(self.db.raw) + "restore -f")
             await utils.answer(
                 message,
-                "🚨 <b>Бэкап не восстановлен: в модулях опасный код</b>\n"
-                + utils.quote("\n".join(lines))
-                + f"\n💡 <i>Если доверяете этим модулям, ответьте на файл <code>{hint}</code></i>",
+                utils.card(title, lines, hint=f"если доверяете бэкапу, ответьте на файл <code>{hint}</code>"),
             )
             return
-        restored = backup.apply(dump, modules, self.db.raw, self.loader.modules_dir)
+        dump = backup.keep_account_settings(archive.dump, self.db.raw) if foreign else archive.dump
+        restored = backup.apply(dump, archive.modules, self.db.raw, self.loader.modules_dir)
         names = ", ".join(restored.modules) or "нет"
         notes = [
             f"🧩 <b>{utils.escape_html(stem)}</b>: {scan.summary(report.findings)}"

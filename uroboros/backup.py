@@ -1,6 +1,7 @@
 """Бэкап и восстановление: БД (в JSON) и исходники установленных модулей одним zip-архивом.
 
-Сессия и ``config.json`` в архив не попадают: это доступ к аккаунту.
+Сессия и ``config.json`` в архив не попадают: это доступ к аккаунту. В манифесте — id аккаунта, с которого
+сделан бэкап: чужой бэкап восстанавливается только после подтверждения и без чужих прав доступа и бота.
 """
 
 from __future__ import annotations
@@ -23,10 +24,23 @@ DB_FILE = "db.json"
 MAX_ARCHIVE = 50 * 1024 * 1024
 MAX_MODULE = 2 * 1024 * 1024
 _MODULE_RE = re.compile(r"^modules/([a-z0-9_]+)\.py$")
+# Из чужого бэкапа не берутся: кто управляет ботом, какие модули без защиты и чей inline-бот.
+ACCOUNT_OWNERS = ("uroboros.security", "uroboros.inline")
+ACCOUNT_KEYS = ((LOADER_OWNER, "trusted"),)
 
 
 class BackupError(LoadError):
     """Архив повреждён или не похож на бэкап Uroboros."""
+
+
+@dataclass
+class Archive:
+    dump: dict[str, dict[str, Any]]
+    modules: dict[str, str]  # stem → исходник
+    owner: int | None  # id аккаунта, с которого сделан бэкап; None — бэкап старой версии
+
+    def is_foreign(self, me_id: int | None) -> bool:
+        return self.owner is None or self.owner != me_id
 
 
 @dataclass
@@ -35,10 +49,11 @@ class Restored:
     modules: list[str]
 
 
-def create(db: Database, modules_dir: Path) -> bytes:
+def create(db: Database, modules_dir: Path, owner: int | None = None) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(MANIFEST, json.dumps({"uroboros": __version__, "created": int(time.time())}))
+        manifest = {"uroboros": __version__, "created": int(time.time()), "owner": owner}
+        archive.writestr(MANIFEST, json.dumps(manifest))
         archive.writestr(DB_FILE, json.dumps(db.dump(), ensure_ascii=False, indent=1))
         installed = db.get(LOADER_OWNER, "installed", {})
         for stem in sorted(installed):
@@ -63,8 +78,8 @@ def _read(archive: zipfile.ZipFile, info: zipfile.ZipInfo, limit: int) -> bytes:
     return data
 
 
-def parse(data: bytes) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-    """Проверяет архив целиком, ничего не записывая. Возвращает (БД, {stem: исходник})."""
+def parse(data: bytes) -> Archive:
+    """Проверяет архив целиком, ничего не записывая."""
     if len(data) > MAX_ARCHIVE:
         raise BackupError("Архив больше 50 МБ")
     try:
@@ -95,7 +110,7 @@ def parse(data: bytes) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
             raise BackupError("Распакованный архив больше 50 МБ")
 
         try:
-            json.loads(_read(archive, names[MANIFEST], 4096))
+            manifest = json.loads(_read(archive, names[MANIFEST], 4096))
             dump = json.loads(_read(archive, names[DB_FILE], MAX_ARCHIVE))
         except (ValueError, UnicodeDecodeError):
             raise BackupError("Повреждён manifest.json или db.json") from None
@@ -111,21 +126,39 @@ def parse(data: bytes) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     missing = set(installed) - set(modules)
     if missing:
         raise BackupError(f"В архиве нет файлов модулей: {', '.join(sorted(missing))}")
-    return dump, modules
+    owner = manifest.get("owner") if isinstance(manifest, dict) else None
+    return Archive(dump, modules, owner if isinstance(owner, int) and not isinstance(owner, bool) else None)
+
+
+def keep_account_settings(dump: dict[str, dict[str, Any]], db: Database) -> dict[str, dict[str, Any]]:
+    """Копия ``dump``, в которой права доступа, доверенные модули и inline-бот — из текущей БД."""
+    result = {owner: dict(keys) for owner, keys in dump.items() if owner not in ACCOUNT_OWNERS}
+    for owner in ACCOUNT_OWNERS:
+        current = {key: db.get(owner, key) for key in db.keys(owner)}
+        if current:
+            result[owner] = current
+    for owner, key in ACCOUNT_KEYS:
+        result.get(owner, {}).pop(key, None)
+        value = db.get(owner, key)
+        if value is not None:
+            result.setdefault(owner, {})[key] = value
+    return result
 
 
 def restore(data: bytes, db: Database, modules_dir: Path) -> Restored:
     """Заменяет БД и модули содержимым архива. Модули подхватятся после перезапуска."""
-    dump, modules = parse(data)
-    return apply(dump, modules, db, modules_dir)
+    archive = parse(data)
+    return apply(archive.dump, archive.modules, db, modules_dir)
 
 
 def apply(dump: dict[str, dict[str, Any]], modules: dict[str, str], db: Database, modules_dir: Path) -> Restored:
     """Записывает уже проверенный архив. Вызывать из потока, где открыта БД (SQLite к нему привязан).
 
-    Сначала БД: если она не запишется, файлы модулей останутся нетронутыми.
+    Сначала БД: если она не запишется, файлы модулей останутся нетронутыми. После записи БД заморожена
+    до перезапуска, чтобы ещё работающие модули не затёрли восстановленные значения.
     """
     db.replace_all(dump)
+    db.freeze()
     modules_dir.mkdir(parents=True, exist_ok=True)
     for path in modules_dir.glob("*.py"):
         if path.stem not in modules:

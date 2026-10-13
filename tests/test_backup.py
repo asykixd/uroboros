@@ -9,6 +9,7 @@ from conftest import FakeMessage
 from uroboros import backup
 from uroboros.database import LOADER_OWNER, MAIN_OWNER, Database
 from uroboros.loader import Loader
+from uroboros.security import SECURITY_OWNER
 from uroboros.validators import ValidationError
 
 MODULE = "from uroboros import Module\nclass Demo(Module):\n    pass\n"
@@ -81,11 +82,7 @@ def test_not_a_zip(db, tmp_path):
         backup.restore(b"hello", db, tmp_path)
 
 
-def test_restore_command_writes_db_in_main_thread(builtin_loader):
-    loader = builtin_loader
-    asyncio.run(loader.install(MODULE, "https://example.com/demo.py"))
-    data = backup.create(loader.db, loader.modules_dir)
-
+def run_restore(loader, data, text=".restore"):
     class Reply:
         class file:
             size = len(data)
@@ -93,7 +90,7 @@ def test_restore_command_writes_db_in_main_thread(builtin_loader):
         async def download_media(self, _):
             return data
 
-    message = FakeMessage(".restore")
+    message = FakeMessage(text)
 
     async def get_reply_message():
         return Reply()
@@ -106,8 +103,58 @@ def test_restore_command_writes_db_in_main_thread(builtin_loader):
 
     loader.get_module("System").restart = fake_restart
     asyncio.run(loader.get_command("restore").func(message))
+    return message, restarted
+
+
+def test_restore_command_writes_db_in_main_thread(builtin_loader):
+    loader = builtin_loader
+    loader.security.me_id = 1
+    asyncio.run(loader.install(MODULE, "https://example.com/demo.py"))
+    data = backup.create(loader.db, loader.modules_dir, owner=1)
+    message, restarted = run_restore(loader, data)
     assert message.edits[-1].startswith("✅")
     assert restarted == [message]
+
+
+def test_foreign_backup_needs_confirmation_and_keeps_account_settings(builtin_loader, tmp_path):
+    loader = builtin_loader
+    loader.security.me_id = 1
+    loader.db.set(SECURITY_OWNER, "sudo", [5])
+    loader.db.set("uroboros.inline", "token", "1:mine")
+
+    other = Database(":memory:")
+    other.set(SECURITY_OWNER, "owner", [666])
+    other.set("uroboros.inline", "token", "2:theirs")
+    other.set(LOADER_OWNER, "trusted", ["evil"])
+    other.set(MAIN_OWNER, "prefix", "!")
+    data = backup.create(other, tmp_path / "none", owner=2)
+    other.close()
+
+    message, restarted = run_restore(loader, data)
+    assert "чужой бэкап" in message.edits[-1] and "<code>2</code>" in message.edits[-1] and not restarted
+    assert loader.db.get(MAIN_OWNER, "prefix") is None
+
+    message, restarted = run_restore(loader, data, ".restore -f")
+    assert message.edits[-1].startswith("✅") and restarted
+    assert loader.db.get(MAIN_OWNER, "prefix") == "!"
+    assert loader.db.get(SECURITY_OWNER, "owner") is None and loader.db.get(SECURITY_OWNER, "sudo") == [5]
+    assert loader.db.get("uroboros.inline", "token") == "1:mine"
+    assert "evil" not in loader.db.get(LOADER_OWNER, "trusted", [])
+
+
+def test_backup_without_owner_is_foreign():
+    assert backup.Archive({}, {}, None).is_foreign(1)
+    assert not backup.Archive({}, {}, 1).is_foreign(1)
+
+
+def test_restored_db_ignores_writes_until_restart(db, tmp_path):
+    data = backup.create(db, tmp_path / "modules")
+    target = Database(":memory:")
+    backup.restore(data, target, tmp_path / "dst")
+    target.set("Backup", "last_auto", 1)
+    target.delete(MAIN_OWNER, "prefix")
+    assert target.get("Backup", "last_auto") is None
+    target.close()
 
 
 def test_autobackup_schedule(builtin_loader):

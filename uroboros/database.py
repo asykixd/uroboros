@@ -31,6 +31,7 @@ class Database:
         self._conn.commit()
         # Guard: функция(действие, владелец, ключ), которая не даёт сторонним модулям трогать системные настройки.
         self._check: Callable[[str, str, str | None], None] | None = None
+        self._frozen = False
         self._cache: dict[tuple[str, str], Any] = {
             (owner, key): json.loads(value)
             for owner, key, value in self._conn.execute("SELECT owner, key, value FROM kv")
@@ -47,6 +48,8 @@ class Database:
     def set(self, owner: str, key: str, value: Any) -> None:
         if self._check is not None and owner.startswith(SYSTEM_PREFIX):
             self._check("set", owner, key)
+        if self._frozen:
+            return
         data = json.dumps(value, ensure_ascii=False)
         self._conn.execute(
             "INSERT OR REPLACE INTO kv (owner, key, value) VALUES (?, ?, ?)",
@@ -59,6 +62,8 @@ class Database:
     def delete(self, owner: str, key: str) -> None:
         if self._check is not None and owner.startswith(SYSTEM_PREFIX):
             self._check("set", owner, key)
+        if self._frozen:
+            return
         self._conn.execute("DELETE FROM kv WHERE owner = ? AND key = ?", (owner, key))
         self._conn.commit()
         self._cache.pop((owner, key), None)
@@ -85,6 +90,10 @@ class Database:
             self._conn.execute("DELETE FROM kv")
             self._conn.executemany("INSERT INTO kv (owner, key, value) VALUES (?, ?, ?)", rows)
         self._cache = {(owner, key): json.loads(value) for owner, key, value in rows}
+
+    def freeze(self) -> None:
+        """Дальше запись молча игнорируется: БД восстановлена из бэкапа и ждёт перезапуска."""
+        self._frozen = True
 
     def keys(self, owner: str) -> list[str]:
         return [key for o, key in self._cache if o == owner]
