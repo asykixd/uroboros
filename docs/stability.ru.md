@@ -20,7 +20,7 @@
   хуки `on_load`, `on_unload`, `on_dlmod`;
 - `self.inline`: `form`, `list`, `gallery`, `markup`, `available`, `bot`; `InlineCall`, `InlineMessage`, `InlineQuery`;
 - параметры декораторов и формат кнопок;
-- шапка файла: `# meta`, `# requires`, `# requires_uroboros`.
+- шапка файла: `# meta`, `# requires`, `# requires_uroboros`, `# requires_module`.
 
 Не входят: внутренности загрузчика, диспетчера и inline-менеджера (`self.loader.*` кроме списка модулей и команд),
 модуль `uroboros.hikka` (адаптер следует за Hikka, а не за semver), всё, что начинается с `_`.

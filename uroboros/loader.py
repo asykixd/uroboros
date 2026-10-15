@@ -49,6 +49,7 @@ BUILTIN_DIR = Path(__file__).parent / "modules"
 REQUIRES_RE = re.compile(r"^\s*#\s*requires:\s*(.+)$", re.MULTILINE)
 META_RE = re.compile(r"^\s*#\s*meta\s+(\w+)\s*:\s*(.+?)\s*$", re.MULTILINE)
 REQUIRES_CORE_RE = re.compile(r"^\s*#\s*requires_uroboros\s*:\s*(?:>=)?\s*(\S+)\s*$", re.MULTILINE)
+REQUIRES_MODULE_RE = re.compile(r"^\s*#\s*requires_module\s*:\s*(.+)$", re.MULTILINE)
 
 Handler = Callable[[Any], Awaitable[Any]]
 
@@ -139,6 +140,34 @@ def check_core_version(source: str) -> None:
         raise LoadError(f"Непонятная версия в requires_uroboros: {match[1]}") from None
     if version_tuple(__version__) < required:
         raise LoadError(f"Модулю нужен Uroboros {match[1]} или новее, установлен {__version__}. Обновитесь: .update")
+
+
+def parse_requires_modules(source: str) -> list[str]:
+    """``# requires_module: owner/repo/name`` (or a URL) → download URLs of the modules this one needs."""
+    urls = []
+    for spec in (spec for match in REQUIRES_MODULE_RE.findall(source) for spec in match.split()):
+        url = github.to_raw_url(spec) or (spec if spec.startswith("https://") else None)
+        if url is None:
+            raise LoadError(f"В # requires_module: нужна ссылка или owner/repo/модуль, а не: {spec}")
+        if url not in urls:
+            urls.append(url)
+    return urls
+
+
+def same_module_url(a: str, b: str) -> bool:
+    """Same file, ignoring the GitHub branch or commit: ``.../o/r/HEAD/m.py`` is ``.../o/r/<sha>/m.py``."""
+    if a == b:
+        return True
+    raw_a, raw_b = github.split_raw(a), github.split_raw(b)
+    return raw_a is not None and raw_b is not None and (raw_a[0].lower(), raw_a[2]) == (raw_b[0].lower(), raw_b[2])
+
+
+class MissingModulesError(LoadError):
+    """The module needs other modules that aren't installed: install them first (``.dlm`` does it itself)."""
+
+    def __init__(self, urls: list[str]):
+        self.urls = urls
+        super().__init__(f"Модулю нужны другие модули, сначала установите их: {', '.join(urls)}")
 
 
 @dataclass
@@ -303,10 +332,14 @@ class Loader:
 
         Модуль с опасным кодом (``scan``) ставится только с ``force=True`` — после явного подтверждения.
         ``origin`` — откуда брать обновления, ``pin`` — ссылка на ту же версию в конкретном коммите (GitHub).
+        Модули из ``# requires_module:`` должны быть уже установлены, иначе ``MissingModulesError``.
         """
         report = scan.scan(source)
         if report.dangerous and not force:
             raise scan.UnsafeModuleError(report)
+        missing = self.missing_modules(source)
+        if missing:
+            raise MissingModulesError(missing)
         installed = self.installed()
         instances, replaced = await self._load(source, origin=origin, trusted=bool(report.dangerous))
         stem = instances[0]._stem
@@ -347,6 +380,11 @@ class Loader:
         # Опасный код пользователь видел и подтвердил — защита во время работы этот модуль не ограничивает.
         self.guard.set_trusted(stem, bool(report.dangerous))
         return instances
+
+    def missing_modules(self, source: str) -> list[str]:
+        """URLs from ``# requires_module:`` that no installed module was downloaded from."""
+        origins = [*self.installed().values(), *self.pins().values()]
+        return [url for url in parse_requires_modules(source) if not any(same_module_url(url, o) for o in origins)]
 
     def pins(self) -> dict[str, str]:
         """Сторонние модули с GitHub: stem → ссылка на установленную версию в конкретном коммите."""

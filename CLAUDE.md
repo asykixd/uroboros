@@ -47,6 +47,8 @@ disconnects; `main()` unloads modules after the loop and calls `os.execv`. On Wi
 - Order in `_load` matters: conflict checks (can't replace a built-in, can't take another module's command), unload
   replaced stems, register, `on_load`. If `on_load` fails the whole stem rolls back.
 - `# requires:` → `pip install` only on `ImportError`, one attempt.
+- `# requires_module:` → `Loader.install` raises `MissingModulesError` until those modules are installed;
+  `.dlm`/`.lm` (`resolve_deps` in `loader_cmds.py`) download them first, same scan/confirmation, cycles rejected.
 - The header is parsed before `exec`: `# meta key: value` → `inst._meta`; `# requires_uroboros: X` checks the core
   version.
 - `LoadError` (`errors.py`, re-exported from `loader`) is shown to the user without a traceback. Downloads:

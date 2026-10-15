@@ -21,7 +21,7 @@ What modules can rely on:
 - `self.inline`: `form`, `list`, `gallery`, `markup`, `available`, `bot`; `InlineCall`, `InlineMessage`,
   `InlineQuery`;
 - decorator parameters and button format;
-- file header: `# meta`, `# requires`, `# requires_uroboros`.
+- file header: `# meta`, `# requires`, `# requires_uroboros`, `# requires_module`.
 
 Not included: loader, dispatcher and inline manager internals (`self.loader.*` beyond module and command lists),
 `uroboros.hikka` (the adapter follows Hikka, not semver), anything starting with `_`.

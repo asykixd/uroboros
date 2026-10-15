@@ -35,6 +35,7 @@ Comments at the top of the file are read before the code runs:
 # meta permissions: network, files
 # requires_uroboros: 0.2
 # requires: requests pillow
+# requires_module: owner/repo/base
 ```
 
 | Line | Effect |
@@ -43,6 +44,7 @@ Comments at the top of the file are read before the code runs:
 | `# meta permissions: network, files` | what the module needs: `network`, `files`, `env` (environment variables), `processes` (shell commands), `exec` (executing code from strings), or `none`. Shown before install; undeclared usage triggers a warning |
 | `# requires_uroboros: 0.2` | minimum core version. On older versions the module won't load and the user is told to update |
 | `# requires: package ...` | pip packages, installed only if an import fails, one attempt |
+| `# requires_module: owner/repo/name ...` | other modules this one needs (`owner/repo/path` or an https URL). `.dlm` and `.lm` download the missing ones and install them first, with the same scan and confirmation rules; a cycle is an error. Matching ignores the GitHub branch or commit |
 
 ## Lifecycle
 

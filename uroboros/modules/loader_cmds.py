@@ -1,11 +1,11 @@
 import asyncio
 import difflib
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from uroboros import Module, command, download, github, scan, utils
 from uroboros.errors import InlineError
-from uroboros.loader import LoadError
+from uroboros.loader import LoadError, same_module_url
 
 MAX_SIZE = download.MAX_SIZE
 SEARCH_CACHE = 600
@@ -24,6 +24,32 @@ class Candidate:
     origin: str  # откуда брать обновления
     pin: str | None  # та же версия в конкретном коммите (GitHub)
     report: scan.Report
+    deps: list["Candidate"] = field(default_factory=list)  # из # requires_module:, сначала самые глубокие
+
+    @property
+    def everything(self):
+        """Зависимости и сам модуль — в порядке установки."""
+        return [*self.deps, self]
+
+
+async def resolve_deps(loader, candidate):
+    """Скачивает неустановленные модули из ``# requires_module:`` (и их зависимости); цикл — ошибка."""
+    ordered, seen = [], []
+
+    async def visit(current, path):
+        for url in loader.missing_modules(current.source):
+            if any(same_module_url(url, step) for step in path):
+                raise LoadError(f"Циклическая зависимость модулей: {' → '.join([*path, url])}")
+            if any(same_module_url(url, done) for done in seen):
+                continue
+            seen.append(url)
+            dep = await fetch_candidate(url)
+            await visit(dep, [*path, url])
+            ordered.append(dep)
+
+    await visit(candidate, [candidate.origin])
+    candidate.deps = ordered
+    return candidate
 
 
 async def fetch_candidate(url, data=None):
@@ -109,8 +135,8 @@ class Loader(Module):
         data = None
         if url is None:
             url, data = await self._find_in_repos(spec)
-        candidate = await fetch_candidate(url, data)
-        if force or (self._trusted(url) and not candidate.report.dangerous):
+        candidate = await resolve_deps(self.loader, await fetch_candidate(url, data))
+        if force or all(self._trusted(c.origin) and not c.report.dangerous for c in candidate.everything):
             await self._install(message, candidate, force=force)
         else:
             await self._confirm(message, candidate, f"dlm -f {spec}")
@@ -216,7 +242,7 @@ class Loader(Module):
             raise LoadError("Файл модуля больше 2 МБ")
         source = download.decode(await file_message.download_media(bytes))
         origin = f"file:{file_message.file.name or 'module.py'}"
-        candidate = Candidate(source, origin, None, scan.scan(source))
+        candidate = await resolve_deps(self.loader, Candidate(source, origin, None, scan.scan(source)))
         if force:
             await self._install(message, candidate, force=True)
         else:
@@ -233,17 +259,20 @@ class Loader(Module):
         elif report.uses:
             info.append(f"🧰 Использует: {scan.permission_names(report.uses)}")
         info.append(f"📏 Строк: <code>{len(candidate.source.splitlines())}</code>")
-        if report.dangerous:
+        if candidate.deps:
+            info.append(f"🧩 Зависимостей: <code>{len(candidate.deps)}</code> — установятся вместе с модулем")
+        details = findings_text(report) + deps_text(candidate.deps)
+        if any(c.report.dangerous for c in candidate.everything):
             text = (
                 utils.card("🚨 <b>Модуль может навредить аккаунту</b>", info)
-                + findings_text(report)
+                + details
                 + "\n💡 <i>Устанавливайте, только если доверяете автору и понимаете, зачем модулю это нужно</i>"
             )
             button = "⚠️ Установить всё равно"
         else:
             text = (
                 utils.card("📦 <b>Установить модуль?</b>", info)
-                + findings_text(report)
+                + details
                 + "\n💡 <i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
                 "ставьте только те, которым доверяете</i>"
             )
@@ -262,16 +291,23 @@ class Loader(Module):
     async def _install_confirmed(self, call, candidate):
         await call.edit("⏳ <b>Устанавливаю модуль...</b>", None)
         try:
-            # Нажатие кнопки — явное подтверждение, в том числе для опасного кода.
-            instances = await self.loader.install(candidate.source, candidate.origin, force=True, pin=candidate.pin)
+            # Нажатие кнопки — явное подтверждение, в том числе для опасного кода (и в зависимостях: их показали).
+            instances = await self._install_all(candidate, force=True)
         except LoadError as e:
             await call.edit(utils.card("❌ <b>Модуль не установлен</b>", utils.escape_html(e)))
             return
         await call.edit(self._installed_text(instances) + findings_text(candidate.report))
 
     async def _install(self, message, candidate, *, force=False):
-        instances = await self.loader.install(candidate.source, candidate.origin, force=force, pin=candidate.pin)
+        instances = await self._install_all(candidate, force=force)
         await utils.answer(message, self._installed_text(instances) + findings_text(candidate.report))
+
+    async def _install_all(self, candidate, *, force):
+        """Сначала зависимости, потом сам модуль: ядро не ставит модуль, пока их нет."""
+        instances = []
+        for item in candidate.everything:
+            instances += await self.loader.install(item.source, item.origin, force=force, pin=item.pin)
+        return instances
 
     def _installed_text(self, instances):
         prefix = utils.escape_html(utils.get_prefix(self.db.raw))
@@ -470,6 +506,14 @@ def findings_text(report):
         text += "\n⚠️ <b>Обратите внимание</b>\n" + utils.quote(
             scan.describe(report.warnings), expandable=len(report.warnings) > 5
         )
+    return text
+
+
+def deps_text(deps):
+    """Зависимости из ``# requires_module:``: откуда и что в них нашла проверка."""
+    text = ""
+    for dep in deps:
+        text += f"\n🧩 <b>Зависимость</b> <code>{utils.escape_html(dep.origin)}</code>" + findings_text(dep.report)
     return text
 
 
