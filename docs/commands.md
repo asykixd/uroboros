@@ -10,7 +10,7 @@ Built-in Uroboros commands. The default prefix is a dot; change it with `.setpre
 
 | Command | Description | Access |
 |---|---|---|
-| 💾 `.backup` | бэкап БД и модулей в «Избранное» (без сессии); автобэкап — .cfg backup | владельцы |
+| 💾 `.backup [auto [часы \| off] [сколько хранить]]` | бэкап БД и модулей в «Избранное»; auto — по расписанию | владельцы |
 | ♻️ `.restore [-f] (ответом на бэкап)` | восстановить БД и модули и перезапуститься; -f — чужой бэкап или опасный код | владельцы |
 
 ## Config

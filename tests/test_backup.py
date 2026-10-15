@@ -183,3 +183,79 @@ def test_autobackup_schedule(builtin_loader):
 
     with pytest.raises(ValidationError):
         module.config["chat"] = "куда-то"
+
+
+class SentFile:
+    def __init__(self, message_id):
+        self.id = message_id
+
+
+class RotatingClient:
+    def __init__(self):
+        self.sent = []
+        self.deleted = []
+
+    async def send_file(self, chat, file, **kwargs):
+        self.sent.append(chat)
+        return SentFile(len(self.sent))
+
+    async def delete_messages(self, chat, ids):
+        self.deleted.append((chat, list(ids)))
+
+
+def run_autobackup(module):
+    module.db.set("last_auto", 0)
+    asyncio.run(module.autobackup())
+
+
+def test_autobackup_keeps_only_last_n(builtin_loader):
+    module = builtin_loader.get_module("backup")
+    module.client = RotatingClient()
+    module.config["interval"] = "1"
+    module.config["keep"] = "2"
+    for _ in range(4):
+        run_autobackup(module)
+    assert module.client.sent == ["me"] * 4
+    assert module.client.deleted == [("me", [1]), ("me", [2])]
+    assert module.db.get("auto_sent") == [["me", 3], ["me", 4]]
+
+
+def test_autobackup_keep_zero_deletes_nothing(builtin_loader):
+    module = builtin_loader.get_module("backup")
+    module.client = RotatingClient()
+    module.config["interval"] = "1"
+    module.config["keep"] = "0"
+    for _ in range(3):
+        run_autobackup(module)
+    assert module.client.deleted == []
+
+
+def test_autobackup_rotation_survives_delete_errors(builtin_loader):
+    module = builtin_loader.get_module("backup")
+
+    class Client(RotatingClient):
+        async def delete_messages(self, chat, ids):
+            raise RuntimeError("message is gone")
+
+    module.client = Client()
+    module.config["interval"] = "1"
+    module.config["keep"] = "1"
+    run_autobackup(module)
+    run_autobackup(module)
+    assert module.db.get("auto_sent") == [["me", 2]]
+
+
+def test_backup_auto_subcommand(builtin_loader):
+    module = builtin_loader.get_module("backup")
+    message = FakeMessage(".backup auto 24 7")
+    asyncio.run(module.backup_cmd(message))
+    assert module.config["interval"] == 24 and module.config["keep"] == 7
+    assert "включён" in message.edits[-1] and "токен" in message.edits[-1]
+
+    message = FakeMessage(".backup auto off")
+    asyncio.run(module.backup_cmd(message))
+    assert module.config["interval"] == 0 and "выключен" in message.edits[-1]
+
+    message = FakeMessage(".backup auto often")
+    asyncio.run(module.backup_cmd(message))
+    assert module.config["interval"] == 0 and "Не понял" in message.edits[-1]

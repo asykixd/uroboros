@@ -80,6 +80,10 @@ The session, `config.json` (api_id and api_hash) and the database live in `data/
 never publish or share this folder. `.backup` saves the database and modules, but not the session or `config.json`.
 A backup does contain the inline bot token and module settings, so don't forward it.
 
+`.backup auto <hours> [keep]` sends a backup on a schedule (off by default) to Saved Messages, or to the chat set
+in `.cfg backup chat`: pick only a chat nobody else can read. The bot deletes its own autobackups beyond the last
+`keep` (5 by default, 0 keeps all); backups sent by hand are never deleted.
+
 A backup records the account it was made on. `.restore` of a backup from another account (or from an older
 version without that record) asks for confirmation (`.restore -f`) and keeps your access levels, trusted modules
 and inline bot. After a restore the database ignores writes until the restart, so running modules can't overwrite
