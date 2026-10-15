@@ -20,6 +20,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
 - The public API is recorded in `tests/api_snapshot.json`; see [docs/stability.md](docs/stability.md).
 - Changed a built-in command or an example? Regenerate the reference: `python scripts/gen_docs.py`.
 - Bot replies are cards via `utils.card(...)`, see [docs/modules.md](docs/modules.md#reply-style).
+- Commits follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat(scope): summary`):
+  `CHANGELOG.md` is generated from them with `python scripts/changelog.py` before a release.
 - Docs pages come in pairs: `page.md` (English) and `page.ru.md` (Russian). Update both.
 
 ## Modules
