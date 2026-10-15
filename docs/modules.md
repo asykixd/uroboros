@@ -395,3 +395,13 @@ Saved Messages. Restrictions are lifted if the user confirmed the dangerous code
 `.security trust <module>`.
 
 If your module really needs any of this, explain why in its description: the user sees the warning and decides.
+
+## Publishing a repo
+
+Keep your modules in a GitHub repo: `.dlm owner/repo` lists its root `.py` files, and after `.addrepo owner/repo`
+they install by name. A ready-to-copy layout is in
+[`templates/modules-repo/`](https://github.com/asykixd/uroboros/tree/master/templates/modules-repo): an example
+module, a README, a `manifest.json` placeholder and a GitHub Actions workflow. The workflow installs
+`uroboros-userbot` from PyPI and runs `tools/check_modules.py`, which scans and loads every module the way `.dlm`
+does: dangerous code or a load error fails the check. Copy the directory into a new repo and replace `hello.py`
+with your modules.

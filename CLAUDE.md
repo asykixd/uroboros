@@ -21,6 +21,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'   # dev install
 .venv/bin/python -m pytest                                        # all tests
 .venv/bin/python -m pytest tests/test_core.py::test_install_and_uninstall   # one test
 .venv/bin/ruff check . && .venv/bin/ruff format --check .        # lint and format (same as CI)
+.venv/bin/mypy                                                    # type check uroboros/ (hikka/ excluded; config in pyproject.toml)
 .venv/bin/mkdocs build --strict                                   # docs site
 ```
 

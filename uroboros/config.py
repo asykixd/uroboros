@@ -83,4 +83,5 @@ def load_config(*, prompt: bool = True) -> Config | None:
             print("api_id должен быть числом, api_hash — 32 hex-символа. Попробуйте ещё раз.")
         save_credentials(data_dir, int(api_id), api_hash)
 
+    assert api_id is not None and api_hash is not None  # checked by valid_credentials or the prompt
     return Config(api_id=int(api_id), api_hash=api_hash, data_dir=data_dir)

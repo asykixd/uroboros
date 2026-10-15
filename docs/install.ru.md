@@ -124,6 +124,18 @@ docker compose logs -f
 Ссылка на панель входа появится в логах; панель доступна только с этой машины (`127.0.0.1:8080`).
 Данные — в `./data`. Обновление: `git pull && docker compose up -d --build` (`.update` в Docker не работает).
 
+**Готовый образ.** Каждый релиз публикуется в GHCR для amd64 и arm64 как `ghcr.io/asykixd/uroboros:X.Y.Z` и
+`:latest`, исходники не нужны:
+
+```bash
+docker run -d --name uroboros --restart unless-stopped \
+  -v "$PWD/data:/data" -p 127.0.0.1:8080:8080 ghcr.io/asykixd/uroboros:latest
+docker logs -f uroboros
+```
+
+Обновление: `docker pull ghcr.io/asykixd/uroboros:latest`, затем `docker rm -f uroboros` и тот же `docker run`.
+Чтобы не вводить api_id и api_hash в панели, добавьте `-e UROBOROS_API_ID=... -e UROBOROS_API_HASH=...`.
+
 ## Windows
 
 1. Поставьте [Python 3.10+](https://www.python.org/downloads/) (галочка «Add python.exe to PATH») и [Git](https://git-scm.com/download/win).

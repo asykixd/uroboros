@@ -436,7 +436,7 @@ class Loader:
                 inst._stem = stem
                 inst._origin = origin
                 inst._meta = meta
-                inst.strings = Strings(inst.strings)
+                inst.strings = Strings(inst.strings)  # type: ignore[misc]  # per-instance wrapper over the class dict
                 inst.client = self.client
                 inst.loader = self
                 inst.db = ModuleDB(self.db, inst.name)
@@ -524,7 +524,7 @@ class Loader:
                 raise
 
     @staticmethod
-    def _collect(inst: Module, attr: str) -> list[tuple[Any, Handler]]:
+    def _collect(inst: Module, attr: str) -> list[tuple[Any, Callable[..., Awaitable[Any]]]]:
         found = []
         for name in dir(type(inst)):
             func = getattr(type(inst), name, None)

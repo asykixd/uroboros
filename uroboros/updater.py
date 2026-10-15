@@ -86,6 +86,7 @@ async def run_process(*args: str) -> tuple[int, str]:
         env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},  # git не должен ждать логин в консоли
     )
     output, _ = await proc.communicate()
+    assert proc.returncode is not None  # set once communicate() returns
     return proc.returncode, output.decode(errors="replace").strip()
 
 
@@ -219,8 +220,8 @@ async def _finish(rollback: tuple[str, ...]) -> None:
     if code == 0:
         return
 
-    rollback, rollback_output = await git(*rollback)
-    raise InstallError(stage, output[-2000:], rolled_back=rollback == 0, rollback_output=rollback_output)
+    rollback_code, rollback_output = await git(*rollback)
+    raise InstallError(stage, output[-2000:], rolled_back=rollback_code == 0, rollback_output=rollback_output)
 
 
 # --- установка через pip ---
@@ -351,7 +352,8 @@ async def check_pip(channel: str, current: str) -> Update | None:
     if installed:
         return await _dev_update(installed)  # ветка dev: следим за её коммитами, а не за PyPI
     latest = latest_release(await _releases(dist), channel)
-    if latest is None or (version_key(current) or (0, 0, 0, 0)) >= version_key(latest):
+    # latest_release returns only versions version_key can parse.
+    if latest is None or (version_key(current) or (0, 0, 0, 0)) >= (version_key(latest) or (0, 0, 0, 0)):
         return None
     return Update(target=f"{dist}=={latest}", label=f"PyPI {latest}", sha=latest)
 
