@@ -24,17 +24,24 @@ class Candidate:
     origin: str  # откуда брать обновления
     pin: str | None  # та же версия в конкретном коммите (GitHub)
     report: scan.Report
+    verified: bool = False  # sha256 matches the repo's manifest.json
 
 
 async def fetch_candidate(url, data=None):
-    """Скачивает модуль; с GitHub — по ссылке на конкретный коммит, чтобы знать, какая версия установлена."""
+    """Скачивает модуль; с GitHub — по ссылке на конкретный коммит, чтобы знать, какая версия установлена.
+
+    If the repo publishes ``manifest.json``, a file that doesn't match its sha256 is refused.
+    """
     pinned = await github.pin(url)
     if pinned is not None:
         data = await download.download(pinned[0])
     elif data is None:
         data = await download.download(url)
+    expected = await github.manifest_hash(pinned[0] if pinned else url)
+    if expected is not None:
+        github.verify(data, expected)
     source = download.decode(data)
-    return Candidate(source, url, pinned[0] if pinned else None, scan.scan(source))
+    return Candidate(source, url, pinned[0] if pinned else None, scan.scan(source), expected is not None)
 
 
 def commit_html(pin):
@@ -48,6 +55,7 @@ class PendingUpdate:
     label: str  # имя модуля в HTML
     old: str
     candidate: Candidate
+    lib: bool = False  # a library: candidate.origin is its URL
 
     @property
     def report(self):
@@ -74,9 +82,24 @@ class Loader(Module):
     def _repos(self):
         return self.db.get("repos", list(DEFAULT_REPOS))
 
-    def _trusted(self, url):
+    def _connected_repo(self, url):
+        """The connected repo the URL points into, or None."""
         repo = github.repo_of(url)
-        return repo is not None and repo.lower() in (r.lower() for r in self._repos())
+        if repo is None:
+            return None
+        return next((r for r in self._repos() if r.lower() == repo.lower()), None)
+
+    def _approved(self, repo):
+        """A module from this repo was installed with the user's consent before (or is installed now)."""
+        approved = {r.lower() for r in self.db.get("approved_repos", [])}
+        approved |= {(github.repo_of(origin) or "").lower() for origin in self.loader.installed().values()}
+        return repo.lower() in approved
+
+    def _approve(self, origin):
+        repo = self._connected_repo(origin)
+        approved = self.db.get("approved_repos", [])
+        if repo is not None and repo.lower() not in (r.lower() for r in approved):
+            self.db.set("approved_repos", [*approved, repo])
 
     @command("dlm", access="owner", emoji="📥")
     async def dlm(self, message):
@@ -110,10 +133,12 @@ class Loader(Module):
         if url is None:
             url, data = await self._find_in_repos(spec)
         candidate = await fetch_candidate(url, data)
-        if force or (self._trusted(url) and not candidate.report.dangerous):
+        repo = self._connected_repo(url)
+        # A connected repo is trusted only after the user confirmed one module from it.
+        if force or (repo and self._approved(repo) and not candidate.report.dangerous):
             await self._install(message, candidate, force=force)
         else:
-            await self._confirm(message, candidate, f"dlm -f {spec}")
+            await self._confirm(message, candidate, f"dlm -f {spec}", repo=repo)
 
     async def _find_in_repos(self, name):
         repos = self._repos()
@@ -222,12 +247,17 @@ class Loader(Module):
         else:
             await self._confirm(message, candidate, "lm -f")
 
-    async def _confirm(self, message, candidate, force_hint):
-        """Спросить перед установкой: источник не из подключённых репозиториев или в модуле опасный код."""
+    async def _confirm(self, message, candidate, force_hint, repo=None):
+        """Спросить перед установкой: источник не из подключённых репозиториев или в модуле опасный код.
+
+        ``repo``: the module comes from this connected repo, but nothing from it was installed before.
+        """
         report = candidate.report
         info = [f"🔗 Источник: <code>{utils.escape_html(candidate.origin)}</code>"]
         if candidate.pin:
             info.append(f"📌 Коммит: {commit_html(candidate.pin)}")
+        if candidate.verified:
+            info.append(f"🔏 Совпадает с <code>{github.MANIFEST}</code> репозитория")
         if report.declared is not None:
             info.append(f"🔐 Права: {scan.permission_names(report.declared) or 'не нужны'}")
         elif report.uses:
@@ -241,11 +271,16 @@ class Loader(Module):
             )
             button = "⚠️ Установить всё равно"
         else:
+            source = (
+                f"Первый модуль из репозитория {utils.escape_html(repo)}: следующие из него будут ставиться без "
+                "вопроса."
+                if repo
+                else "Источник не из подключённых репозиториев."
+            )
             text = (
                 utils.card("📦 <b>Установить модуль?</b>", info)
                 + findings_text(report)
-                + "\n💡 <i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
-                "ставьте только те, которым доверяете</i>"
+                + f"\n💡 <i>{source} Модуль получит полный доступ к аккаунту — ставьте только те, которым доверяете</i>"
             )
             button = "📥 Установить"
         if self.inline.available:
@@ -267,11 +302,15 @@ class Loader(Module):
         except LoadError as e:
             await call.edit(utils.card("❌ <b>Модуль не установлен</b>", utils.escape_html(e)))
             return
-        await call.edit(self._installed_text(instances) + findings_text(candidate.report))
+        self._approve(candidate.origin)
+        await call.edit(self._installed_text(instances) + verified_text(candidate) + findings_text(candidate.report))
 
     async def _install(self, message, candidate, *, force=False):
         instances = await self.loader.install(candidate.source, candidate.origin, force=force, pin=candidate.pin)
-        await utils.answer(message, self._installed_text(instances) + findings_text(candidate.report))
+        self._approve(candidate.origin)
+        await utils.answer(
+            message, self._installed_text(instances) + verified_text(candidate) + findings_text(candidate.report)
+        )
 
     def _installed_text(self, instances):
         prefix = utils.escape_html(utils.get_prefix(self.db.raw))
@@ -319,6 +358,7 @@ class Loader(Module):
                 lines.append(f"➖ {label} — без изменений")
                 continue
             updates.append(PendingUpdate(label, old, candidate))
+        failed = await self._lib_updates(set(installed) if name else None, updates, lines) or failed
 
         if not updates:
             title = "❌ <b>Не все модули проверены</b>" if failed else "✅ <b>Обновлений нет</b>"
@@ -344,6 +384,29 @@ class Loader(Module):
         hint = utils.escape_html(f"{utils.get_prefix(self.db.raw)}uplm -f {name}".rstrip())
         await utils.answer(message, text + f"\n🔃 Обновить: <code>{hint}</code>")
 
+    async def _lib_updates(self, stems, updates, lines):
+        """Libraries whose new version differs from the cached one; ``stems`` limits them to those modules' libs."""
+        failed = False
+        for url in sorted(self.loader.lib_cache()):
+            if stems is not None and not self.loader.lib_users(url) & stems:
+                continue
+            path = self.loader.lib_path(url)
+            if not path.exists():
+                continue
+            label = f"<b>{utils.escape_html(url.rstrip('/').rsplit('/', 1)[-1])}</b> (библиотека)"
+            try:
+                candidate = await fetch_candidate(url)
+            except LoadError as e:
+                failed = True
+                lines.append(f"❌ {label} — ошибка: {utils.escape_html(e)}")
+                continue
+            old = path.read_bytes().decode("utf-8", errors="replace")
+            if old == candidate.source:
+                lines.append(f"➖ {label} — без изменений")
+                continue
+            updates.append(PendingUpdate(label, old, candidate, lib=True))
+        return failed
+
     async def _uplm_confirmed(self, call, updates, lines, failed):
         await call.edit("⏳ <b>Обновляю модули...</b>", None)
         await call.edit(await self._apply_updates(updates, lines, failed), None)
@@ -352,8 +415,17 @@ class Loader(Module):
         """Ставит подтверждённые обновления (в том числе с опасным кодом — его пользователь видел)."""
         lines = list(lines)
         for update in updates:
+            new = update.candidate
+            if update.lib:
+                errors = await self.loader.update_lib(new.origin, new.source, new.pin)
+                failed = failed or bool(errors)
+                lines.append(f"✅ {update.label} — обновлена ({update.stat})")
+                lines += [
+                    f"❌ <b>{utils.escape_html(stem)}</b> — не запустился с новой версией: {utils.escape_html(error)}"
+                    for stem, error in errors.items()
+                ]
+                continue
             try:
-                new = update.candidate
                 await self.loader.install(new.source, new.origin, force=True, pin=new.pin)
             except LoadError as e:
                 failed = True
@@ -445,6 +517,8 @@ class Loader(Module):
             await utils.answer(message, "❌ <b>Такой репозиторий не подключён</b>")
             return
         self.db.set("repos", kept)
+        # Reconnecting the repo later asks again, unless modules from it are still installed.
+        self.db.set("approved_repos", [r for r in self.db.get("approved_repos", []) if r.lower() != repo.lower()])
         await utils.answer(message, f"✂️ <b>Репозиторий {utils.escape_html(repo)} отключён</b>")
 
     @command("repos", emoji="📚")
@@ -459,6 +533,12 @@ class Loader(Module):
             return
         lines = [f'▸ <a href="https://github.com/{r}">{utils.escape_html(r)}</a>' for r in repos]
         await utils.answer(message, utils.card(f"📚 <b>Репозитории</b> · {len(repos)}", lines))
+
+
+def verified_text(candidate):
+    if not candidate.verified:
+        return ""
+    return f"\n🔏 <i>Файл совпадает с <code>{github.MANIFEST}</code> репозитория</i>"
 
 
 def findings_text(report):
@@ -486,6 +566,8 @@ def updates_text(updates, lines):
         if more > 0:
             shown += f"\n… ещё {more} строк"
         commit = f" · 📌 {commit_html(update.candidate.pin)}" if update.candidate.pin else ""
+        if update.candidate.verified:
+            commit += f" · 🔏 <code>{github.MANIFEST}</code>"
         parts.append(
             f"🧩 {update.label} · {update.stat}{commit}"
             + findings_text(update.report)

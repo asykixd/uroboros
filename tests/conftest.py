@@ -60,3 +60,4 @@ def no_github_api(monkeypatch):
         raise OSError("нет сети в тестах")
 
     monkeypatch.setattr(github, "resolve_commit", offline)
+    monkeypatch.setattr(github, "fetch_manifest", lambda repo, ref: None)
