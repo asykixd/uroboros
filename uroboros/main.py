@@ -11,7 +11,7 @@ import signal
 import subprocess
 import sys
 
-from . import __version__, guard, logs, utils, web
+from . import __version__, guard, logs, migrations, utils, web
 from .client import UroborosClient, login, make_client
 from .config import Config, get_data_dir, load_config
 from .database import Database
@@ -136,6 +136,7 @@ async def connect(args: argparse.Namespace) -> tuple[Config, UroborosClient]:
 async def run(args: argparse.Namespace) -> None:
     config, client = await connect(args)
     db = Database(config.db_path)
+    migrations.migrate(db)
     loader = Loader(client, db, config.modules_dir)
     client.limiter = loader.ratelimit
     loader.ratelimit.on_freeze = lambda name, settings: notify_frozen(client, name, settings)
