@@ -57,4 +57,6 @@ Partially supported:
 
 [hikka-compat.md](hikka-compat.md) is built by `scripts/hikka_compat.py`: it downloads modules from popular repos
 and tries to load them. The script executes third-party code, so run it isolated, e.g. manually via GitHub Actions
-(the "Hikka compatibility" workflow); the table comes as an artifact.
+(the "Hikka compatibility" workflow). The job that runs modules has a read-only token; a separate job takes only
+`hikka-compat{,.ru}.md` from its artifact and opens a pull request into the branch the workflow was started from.
+The repository must allow GitHub Actions to create pull requests (Settings → Actions → General).

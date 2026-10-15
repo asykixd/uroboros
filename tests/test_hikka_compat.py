@@ -37,3 +37,12 @@ def test_render():
         [compat.Result("o/r", "a.py", compat.OK, "commands: 1"), compat.Result("o/r", "b.py", compat.FAIL, "x | y")]
     )
     assert "**1** of 2 (50%)" in text and "x \\| y" in text
+
+
+def test_render_escapes_third_party_text_and_has_russian():
+    results = [compat.Result("o/r", "a`<b>.py", compat.FAIL, "<script>alert(1)</script>\nnext")]
+    text = compat.render(results)
+    assert "<script>" not in text and "&lt;script&gt;alert(1)&lt;/script&gt; next" in text
+    assert "`a'&lt;b&gt;.py`" in text
+    ru = compat.render(results, "ru")
+    assert ru.startswith("# Совместимость с модулями Hikka/FTG") and "загружается: **0** из 1 (0%)" in ru

@@ -56,4 +56,7 @@ Uroboros загружает модули Hikka и FTG без правок: `.dlm
 
 [hikka-compat.md](hikka-compat.md) собирает `scripts/hikka_compat.py`: он скачивает модули из популярных
 репозиториев и пробует их загрузить. Скрипт исполняет чужой код, поэтому запускайте его в изоляции —
-например вручную через GitHub Actions (workflow «Совместимость с Hikka»), таблица придёт артефактом.
+например вручную через GitHub Actions (workflow «Hikka compatibility»). Задача, которая исполняет модули, получает
+токен только на чтение; отдельная задача берёт из её артефакта лишь `hikka-compat{,.ru}.md` и открывает pull request
+в ветку, из которой запущен workflow. В репозитории должно быть разрешено GitHub Actions создавать pull request'ы
+(Settings → Actions → General).

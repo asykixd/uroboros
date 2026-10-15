@@ -1,6 +1,6 @@
 """Hikka/FTG module compatibility check: download modules from repos and try to load them.
 
-    .venv/bin/python scripts/hikka_compat.py            # table in docs/hikka-compat.md
+    .venv/bin/python scripts/hikka_compat.py            # tables in docs/hikka-compat{,.ru}.md
     .venv/bin/python scripts/hikka_compat.py --limit 20 # at most 20 modules per repo
 
 Modules load without Telegram: a stub client and an in-memory SQLite database.
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import html
 import json
 import logging
 import sys
@@ -43,6 +44,35 @@ REPOS = [
     "N3rcy/modules",
 ]
 OUTPUT = ROOT / "docs" / "hikka-compat.md"
+OUTPUT_RU = ROOT / "docs" / "hikka-compat.ru.md"
+TEXTS = {
+    "en": {
+        "title": "Hikka/FTG module compatibility",
+        "intro": [
+            "Built by `scripts/hikka_compat.py`: it downloads modules from repos and loads them into Uroboros",
+            "without Telegram (stub client). `# requires:` dependencies aren't installed.",
+            '"Loads" means the module executed, registered commands and passed `client_ready`;',
+            "commands aren't tested against a real account.",
+        ],
+        "ok": "loads: **{ok}** of {total} ({percent}%)",
+        "deps": "needs dependencies (can't check without them): **{deps}**",
+        "fail": "fails: **{fail}**",
+        "header": "| Repo | Module | | Details |",
+    },
+    "ru": {
+        "title": "Совместимость с модулями Hikka/FTG",
+        "intro": [
+            "Собрано `scripts/hikka_compat.py`: он скачивает модули из репозиториев и загружает их в Uroboros",
+            "без Telegram (клиент-заглушка). Зависимости из `# requires:` не ставятся.",
+            "«Загружается» — модуль исполнился, зарегистрировал команды и прошёл `client_ready`;",
+            "сами команды на настоящем аккаунте не проверяются. Подробности — на английском, как их выдал модуль.",
+        ],
+        "ok": "загружается: **{ok}** из {total} ({percent}%)",
+        "deps": "нужны зависимости (без них не проверить): **{deps}**",
+        "fail": "не загружается: **{fail}**",
+        "header": "| Репозиторий | Модуль | | Подробности |",
+    },
+}
 TIMEOUT = 20
 
 OK, DEPS, FAIL = "✅", "📦", "❌"
@@ -129,27 +159,29 @@ async def run(repos: list[str], limit: int | None) -> list[Result]:
     return results
 
 
-def render(results: list[Result]) -> str:
+def _cell(text: str) -> str:
+    """Table cell from third-party text: the docs site renders raw HTML in Markdown, so escape it."""
+    return html.escape(text, quote=False).replace("|", "\\|").replace("`", "'").replace("\n", " ")
+
+
+def render(results: list[Result], lang: str = "en") -> str:
+    texts = TEXTS[lang]
     counts = Counter(r.status for r in results)
     total = len(results) or 1
     lines = [
-        "# Hikka/FTG module compatibility",
+        f"# {texts['title']}",
         "",
-        "Built by `scripts/hikka_compat.py`: it downloads modules from repos and loads them into Uroboros",
-        "without Telegram (stub client). `# requires:` dependencies aren't installed.",
-        '"Loads" means the module executed, registered commands and passed `client_ready`;',
-        "commands aren't tested against a real account.",
+        *texts["intro"],
         "",
-        f"- {OK} loads: **{counts[OK]}** of {len(results)} ({counts[OK] * 100 // total}%)",
-        f"- {DEPS} needs dependencies (can't check without them): **{counts[DEPS]}**",
-        f"- {FAIL} fails: **{counts[FAIL]}**",
+        f"- {OK} " + texts["ok"].format(ok=counts[OK], total=len(results), percent=counts[OK] * 100 // total),
+        f"- {DEPS} " + texts["deps"].format(deps=counts[DEPS]),
+        f"- {FAIL} " + texts["fail"].format(fail=counts[FAIL]),
         "",
-        "| Repo | Module | | Details |",
+        texts["header"],
         "|---|---|---|---|",
     ]
     for r in results:
-        detail = r.detail.replace("|", "\\|").replace("\n", " ")
-        lines.append(f"| {r.repo} | `{r.name}` | {r.status} | {detail} |")
+        lines.append(f"| {_cell(r.repo)} | `{_cell(r.name)}` | {r.status} | {_cell(r.detail)} |")
     return "\n".join(lines) + "\n"
 
 
@@ -158,11 +190,13 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="modules per repo")
     parser.add_argument("--repo", action="append", help="check only this repo (repeatable)")
     parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument("--output-ru", type=Path, default=OUTPUT_RU)
     args = parser.parse_args()
     logging.basicConfig(level=logging.CRITICAL)  # module errors go to the table, not the console
 
     results = asyncio.run(run(args.repo or REPOS, args.limit))
     args.output.write_text(render(results), "utf-8")
+    args.output_ru.write_text(render(results, "ru"), "utf-8")
     counts = Counter(r.status for r in results)
     print(f"\n{OK} {counts[OK]}  {DEPS} {counts[DEPS]}  {FAIL} {counts[FAIL]} → {args.output}")
 
