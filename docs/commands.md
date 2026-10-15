@@ -74,14 +74,14 @@ Inline bot: buttons and forms
 
 ## Security
 
-Доступ: владельцы, sudo, support и права на команды
+Access: owners, sudo, support and command permissions
 
 | Command | Description | Access |
 |---|---|---|
-| 👑 `.owner [add \| del] [пользователь]` | владельцы: полный доступ, как у этого аккаунта | owners |
-| 🔐 `.security [команда уровень \| flood ... \| unfreeze модуль \| trust/untrust модуль]` | доступ, права команд и защита | owners |
-| 🛡 `.sudo [add \| del] [пользователь]` | sudo: все команды, кроме команд владельца | owners |
-| 🤝 `.support [add \| del] [пользователь]` | support: только команды уровня support | owners |
+| 👑 `.owner [add \| del] [user]` | owners: full access, like this account | owners |
+| 🔐 `.security [command level \| flood ... \| unfreeze module \| trust/untrust module]` | access, permissions, protection | owners |
+| 🛡 `.sudo [add \| del] [user]` | sudo: all commands except owner commands | owners |
+| 🤝 `.support [add \| del] [user]` | support: only support-level commands | owners |
 
 ## Settings
 
@@ -97,13 +97,13 @@ Prefix, command aliases and the bot language
 
 ## System
 
-Состояние, перезапуск и обновление
+State, restart and updates
 
 | Command | Description | Access |
 |---|---|---|
-| 🌿 `.dev [on \| off] [-f]` | ветка бота: on — сборка из dev (новое, до проверки), off — вернуться на master | owners |
-| ℹ️ `.info` | информация о юзерботе | support |
-| 📝 `.logs [уровень]` | прислать логи файлом в «Избранное» (debug, info, warning, error, critical) | owners |
-| 📡 `.ping` | задержка до Telegram | support |
-| 🔄 `.restart` | перезапустить юзербот | owners |
-| 🆕 `.update [-f \| channel stable\|beta \| notify on\|off]` | обновиться: список изменений и подтверждение | owners |
+| 🌿 `.dev [on \| off] [-f]` | bot branch: on — dev build (new, before testing), off — back to master | owners |
+| ℹ️ `.info` | about this userbot | support |
+| 📝 `.logs [level]` | send logs as a file to Saved Messages (debug, info, warning, error, critical) | owners |
+| 📡 `.ping` | latency to Telegram | support |
+| 🔄 `.restart` | restart the userbot | owners |
+| 🆕 `.update [-f \| channel stable\|beta \| notify on\|off]` | update: changelog first, then confirmation | owners |
