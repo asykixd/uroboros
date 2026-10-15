@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -79,7 +80,8 @@ class Guard:
         self.loader = loader
         self.data_dir = Path(os.path.realpath(data_dir))
         self.secrets = tuple(str(self.data_dir / name) for name in SECRET_FILES)
-        self.on_block = None  # функция(имя модуля, что пытался сделать): уведомить пользователя
+        # функция(имя модуля, что пытался сделать): уведомить пользователя
+        self.on_block: Callable[[str, str], object] | None = None
         loader.db._check = self.check_db
 
     # --- доверенные модули ---

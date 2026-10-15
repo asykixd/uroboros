@@ -18,7 +18,7 @@ def chat_value(value):
     raise validators.ValidationError("Нужно me или id чата")
 
 
-chat_value.doc = "me или id чата"
+chat_value.doc = "me или id чата"  # type: ignore[attr-defined]  # .cfg reads it as the value hint
 
 
 class Backup(Module):

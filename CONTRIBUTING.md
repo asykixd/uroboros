@@ -12,6 +12,7 @@ Thanks for helping! Docs and commits are in English; the bot interface is in Rus
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
+.venv/bin/mypy
 .venv/bin/python -m pytest
 ```
 

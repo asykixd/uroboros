@@ -34,7 +34,7 @@ Changelog = "https://github.com/asykixd/uroboros/releases"
 Issues = "https://github.com/asykixd/uroboros/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11"]
 docs = ["mkdocs-material>=9.5", "mkdocs-static-i18n>=1.2"]
 
 [project.scripts]
@@ -49,6 +49,33 @@ testpaths = ["tests"]
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+
+[tool.mypy]
+python_version = "3.10"
+files = ["uroboros"]
+# The Hikka adapter mirrors Hikka's untyped API on purpose.
+exclude = ["^uroboros/hikka/"]
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "uroboros.hikka.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+# Neither ships type information (no py.typed, no stubs on PyPI for Telethon 1.x).
+module = ["telethon.*", "qrcode.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# A method named `list` shadows the builtin in later annotations of the class, and mypy reads them as
+# the method. Renaming would change the public signatures (tests/api_snapshot.json).
+module = "uroboros.inline"
+disable_error_code = ["valid-type", "index"]
+
+[[tool.mypy.overrides]]
+# Same `list` shadowing; also, the client is None only in offline tests, which never reach the code using it.
+module = "uroboros.inline.manager"
+disable_error_code = ["valid-type", "index", "union-attr"]
 
 [tool.ruff]
 line-length = 120
