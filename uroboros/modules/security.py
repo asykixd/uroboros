@@ -1,4 +1,5 @@
 import contextlib
+import time
 
 from uroboros import Module, command, utils
 from uroboros.ratelimit import format_seconds
@@ -9,11 +10,13 @@ USAGE = (
     "<blockquote>🔐 <code>security</code> — обзор\n"
     "⌨️ <code>security команда уровень</code> — права команды\n"
     "❄️ <code>security flood ...</code> — защита от флуда\n"
-    "🛡 <code>security trust|untrust модуль</code> — защита модуля</blockquote>\n"
+    "🛡 <code>security trust|untrust модуль</code> — защита модуля\n"
+    "📜 <code>security log [clear]</code> — журнал блокировок</blockquote>\n"
     "💡 <i>уровни: <code>owner</code>, <code>sudo</code>, <code>support</code>, <code>everyone</code>, "
     "<code>default</code></i>"
 )
 GROUP_ICONS = {"owner": "👑", "sudo": "🛡", "support": "🤝"}
+LOG_SHOWN = 30  # the DB keeps more; a reply must fit one message
 
 
 class Security(Module):
@@ -21,13 +24,16 @@ class Security(Module):
 
     @command("security", access="owner", emoji="🔐")
     async def security(self, message):
-        """[команда уровень | flood ... | unfreeze модуль | trust/untrust модуль] — доступ, права команд и защита"""
+        """[команда уровень | flood ... | unfreeze модуль | trust/untrust модуль | log] — доступ, права и защита"""
         args = utils.get_args(message)
         if not args:
             await utils.answer(message, await self._overview())
             return
         if args[0].lower() == "flood":
             await self._flood(message, args[1:])
+            return
+        if args[0].lower() == "log" and len(args) <= 2:
+            await self._log(message, args[1:])
             return
         if args[0].lower() == "unfreeze" and len(args) == 2:
             await self._unfreeze(message, args[1])
@@ -129,6 +135,33 @@ class Security(Module):
                     f"🧊 Заморозка: <code>{s['freeze']} с</code>",
                 ],
             ),
+        )
+
+    async def _log(self, message, args):
+        guard = self.loader.guard
+        if args and args[0].lower() == "clear":
+            guard.clear_blocks()
+            await utils.answer(message, "🗑 <b>Журнал блокировок очищен</b>")
+            return
+        if args:
+            await utils.answer(message, USAGE)
+            return
+        blocks = guard.blocks()
+        if not blocks:
+            await utils.answer(message, "🛡 <b>Блокировок не было</b>")
+            return
+        shown = blocks[-LOG_SHOWN:][::-1]
+        lines = [
+            f"▸ <code>{time.strftime('%d.%m %H:%M', time.localtime(entry['time']))}</code> "
+            f"<b>{utils.escape_html(entry['module'])}</b> — {utils.escape_html(entry['action'])}"
+            for entry in shown
+        ]
+        title = f"🛡 <b>Блокировки защиты</b> · {len(blocks)}"
+        if len(blocks) > len(shown):
+            title += f", последние {len(shown)}"
+        await utils.answer(
+            message,
+            utils.card(title, lines, hint="очистить: <code>security log clear</code>", expandable=len(lines) > 10),
         )
 
     async def _unfreeze(self, message, name):

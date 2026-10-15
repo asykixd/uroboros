@@ -21,13 +21,16 @@ from __future__ import annotations
 
 import logging
 import os
+import sqlite3
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .database import LOADER_OWNER
 from .errors import LoadError
-from .ratelimit import current_module
+from .ratelimit import current_module, module_context
+from .security import SECURITY_OWNER
 
 if TYPE_CHECKING:
     from .loader import Loader
@@ -66,6 +69,8 @@ FILE_EVENTS = {
 }
 PROCESS_EVENTS = {"os.system", "subprocess.Popen", "os.exec", "os.posix_spawn", "os.spawn"}
 SECRET_KEYS = {("uroboros.inline", "token")}
+BLOCKS_KEY = "blocks"  # in uroboros.security: the last BLOCKS_LIMIT blocks, for .security log
+BLOCKS_LIMIT = 100
 MODULE_PACKAGES = ("uroboros.ext.", "uroboros.lib.", "uroboros.hikka.modules.")
 
 # Declared permissions (# meta permissions) enforced at runtime. "env" and "exec" have no reliable audit events
@@ -142,9 +147,29 @@ class Guard:
 
     def block(self, module_name: str, action: str, reason: str = "это угрожает аккаунту") -> ModuleBlocked:
         log.warning("Модулю %s заблокировано: %s", module_name, action)
+        self._record(module_name, action)
         if self.on_block is not None:
             self.on_block(module_name, action)
         return ModuleBlocked(f"Модулю {module_name} нельзя {action}: {reason}")
+
+    # --- журнал ---
+
+    def blocks(self) -> list[dict[str, Any]]:
+        """Recent blocks, oldest first: ``{"time": unix time, "module": name, "action": text}``."""
+        return self.loader.db.get(SECURITY_OWNER, BLOCKS_KEY, [])
+
+    def clear_blocks(self) -> None:
+        self.loader.db.delete(SECURITY_OWNER, BLOCKS_KEY)
+
+    def _record(self, module_name: str, action: str) -> None:
+        entry = {"time": int(time.time()), "module": module_name, "action": action}
+        try:
+            # The core writes the log on the module's behalf: the DB guard would otherwise block this very write.
+            with module_context(None):
+                self.loader.db.set(SECURITY_OWNER, BLOCKS_KEY, [*self.blocks(), entry][-BLOCKS_LIMIT:])
+        except (sqlite3.Error, ValueError):
+            # e.g. a block in another thread: the connection belongs to the event loop thread; the log line is enough
+            log.exception("Не удалось записать блокировку модуля %s в журнал", module_name)
 
     # --- запросы ---
 

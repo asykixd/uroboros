@@ -67,7 +67,8 @@ A third-party module can't:
 
 This covers the module's top-level code and `__init__` too, and libraries it loads with `self.import_lib`.
 The attempt raises `PermissionError`, nothing happens, and Saved Messages gets a notice naming the module and
-the action.
+the action. The last 100 blocks are also kept in the database: `.security log` shows them, newest first,
+`.security log clear` empties the log.
 
 Restrictions are lifted for a module whose dangerous code you confirmed on install, and for one you trust
 explicitly: `.security trust <module>`. Revert with `.security untrust <module>`.
