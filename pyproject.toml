@@ -46,6 +46,13 @@ include = ["uroboros*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.coverage.run]
+source = ["uroboros"]
+
+[tool.coverage.report]
+# A little below the measured value (85.5%), so a platform difference doesn't fail CI; raise it as tests grow.
+fail_under = 84
+
 [tool.pyright]
 venvPath = "."
 venv = ".venv"

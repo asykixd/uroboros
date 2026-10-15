@@ -13,7 +13,7 @@ Thanks for helping! Docs and commits are in English; the bot interface is in Rus
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 .venv/bin/mypy
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest --cov   # CI fails below the coverage threshold in pyproject.toml
 ```
 
 - Tests don't touch the network or Telegram; keep it that way.
