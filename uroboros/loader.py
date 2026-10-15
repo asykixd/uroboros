@@ -115,6 +115,12 @@ def check_requires(source: str) -> None:
         )
 
 
+def parse_permissions(source: str) -> set[str] | None:
+    """Known permissions from ``# meta permissions``; None if the module has no such header."""
+    parsed = scan.parse_permissions(source)
+    return None if parsed is None else parsed[0] & set(scan.PERMISSIONS)
+
+
 def parse_meta(source: str) -> dict[str, str]:
     """``# meta developer: @me`` → ``{"developer": "@me"}``."""
     return {key.lower(): value for key, value in META_RE.findall(source)}
@@ -147,6 +153,7 @@ class PendingModule:
     name: str
     _stem: str | None
     is_builtin: bool = False
+    _permissions: set[str] | None = None  # declared with # meta permissions; None: no header
 
 
 @dataclass
@@ -361,6 +368,7 @@ class Loader:
         check_core_version(source)
         check_requires(source)
         meta = parse_meta(source)
+        permissions = parse_permissions(source)
         try:
             code = compile(source, filename or f"<{origin}>", "exec")
         except SyntaxError as e:
@@ -368,7 +376,9 @@ class Loader:
 
         trusted = builtin or trusted or (stem is not None and stem in self.guard.trusted())
         # Код модуля на верхнем уровне и в __init__ ограничен так же, как его команды.
-        with module_context(None if trusted else PendingModule(stem or modname.rsplit(".", 1)[-1], stem)):
+        with module_context(
+            None if trusted else PendingModule(stem or modname.rsplit(".", 1)[-1], stem, _permissions=permissions)
+        ):
             pymod = await self._exec(code, modname, source, package)
             if package is not None:
                 meta = {**hikka.module_meta(pymod), **meta}
@@ -436,6 +446,7 @@ class Loader:
                 inst._stem = stem
                 inst._origin = origin
                 inst._meta = meta
+                inst._permissions = permissions
                 inst.strings = Strings(inst.strings)
                 inst.client = self.client
                 inst.loader = self

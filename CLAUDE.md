@@ -152,7 +152,9 @@ are shown in replies. Built-ins aren't scanned. The loader stores sha256 of thir
 `UroborosClient.__call__` blocks dangerous requests (`BLOCKED_REQUESTS`), the `UroborosClient.session` property hides
 the session from code in `uroboros.ext.*`/`uroboros.lib.*`/Hikka modules (via `sys._getframe`), and an audit hook
 (`guard.activate`, installed in `main.run`) prevents opening/deleting the session, `config.json` and `uroboros.db`
-or passing them to commands while `current_module` is set. `Guard.check_db` (hooked into `Database._check`) blocks
+or passing them to commands while `current_module` is set. The same hook enforces declared permissions
+(`# meta permissions`, `inst._permissions`): `network`/`files`/`processes` events are attributed to the nearest module
+or core frame on the stack (`guard._caused_by_module`). `Guard.check_db` (hooked into `Database._check`) blocks
 writes to `uroboros.*` owners and reads of the bot token or the whole DB; core code writing on a module's behalf
 wraps it in `module_context(None)`. Module top-level code and `__init__` run under `PendingModule` so they are
 restricted too; libraries are scanned on every load. Blocking raises `ModuleBlocked` (`LoadError` and

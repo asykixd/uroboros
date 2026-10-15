@@ -40,7 +40,7 @@ Comments at the top of the file are read before the code runs:
 | Line | Effect |
 |---|---|
 | `# meta <key>: <value>` | metadata; `developer` and `version` show in `.help module` |
-| `# meta permissions: network, files` | what the module needs: `network`, `files`, `env` (environment variables), `processes` (shell commands), `exec` (executing code from strings), or `none`. Shown before install; undeclared usage triggers a warning |
+| `# meta permissions: network, files` | what the module needs: `network`, `files`, `env` (environment variables), `processes` (shell commands), `exec` (executing code from strings), or `none`. Shown before install; undeclared usage triggers a warning. At runtime undeclared `network`, `files` and `processes` are blocked ([details](security.md#declared-permissions)). Without the header nothing is limited. `# permissions:` works too |
 | `# requires_uroboros: 0.2` | minimum core version. On older versions the module won't load and the user is told to update |
 | `# requires: package ...` | pip packages, installed only if an import fails, one attempt |
 

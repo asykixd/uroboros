@@ -125,7 +125,8 @@ PERMISSIONS = {
     "processes": "запуск команд",
     "exec": "исполнение кода из строк",
 }
-PERMISSIONS_RE = re.compile(r"^\s*#\s*meta\s+permissions\s*:\s*(.*?)\s*$", re.MULTILINE | re.IGNORECASE)
+# The short form # permissions: ... is accepted too.
+PERMISSIONS_RE = re.compile(r"^\s*#\s*(?:meta\s+)?permissions\s*:\s*(.*?)\s*$", re.MULTILINE | re.IGNORECASE)
 # Полное имя (после разбора импортов) → право.
 CAPABILITY_PREFIXES = {
     "requests": "network",

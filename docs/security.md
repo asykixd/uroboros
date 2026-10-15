@@ -72,6 +72,24 @@ the action.
 Restrictions are lifted for a module whose dangerous code you confirmed on install, and for one you trust
 explicitly: `.security trust <module>`. Revert with `.security untrust <module>`.
 
+### Declared permissions
+
+A module with a `# meta permissions:` header (or the short `# permissions:`) is held to it at runtime:
+
+| Permission | Blocked when not declared |
+| --- | --- |
+| `network` | opening sockets: `socket.connect`, `sendto`, `bind` (so `aiohttp`, `requests`, `urllib` too) |
+| `files` | opening, creating, deleting, renaming and listing files. Reading Python's own files (stdlib, site-packages, time zones) and imports are allowed |
+| `processes` | starting processes: `subprocess`, `os.system`, `os.exec*`, `os.fork` |
+
+`env` and `exec` are only checked by the install scan: Python has no reliable runtime hook for them.
+
+What the core does for the module doesn't count: Telegram traffic through `self.client`, the inline bot,
+downloading libraries, `# requires:` installs. Files a module sends through Telethon (`send_file` with a path) do
+count. Modules without the header behave as before, and trusted modules aren't limited. It's a heuristic like the
+rest of the runtime protection: code run in threads or in tasks spawned by libraries may be attributed to nobody, in
+which case network access is allowed and file and process access is blocked.
+
 ## Flood protection
 
 Telegram requests from third-party modules are counted. A module that sends too many (default: more than 60 in
