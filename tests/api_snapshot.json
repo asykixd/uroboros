@@ -141,6 +141,7 @@
   "get_args": "(message: 'Message') -> 'list[str]'",
   "get_args_raw": "(message: 'Message') -> 'str'",
   "get_chat_id": "(message: 'Message') -> 'int'",
+  "get_language": "(db: 'Database') -> 'str'",
   "get_prefix": "(db: 'Database') -> 'str'",
   "get_reply": "(message: 'Message') -> 'Message | None'",
   "get_target": "(message: 'Message', arg: 'str | None' = None) -> 'Any'",

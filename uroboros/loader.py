@@ -15,7 +15,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
-from . import __version__, download, github, hikka, scan
+from . import __version__, download, github, hikka, scan, utils
 from .database import LOADER_OWNER, Database, ModuleDB
 from .decorators import (
     CALLBACK_ATTR,
@@ -262,6 +262,29 @@ class Loader:
     def module_commands(self, module: Module) -> list[Command]:
         return [cmd for cmd in self.commands.values() if cmd.module is module]
 
+    # --- язык интерфейса ---
+
+    @property
+    def language(self) -> str:
+        return utils.get_language(self.db)
+
+    def _localized(self, inst: Module) -> dict[str, str]:
+        """``strings`` with ``strings_<lang>`` on top, as in Hikka: missing keys fall back to ``strings``."""
+        return {**inst._strings_base, **(getattr(inst, f"strings_{self.language}", None) or {})}
+
+    def apply_language(self) -> None:
+        """Re-resolves ``self.strings`` of loaded modules after ``.lang`` changed the language."""
+        for inst in self.modules.values():
+            inst.strings = type(inst.strings)(self._localized(inst))
+
+    def command_doc(self, command: Command) -> str:
+        """Command description in the current language: ``_cmd_doc_<name>`` from strings, else the docstring."""
+        return command.module.strings.get(f"_cmd_doc_{command.name}") or command.info.doc
+
+    def module_doc(self, module: Module) -> str:
+        """Module description in the current language: ``_cls_doc`` from strings, else the class docstring."""
+        return module.strings.get("_cls_doc") or (type(module).__doc__ or "").strip()
+
     def installed(self) -> dict[str, str]:
         """Сторонние модули: имя файла (stem) → источник (URL или file:...)."""
         return self.db.get(LOADER_OWNER, "installed", {})
@@ -489,7 +512,8 @@ class Loader:
                 inst._stem = stem
                 inst._origin = origin
                 inst._meta = meta
-                inst.strings = Strings(inst.strings)
+                inst._strings_base = dict(inst.strings)
+                inst.strings = Strings(self._localized(inst))
                 inst.client = self.client
                 inst.loader = self
                 inst.db = ModuleDB(self.db, inst.name)

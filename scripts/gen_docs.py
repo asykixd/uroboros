@@ -14,9 +14,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from uroboros.database import Database  # noqa: E402
+from uroboros.database import MAIN_OWNER, Database  # noqa: E402
 from uroboros.loader import Loader  # noqa: E402
-from uroboros.security import LEVEL_NAMES  # noqa: E402
 
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
@@ -28,7 +27,7 @@ TEXT = {
         "commands_intro": (
             "Built-in Uroboros commands. The default prefix is a dot; change it with `.setprefix`. "
             "Access is who besides this account may run the command (see [Security](security.md)); "
-            "change it with `.security <command> <level>`. Descriptions are in Russian until the bot is translated.\n"
+            "change it with `.security <command> <level>`.\n"
         ),
         "commands_header": "| Command | Description | Access |\n|---|---|---|\n",
         "examples_title": "# Module examples\n\n",
@@ -64,24 +63,27 @@ async def _commands(lang: str) -> str:
     text = TEXT[lang]
     with tempfile.TemporaryDirectory() as tmp:
         db = Database(":memory:")
+        db.set(MAIN_OWNER, "lang", lang)
         loader = Loader(None, db, Path(tmp) / "modules")
         await loader.load_all()
+        levels = loader.get_module("help").strings
         parts = [text["commands_title"], NOTICE, text["commands_intro"]]
         for module in sorted(loader.modules.values(), key=lambda m: m.name.lower()):
             commands = sorted(loader.module_commands(module), key=lambda c: c.name)
             if not commands:
                 continue
-            parts.append(f"\n## {module.name}\n\n{(type(module).__doc__ or '').strip()}\n\n")
+            parts.append(f"\n## {module.name}\n\n{loader.module_doc(module)}\n\n")
             parts.append(text["commands_header"])
             for cmd in commands:
-                args, _, about = cmd.info.doc.partition("— ")
+                doc = loader.command_doc(cmd)
+                args, _, about = doc.partition("— ")
                 usage = f"`.{cmd.name}{(' ' + args.strip()) if args.strip() else ''}`"
                 if cmd.info.emoji:
                     usage = f"{cmd.info.emoji} {usage}"
                 if cmd.info.aliases:
                     usage += " (" + ", ".join(f"`.{alias}`" for alias in cmd.info.aliases) + ")"
                 parts.append(
-                    f"| {cell(usage)} | {cell(about.strip() or cmd.info.doc)} | {LEVEL_NAMES[cmd.info.access]} |\n"
+                    f"| {cell(usage)} | {cell(about.strip() or doc)} | {levels[f'level_{cmd.info.access}']} |\n"
                 )
         await loader.unload_all()
         db.close()

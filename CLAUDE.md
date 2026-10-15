@@ -10,8 +10,10 @@ Hikka code (also AGPL) may be ported. Branches: `master` stable, `dev` developme
 **Language.** English is the primary language of the repo: README, docs, CONTRIBUTING, templates, commit
 messages, code comments in new code. Write tersely. Docs come in pairs: `docs/<page>.md` (English) and
 `docs/<page>.ru.md` (Russian, mkdocs-static-i18n); `README.md` (English) and `README.ru.md`. Update both. The bot
-interface (`uroboros/` messages, `strings`, command docstrings) stays **Russian** until the user asks to translate
-it. The user writes in Russian; reply in Russian.
+interface is bilingual (`.lang`, DB `uroboros.main`/`lang`, Russian by default): built-in modules keep English in
+`strings` and docstrings, Russian in `strings_ru` (with `_cls_doc`, `_cmd_doc_<command>`); add every new message to
+both. Core messages outside `uroboros/modules/` (loader errors, scan findings, validators) are still Russian only.
+The user writes in Russian; reply in Russian.
 
 ## Commands
 

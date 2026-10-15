@@ -202,6 +202,23 @@ self.strings["done"]                    # raw template
 
 Templates may contain markup; substituted values are escaped. Wrap ready-made HTML in `utils.Html(...)`.
 
+### Translations
+
+The bot language is set with `.lang` (`ru` by default, or `en`). As in Hikka, `strings_<lang>` is put on top of
+`strings` for the current language; missing keys fall back to `strings`. `self.strings` is re-resolved when the
+language changes, so look strings up when you answer instead of caching them.
+
+```python
+strings = {"done": "✅ Done: <b>{name}</b>"}           # base, usually English
+strings_ru = {
+    "done": "✅ Готово: <b>{name}</b>",
+    "_cls_doc": "Описание модуля для .help",           # instead of the class docstring
+    "_cmd_doc_hello": "[имя] — поздороваться",          # instead of the hello command docstring
+}
+```
+
+`utils.get_language(self.db.raw)` returns the current language code; `utils.LANGUAGES` lists the supported ones.
+
 ## Libraries
 
 Share code between modules with a library:
@@ -336,6 +353,7 @@ async def vote(self, call):
 | `card(title, body=None, hint=None, expandable=False)` | card reply: title, quoted body (string or list), 💡 hint |
 | `Html(text)` | marks text as ready HTML for `escape_html` and `strings` |
 | `get_prefix(db)` | current command prefix (`get_prefix(self.db.raw)`) |
+| `get_language(db)` | current bot language, `ru` or `en` (`get_language(self.db.raw)`) |
 | `format_duration(seconds)` | `3 д 04:05:06` |
 
 ## Reply style

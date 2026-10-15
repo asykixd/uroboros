@@ -670,12 +670,14 @@ def _wrap_on_dlmod(func: Any) -> Any:
 
 
 def _prepare(cls: type) -> None:
+    # The loader puts strings_<lang> on top of strings for the bot language (.lang); the name and docs are taken
+    # with strings_ru as before, so the module name (and its DB key) doesn't depend on the language.
     strings = {**getattr(cls, "strings", {}), **getattr(cls, "strings_ru", {})}
-    cls.strings = strings
     name = strings.get("name")
     if not name or name == "Unknown":
         name = cls.__name__.removesuffix("Mod")
         strings["name"] = name
+    cls.strings = {**getattr(cls, "strings", {}), "name": name}
     cls.name = name
     if strings.get("_cls_doc"):
         cls.__doc__ = strings["_cls_doc"]

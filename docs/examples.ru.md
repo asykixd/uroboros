@@ -66,7 +66,7 @@ class Counter(Module):
 # meta developer: @uroboros
 # meta version: 1.0
 # meta permissions: none
-# requires_uroboros: 1.0
+# requires_uroboros: 1.1
 """Minimal module: a command, a setting, strings and a card reply."""
 
 from uroboros import ConfigValue, Module, ModuleConfig, command, utils, validators
@@ -78,6 +78,15 @@ class Hello(Module):
     strings = {
         "hello": "👋 <b>Hello, {name}!</b>",
         "count": "🔁 Greeted <code>{n}</code> times",
+        "hint": "change the default name: <code>.cfg hello name</code>",
+    }
+    # Shown when the bot language is Russian (.lang ru); missing keys fall back to strings.
+    strings_ru = {
+        "_cls_doc": "Здоровается",
+        "_cmd_doc_hello": "[имя] — поздороваться",
+        "hello": "👋 <b>Привет, {name}!</b>",
+        "count": "🔁 Поздоровались <code>{n}</code> раз",
+        "hint": "имя по умолчанию: <code>.cfg hello name</code>",
     }
 
     def __init__(self):
@@ -95,7 +104,7 @@ class Hello(Module):
             utils.card(
                 self.strings("hello", name=name),
                 self.strings("count", n=self.get("count")),
-                hint="change the default name: <code>.cfg hello name</code>",
+                hint=self.strings("hint"),
             ),
         )
 ```

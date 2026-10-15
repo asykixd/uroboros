@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 START_TIME = time.time()
+LANGUAGES = ("ru", "en")  # bot UI languages; the first one is the default
 MAX_MESSAGE_LENGTH = 4096
 
 _restart_requested = False
@@ -90,6 +91,12 @@ def get_args(message: Message) -> list[str]:
 
 def get_prefix(db: Database) -> str:
     return db.get(MAIN_OWNER, "prefix", DEFAULT_PREFIX)
+
+
+def get_language(db: Database) -> str:
+    """Язык интерфейса бота (``.lang``): код из ``LANGUAGES``, по умолчанию ``ru``."""
+    lang = db.get(MAIN_OWNER, "lang", LANGUAGES[0])
+    return lang if lang in LANGUAGES else LANGUAGES[0]
 
 
 def _strip_html(text: str) -> str:
