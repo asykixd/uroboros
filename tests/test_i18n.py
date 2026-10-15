@@ -80,3 +80,7 @@ def test_builtin_modules_answer_in_english(builtin_loader):
     assert "Auto backup every this many hours" in run(loader, ".cfg backup interval")
     assert run(loader, ".inlinebot") == "❌ <b>The inline bot is unavailable</b>"
     assert run(loader, ".aliases").startswith("🏷 <b>No aliases</b>")
+    assert run(loader, ".dlm").startswith("❌ <b>Which module to install?</b>")
+    assert run(loader, ".repos").startswith("📚 <b>Repos</b> · 1")
+    assert run(loader, ".security flood").startswith("❄️ <b>Flood protection is on</b>")
+    assert run(loader, ".ulm") == "❌ <b>Which module to remove?</b>"

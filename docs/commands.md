@@ -58,19 +58,19 @@ Inline bot: buttons and forms
 
 ## Loader
 
-Установка и удаление модулей, репозитории на GitHub
+Install and remove modules, GitHub repos
 
 | Command | Description | Access |
 |---|---|---|
-| 🔗 `.addrepo <owner/repo \| ссылка>` | подключить репозиторий модулей с GitHub | owners |
-| ✂️ `.delrepo <owner/repo>` | отключить репозиторий | owners |
-| 📥 `.dlm [-f] <ссылка \| owner/repo/модуль \| модуль>` | установить модуль; -f — без подтверждения | owners |
-| 📎 `.lm [-f] (ответом на файл или с файлом)` | установить модуль из файла; -f — без подтверждения | owners |
-| 🔁 `.reload` | перезагрузить все модули | owners |
-| 📚 `.repos` | подключённые репозитории | sudo |
-| 🔎 `.search <запрос>` | найти модуль в подключённых репозиториях | sudo |
-| 🗑 `.ulm <модуль>` | удалить модуль | owners |
-| 🔃 `.uplm [-f] [модуль]` | обновить сторонние модули: сначала изменения и подтверждение; -f — сразу | owners |
+| 🔗 `.addrepo <owner/repo \| link>` | connect a GitHub module repo | owners |
+| ✂️ `.delrepo <owner/repo>` | disconnect a repo | owners |
+| 📥 `.dlm [-f] <link \| owner/repo/module \| module>` | install a module; -f — without confirmation | owners |
+| 📎 `.lm [-f] (reply to a file or with a file)` | install a module from a file; -f — without confirmation | owners |
+| 🔁 `.reload` | reload all modules | owners |
+| 📚 `.repos` | connected repos | sudo |
+| 🔎 `.search <query>` | find a module in connected repos | sudo |
+| 🗑 `.ulm <module>` | remove a module | owners |
+| 🔃 `.uplm [-f] [module]` | update third-party modules: changes and confirmation first; -f — right away | owners |
 
 ## Security
 
