@@ -221,9 +221,9 @@ def main() -> None:
         log.exception("Новая версия не запустилась")
         reason = f"{type(e).__name__}: {e}"
     finally:
-        if reason is not None:
+        if reason is not None and pending is not None:
             rolled_back = healthcheck.rollback(data_dir, pending, reason)
-        # До перезапуска: на Windows новый процесс стартует, пока жив старый.
+        # Release before restarting: on Windows the new process starts while the old one is alive.
         lock.release()
     if reason is not None and not rolled_back:
         sys.exit(f"Новая версия не запустилась, а откатить её не удалось: {reason}. Подробности в uroboros.log")
