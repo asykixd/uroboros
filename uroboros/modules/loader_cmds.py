@@ -48,6 +48,7 @@ class PendingUpdate:
     label: str  # имя модуля в HTML
     old: str
     candidate: Candidate
+    lib: bool = False  # a library: candidate.origin is its URL
 
     @property
     def report(self):
@@ -319,6 +320,7 @@ class Loader(Module):
                 lines.append(f"➖ {label} — без изменений")
                 continue
             updates.append(PendingUpdate(label, old, candidate))
+        failed = await self._lib_updates(set(installed) if name else None, updates, lines) or failed
 
         if not updates:
             title = "❌ <b>Не все модули проверены</b>" if failed else "✅ <b>Обновлений нет</b>"
@@ -344,6 +346,29 @@ class Loader(Module):
         hint = utils.escape_html(f"{utils.get_prefix(self.db.raw)}uplm -f {name}".rstrip())
         await utils.answer(message, text + f"\n🔃 Обновить: <code>{hint}</code>")
 
+    async def _lib_updates(self, stems, updates, lines):
+        """Libraries whose new version differs from the cached one; ``stems`` limits them to those modules' libs."""
+        failed = False
+        for url in sorted(self.loader.lib_cache()):
+            if stems is not None and not self.loader.lib_users(url) & stems:
+                continue
+            path = self.loader.lib_path(url)
+            if not path.exists():
+                continue
+            label = f"<b>{utils.escape_html(url.rstrip('/').rsplit('/', 1)[-1])}</b> (библиотека)"
+            try:
+                candidate = await fetch_candidate(url)
+            except LoadError as e:
+                failed = True
+                lines.append(f"❌ {label} — ошибка: {utils.escape_html(e)}")
+                continue
+            old = path.read_bytes().decode("utf-8", errors="replace")
+            if old == candidate.source:
+                lines.append(f"➖ {label} — без изменений")
+                continue
+            updates.append(PendingUpdate(label, old, candidate, lib=True))
+        return failed
+
     async def _uplm_confirmed(self, call, updates, lines, failed):
         await call.edit("⏳ <b>Обновляю модули...</b>", None)
         await call.edit(await self._apply_updates(updates, lines, failed), None)
@@ -352,8 +377,17 @@ class Loader(Module):
         """Ставит подтверждённые обновления (в том числе с опасным кодом — его пользователь видел)."""
         lines = list(lines)
         for update in updates:
+            new = update.candidate
+            if update.lib:
+                errors = await self.loader.update_lib(new.origin, new.source, new.pin)
+                failed = failed or bool(errors)
+                lines.append(f"✅ {update.label} — обновлена ({update.stat})")
+                lines += [
+                    f"❌ <b>{utils.escape_html(stem)}</b> — не запустился с новой версией: {utils.escape_html(error)}"
+                    for stem, error in errors.items()
+                ]
+                continue
             try:
-                new = update.candidate
                 await self.loader.install(new.source, new.origin, force=True, pin=new.pin)
             except LoadError as e:
                 failed = True

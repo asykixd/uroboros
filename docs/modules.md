@@ -226,6 +226,8 @@ async def on_load(self):
   functions works).
 - A library is loaded once and shared. It's unloaded with the last module that imported it.
 - Source is cached on disk, so restarts don't need the network. `import_lib(url, reload=True)` re-downloads.
+- GitHub libraries are fetched by commit SHA, like modules. `.uplm` also checks cached libraries: it shows
+  each library's diff and, after confirmation, reloads the modules that use it.
 - A library has `self.client`, `self.loader` and its own `self.db`.
 - Library source is scanned on every load. A library with dangerous code loads only for a trusted module.
 

@@ -100,7 +100,8 @@ live in memory and are removed on stem unload. The bot answers only the owner an
 
 **DB (`database.py`).** Synchronous key-value on `sqlite3` with an in-memory cache (like Hikka's sync
 `db.get`/`db.set`). `get` returns a deepcopy; values go through JSON (tuple → list). System owners: `uroboros.main`
-(prefix, aliases), `uroboros.loader` (installed, hashes = sha256 of files, pins = commit-pinned GitHub URLs),
+(prefix, aliases), `uroboros.loader` (installed, hashes = sha256 of files, pins = commit-pinned GitHub URLs,
+libs/lib_pins = library cache files and their pinned URLs),
 `uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands).
 
 **GitHub (`github.py`).** Converts blob URLs and short `owner/repo/path` into

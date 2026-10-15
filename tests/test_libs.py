@@ -117,3 +117,49 @@ def test_dangerous_library_needs_trusted_module(tmp_path, monkeypatch):
     loader.guard.set_trusted("user", True)
     asyncio.run(loader.load_source(user, origin="https://example.com/user.py", stem="user"))
     assert type(loader.get_module("User").lib).__name__ == "Evil"
+
+
+def test_github_library_is_pinned_and_updated_with_uplm(builtin_loader, monkeypatch):
+    from conftest import FakeMessage
+
+    from uroboros import github
+
+    loader = builtin_loader
+    base = "https://raw.githubusercontent.com/someone/libs"
+    sha1, sha2 = "1" * 40, "2" * 40
+    state = {"sha": sha1}
+    files = {
+        f"{base}/{sha1}/counter.py": LIB.encode(),
+        f"{base}/{sha2}/counter.py": LIB.replace("привет", "здравствуй").encode(),
+    }
+    downloads = []
+
+    async def fake_download(url):
+        downloads.append(url)
+        return files[url]
+
+    monkeypatch.setattr(download, "download", fake_download)
+    monkeypatch.setattr(github, "resolve_commit", lambda repo, ref: state["sha"])
+
+    url = f"{base}/HEAD/counter.py"
+    asyncio.run(loader.install(USER.format(name="A", url="someone/libs/counter"), "file:a.py"))
+    assert downloads == [f"{base}/{sha1}/counter.py"]
+    assert loader.lib_pins() == {url: f"{base}/{sha1}/counter.py"}
+    assert loader.get_module("A").lib.hello() == "привет"
+
+    def uplm(text):
+        message = FakeMessage(text)
+        asyncio.run(loader.get_command("uplm").func(message))
+        return message.edits[-1]
+
+    assert "<b>counter.py</b> (библиотека) — без изменений" in uplm(".uplm")
+
+    state["sha"] = sha2
+    text = uplm(".uplm a")
+    assert text.startswith("🔃 <b>Обновить модули?") and "<b>counter.py</b> (библиотека) · +1 −1" in text
+    assert f"/commit/{sha2}" in text and "здравствуй" in text
+    assert loader.get_module("A").lib.hello() == "привет"
+
+    assert "(библиотека) — обновлена (+1 −1)" in uplm(".uplm -f a")
+    assert loader.lib_pins() == {url: f"{base}/{sha2}/counter.py"}
+    assert loader.get_module("A").lib.hello() == "здравствуй"
