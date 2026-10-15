@@ -47,6 +47,7 @@ def test_freezes_after_limit_and_thaws(limiter):
     limiter.clock_.now += 61
     limiter.check(EXTERNAL)
     assert limiter.frozen_for("Spammer") == 0
+    assert limiter.hits == {"Spammer": 2}  # the freeze itself and one rejected request
 
 
 def test_window_slides(limiter):

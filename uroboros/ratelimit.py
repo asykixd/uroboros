@@ -11,7 +11,7 @@ import contextlib
 import contextvars
 import logging
 import time
-from collections import deque
+from collections import Counter, deque
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
@@ -53,6 +53,7 @@ class RateLimiter:
         self.clock = clock
         self._requests: dict[str, deque[float]] = {}
         self.frozen: dict[str, float] = {}  # имя модуля → до какого момента (по clock)
+        self.hits: Counter[str] = Counter()  # module → freezes and requests rejected while frozen (.stats)
         self.on_freeze = None  # async-функция(name, seconds): уведомить пользователя
 
     @property
@@ -87,6 +88,7 @@ class RateLimiter:
         name = module.name
         left = self.frozen_for(name)
         if left:
+            self.hits[name] += 1
             raise ModuleFrozen(f"Модуль {name} заморожен за флуд запросами ещё на {format_seconds(left)}")
 
         now = self.clock()
@@ -99,6 +101,7 @@ class RateLimiter:
 
         requests.clear()
         self.frozen[name] = now + settings["freeze"]
+        self.hits[name] += 1
         log.warning(
             "Модуль %s заморожен на %d с: больше %d запросов за %d с",
             name,

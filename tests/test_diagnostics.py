@@ -66,3 +66,31 @@ def test_doctor_reports_inline_and_frozen(builtin_loader):
 
     loader.inline = SimpleNamespace(ready=True, bot_username="my_bot", release=lambda stem: None)
     assert "Inline-бот: @my_bot" in run(loader, ".doctor")
+
+
+def test_stats_overview_and_module(builtin_loader):
+    loader = builtin_loader
+    assert "команды ещё не вызывались" in run(loader, ".stats")
+
+    stats = loader.stats
+    stats.record_command("Demo<x>", "one", 0.010, failed=False)
+    stats.record_command("Demo<x>", "one", 0.030, failed=True)
+    stats.record_command("Help", "help", 0.002, failed=False)
+    stats.watcher_errors["Demo<x>"] += 2
+    loader.ratelimit.hits["Spammer"] += 3
+
+    text = run(loader, ".stats")
+    assert text.startswith("📊 <b>Статистика</b>")
+    assert "▸ <b>Demo&lt;x&gt;</b> — 2 выз. · ⏱ 20 мс · ❌ 3" in text
+    assert "▸ <b>Help</b> — 1 выз. · ⏱ 2 мс" in text
+    assert "▸ <b>Spammer</b> — 🧊 3" in text
+    assert text.index("Demo&lt;x&gt;") < text.index("Help") < text.index("Spammer")
+
+    text = run(loader, ".stats Demo<x>")
+    assert "▸ <code>one</code> — 2 выз. · ⏱ 20 мс (макс. 30 мс) · ❌ 1" in text
+    assert "Ошибок в вотчерах: <code>2</code>" in text
+    assert run(loader, ".stats help").startswith("📊 <b>Help</b>")  # module name is case-insensitive
+    assert "данных пока нет" in run(loader, ".stats nothing")
+
+    assert "сброшена" in run(loader, ".stats reset")
+    assert not stats.commands and not stats.watcher_errors and not loader.ratelimit.hits

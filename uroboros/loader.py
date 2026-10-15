@@ -34,6 +34,7 @@ from .inline import Inline
 from .loops import LOOP_ATTR, Loop
 from .ratelimit import RateLimiter, module_context
 from .security import Security
+from .stats import Stats
 from .types import Library, Module, ModuleConfig, Strings
 
 if TYPE_CHECKING:
@@ -204,6 +205,7 @@ class Loader:
         self.inline: InlineManager | None = None
         self.security = Security(db)
         self.ratelimit = RateLimiter(db)
+        self.stats = Stats()
         self.guard = Guard(self, modules_dir.parent)
 
         self.modules: dict[str, Module] = {}  # имя в нижнем регистре → модуль

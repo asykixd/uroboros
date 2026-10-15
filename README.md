@@ -72,6 +72,7 @@ shuts down after login, and Uroboros creates its inline bot via @BotFather. Cons
 | 💾 `.backup`, ♻️ `.restore` | backup and restore |
 | ℹ️ `.info`, 📡 `.ping`, 📝 `.logs` | bot status |
 | 🩺 `.doctor` | what failed to load and why, inline bot state, edited files, frozen modules |
+| 📊 `.stats [module]` | command calls and timings, errors, flood protection hits since start |
 
 Full list with access levels: [command reference](https://asykixd.github.io/uroboros/commands/).
 

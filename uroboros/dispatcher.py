@@ -88,8 +88,7 @@ class Dispatcher:
             if reason is not None:
                 await utils.answer(message, f"🚫 <b>{utils.escape_html(reason)}</b>")
                 return
-            with module_context(command.module):
-                await command.func(message)
+            await self._timed(command, message)
         except LoadError as e:
             await self._report(message, used_name, utils.quote(utils.escape_html(e)))
         except FloodWaitError as e:
@@ -109,6 +108,17 @@ class Dispatcher:
                 message, used_name, utils.quote(f"<code>{utils.escape_html(tb[-3000:])}</code>", expandable=True)
             )
 
+    async def _timed(self, command: Command, message: Message) -> None:
+        stats = self.loader.stats
+        started = stats.clock()
+        failed = True
+        try:
+            with module_context(command.module):
+                await command.func(message)
+            failed = False
+        finally:
+            stats.record_command(command.module.name, command.name, stats.clock() - started, failed=failed)
+
     async def _report(self, message: Message, used_name: str, body: str) -> None:
         text = f"❌ <b>Ошибка в команде</b> <code>{utils.escape_html(self.prefix + used_name)}</code>\n{body}"
         try:
@@ -118,8 +128,7 @@ class Dispatcher:
         except Exception:
             log.exception("Не удалось отправить сообщение об ошибке")
 
-    @staticmethod
-    async def _run_watcher(watcher, message: Message) -> None:
+    async def _run_watcher(self, watcher, message: Message) -> None:
         try:
             with module_context(watcher.module):
                 await watcher.func(message)
@@ -129,3 +138,4 @@ class Dispatcher:
             log.warning("Вотчер модуля %s: флуд-лимит Telegram, ждать %d с", watcher.module.name, e.seconds)
         except (Exception, SystemExit):
             log.exception("Ошибка в вотчере модуля %s", watcher.module.name)
+            self.loader.stats.watcher_errors[watcher.module.name] += 1
