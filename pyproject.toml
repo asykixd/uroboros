@@ -98,4 +98,5 @@ ignore = ["RUF001", "RUF002", "RUF003", "SIM108"]
 [tool.ruff.lint.per-file-ignores]
 # Module strings is a plain class dict, as in Hikka.
 "examples/*" = ["RUF012"]
+"templates/*" = ["RUF012"]
 "tests/hikka/*" = ["RUF012"]

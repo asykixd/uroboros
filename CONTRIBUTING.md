@@ -24,5 +24,6 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'
 
 ## Modules
 
-Keep your modules in your own repo, using [uroboros-modules](https://github.com/asykixd/uroboros-modules) as a
-template. Useful modules can be proposed there.
+Keep your modules in your own repo: copy [`templates/modules-repo/`](templates/modules-repo) (example module,
+README and a CI check that scans and loads every module). Useful modules can be proposed to
+[uroboros-modules](https://github.com/asykixd/uroboros-modules).

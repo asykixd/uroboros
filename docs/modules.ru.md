@@ -404,3 +404,12 @@ await utils.answer(
 
 Если модулю действительно нужно что-то из этого, объясните зачем в описании модуля: пользователь увидит
 предупреждение и решит сам.
+
+## Свой репозиторий
+
+Храните модули в репозитории на GitHub: `.dlm owner/repo` покажет `.py`-файлы из его корня, а после
+`.addrepo owner/repo` их можно ставить по имени. Готовая заготовка лежит в
+[`templates/modules-repo/`](https://github.com/asykixd/uroboros/tree/master/templates/modules-repo): пример модуля,
+README, заготовка `manifest.json` и workflow для GitHub Actions. Workflow ставит `uroboros-userbot` с PyPI и
+запускает `tools/check_modules.py`: он проверяет и загружает каждый модуль так же, как `.dlm`, и падает на опасном
+коде или ошибке загрузки. Скопируйте папку в новый репозиторий и замените `hello.py` своими модулями.

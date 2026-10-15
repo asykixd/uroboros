@@ -1,0 +1,8 @@
+{
+  "name": "your-modules",
+  "description": "Uroboros modules by @your_username",
+  "author": "@your_username",
+  "modules": {
+    "hello": "Says hello"
+  }
+}
