@@ -217,7 +217,7 @@ strings_ru = {
 }
 ```
 
-`utils.get_language(self.db.raw)` returns the current language code; `utils.LANGUAGES` lists the supported ones.
+`_cfg_doc_<key>` translates a setting description in `.cfg`. `utils.get_language(self.db.raw)` returns the current language code; `utils.LANGUAGES` lists the supported ones.
 
 ## Libraries
 

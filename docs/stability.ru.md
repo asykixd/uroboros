@@ -16,7 +16,7 @@
 - всё, что экспортирует `uroboros` (`Module`, `Library`, `ModuleConfig`, `ConfigValue`, `command`, `watcher`,
   `loop`, `StopLoop`, `inline_handler`, `callback_handler`, `LoadError`, `InlineError`, `utils`, `validators`);
 - функции `uroboros.utils`, валидаторы `uroboros.validators`, исключения `uroboros.errors`;
-- атрибуты и методы модуля: `client`, `db`, `loader`, `inline`, `config`, `strings`, `get`, `set`, `import_lib`,
+- атрибуты и методы модуля: `client`, `db`, `loader`, `inline`, `config`, `strings` (и `strings_<язык>`, `_cls_doc`, `_cmd_doc_<имя>`, `_cfg_doc_<ключ>`), `get`, `set`, `import_lib`,
   хуки `on_load`, `on_unload`, `on_dlmod`;
 - `self.inline`: `form`, `list`, `gallery`, `markup`, `available`, `bot`; `InlineCall`, `InlineMessage`, `InlineQuery`;
 - параметры декораторов и формат кнопок;

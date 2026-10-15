@@ -223,7 +223,7 @@ strings_ru = {
 }
 ```
 
-`utils.get_language(self.db.raw)` возвращает код текущего языка, `utils.LANGUAGES` — все поддерживаемые.
+`_cfg_doc_<ключ>` переводит описание настройки в `.cfg`. `utils.get_language(self.db.raw)` возвращает код текущего языка, `utils.LANGUAGES` — все поддерживаемые.
 
 ## Библиотеки
 

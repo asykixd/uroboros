@@ -16,7 +16,7 @@ What modules can rely on:
 - everything exported by `uroboros` (`Module`, `Library`, `ModuleConfig`, `ConfigValue`, `command`, `watcher`,
   `loop`, `StopLoop`, `inline_handler`, `callback_handler`, `LoadError`, `InlineError`, `utils`, `validators`);
 - `uroboros.utils` functions, `uroboros.validators`, `uroboros.errors` exceptions;
-- module attributes and methods: `client`, `db`, `loader`, `inline`, `config`, `strings`, `get`, `set`,
+- module attributes and methods: `client`, `db`, `loader`, `inline`, `config`, `strings` (with `strings_<lang>`, `_cls_doc`, `_cmd_doc_<name>`, `_cfg_doc_<key>`), `get`, `set`,
   `import_lib`, hooks `on_load`, `on_unload`, `on_dlmod`;
 - `self.inline`: `form`, `list`, `gallery`, `markup`, `available`, `bot`; `InlineCall`, `InlineMessage`,
   `InlineQuery`;
