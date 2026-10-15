@@ -49,6 +49,8 @@ undeclared usage triggers a warning. See [Writing modules](modules.md#file-heade
 - GitHub modules and libraries are pinned to a commit: the file is fetched by SHA, and the confirmation shows
   which commit.
 - `.uplm` shows each module's and library's diff and updates after confirmation.
+- A repo can publish `manifest.json` with the sha256 of each module. A downloaded file that doesn't match is
+  refused; verified modules are marked 🔏. See [Writing modules](modules.md#install-time-scan).
 - Uroboros stores sha256 of installed module files. If a file was changed outside Uroboros and now contains
   dangerous code, it won't load at startup.
 - `# requires:` accepts only package names with versions: no URLs or pip options.

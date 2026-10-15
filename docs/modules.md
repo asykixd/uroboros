@@ -390,6 +390,17 @@ GitHub modules are fetched by commit SHA; the confirmation and `.uplm` show whic
 module's diff and updates only after confirmation. Installed files are hash-protected: if a file changed outside
 Uroboros and now has dangerous code, it won't load at startup.
 
+A module repo can publish `manifest.json` in its root with the sha256 of each file:
+
+```json
+{"modules": {"weather.py": "<file sha256>", "tools/notes.py": {"sha256": "<file sha256>"}}}
+```
+
+`.dlm` and `.uplm` fetch the manifest from the same commit as the module and check the downloaded file against it.
+A mismatch cancels the install; a match is marked 🔏 in the reply. Files the manifest doesn't list install as before,
+without the mark. A manifest that exists but can't be read also cancels the install. Compute a hash with
+`sha256sum weather.py`.
+
 At runtime third-party modules are restricted too: they can't read `self.client.session`, open the session,
 `config.json` or `uroboros.db`, send account takeover requests (terminating sessions, changing password or phone, QR
 login, logout, spending stars), or pass session files to shell commands. Attempts raise `PermissionError` and notify

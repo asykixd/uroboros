@@ -1,8 +1,10 @@
 import asyncio
 
+import pytest
 from conftest import FakeMessage
 
 from uroboros import download
+from uroboros.errors import LoadError
 
 V1 = """
 from uroboros import Module, command
@@ -93,6 +95,40 @@ def test_dlm_asks_before_first_install_from_connected_repo(builtin_loader, monke
     run_command(loader, ".delrepo someone/mods")
     run_command(loader, ".addrepo someone/mods")
     assert "Первый модуль из репозитория" in run_command(loader, ".dlm demo")
+
+
+def test_dlm_checks_repo_manifest(builtin_loader, monkeypatch):
+    import hashlib
+    import json
+
+    from uroboros import github
+
+    loader = builtin_loader
+    remote = {"code": V1.encode()}
+    manifest = {"modules": {"demo.py": hashlib.sha256(V1.encode()).hexdigest()}}
+
+    async def fake_download(url):
+        return remote["code"]
+
+    monkeypatch.setattr(download, "download", fake_download)
+    monkeypatch.setattr(github, "fetch_manifest", lambda repo, ref: json.dumps(manifest).encode())
+
+    text = run_command(loader, ".dlm someone/mods/demo")
+    assert "🔏 Совпадает с <code>manifest.json</code>" in text
+    text = run_command(loader, ".dlm -f someone/mods/demo")
+    assert text.startswith("✅") and "Файл совпадает с <code>manifest.json</code>" in text
+
+    remote["code"] = V2.encode()
+    text = run_command(loader, ".uplm demo")
+    assert "не совпадает с manifest.json" in text and loader.get_command("one") is not None
+    with pytest.raises(LoadError, match=r"не совпадает с manifest\.json"):
+        run_command(loader, ".dlm -f someone/mods/demo")
+    assert loader.get_command("two") is None
+
+    # Files the manifest doesn't list install as before, just without the mark.
+    asyncio.run(loader.uninstall("Demo"))
+    text = run_command(loader, ".dlm -f someone/mods/other")
+    assert text.startswith("✅") and "manifest.json" not in text
 
 
 def test_search_in_connected_repos(builtin_loader, monkeypatch):

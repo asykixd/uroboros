@@ -24,17 +24,24 @@ class Candidate:
     origin: str  # откуда брать обновления
     pin: str | None  # та же версия в конкретном коммите (GitHub)
     report: scan.Report
+    verified: bool = False  # sha256 matches the repo's manifest.json
 
 
 async def fetch_candidate(url, data=None):
-    """Скачивает модуль; с GitHub — по ссылке на конкретный коммит, чтобы знать, какая версия установлена."""
+    """Скачивает модуль; с GitHub — по ссылке на конкретный коммит, чтобы знать, какая версия установлена.
+
+    If the repo publishes ``manifest.json``, a file that doesn't match its sha256 is refused.
+    """
     pinned = await github.pin(url)
     if pinned is not None:
         data = await download.download(pinned[0])
     elif data is None:
         data = await download.download(url)
+    expected = await github.manifest_hash(pinned[0] if pinned else url)
+    if expected is not None:
+        github.verify(data, expected)
     source = download.decode(data)
-    return Candidate(source, url, pinned[0] if pinned else None, scan.scan(source))
+    return Candidate(source, url, pinned[0] if pinned else None, scan.scan(source), expected is not None)
 
 
 def commit_html(pin):
@@ -249,6 +256,8 @@ class Loader(Module):
         info = [f"🔗 Источник: <code>{utils.escape_html(candidate.origin)}</code>"]
         if candidate.pin:
             info.append(f"📌 Коммит: {commit_html(candidate.pin)}")
+        if candidate.verified:
+            info.append(f"🔏 Совпадает с <code>{github.MANIFEST}</code> репозитория")
         if report.declared is not None:
             info.append(f"🔐 Права: {scan.permission_names(report.declared) or 'не нужны'}")
         elif report.uses:
@@ -294,12 +303,14 @@ class Loader(Module):
             await call.edit(utils.card("❌ <b>Модуль не установлен</b>", utils.escape_html(e)))
             return
         self._approve(candidate.origin)
-        await call.edit(self._installed_text(instances) + findings_text(candidate.report))
+        await call.edit(self._installed_text(instances) + verified_text(candidate) + findings_text(candidate.report))
 
     async def _install(self, message, candidate, *, force=False):
         instances = await self.loader.install(candidate.source, candidate.origin, force=force, pin=candidate.pin)
         self._approve(candidate.origin)
-        await utils.answer(message, self._installed_text(instances) + findings_text(candidate.report))
+        await utils.answer(
+            message, self._installed_text(instances) + verified_text(candidate) + findings_text(candidate.report)
+        )
 
     def _installed_text(self, instances):
         prefix = utils.escape_html(utils.get_prefix(self.db.raw))
@@ -524,6 +535,12 @@ class Loader(Module):
         await utils.answer(message, utils.card(f"📚 <b>Репозитории</b> · {len(repos)}", lines))
 
 
+def verified_text(candidate):
+    if not candidate.verified:
+        return ""
+    return f"\n🔏 <i>Файл совпадает с <code>{github.MANIFEST}</code> репозитория</i>"
+
+
 def findings_text(report):
     """Опасное и подозрительное в модуле — блоками под основным ответом."""
     text = ""
@@ -549,6 +566,8 @@ def updates_text(updates, lines):
         if more > 0:
             shown += f"\n… ещё {more} строк"
         commit = f" · 📌 {commit_html(update.candidate.pin)}" if update.candidate.pin else ""
+        if update.candidate.verified:
+            commit += f" · 🔏 <code>{github.MANIFEST}</code>"
         parts.append(
             f"🧩 {update.label} · {update.stat}{commit}"
             + findings_text(update.report)
