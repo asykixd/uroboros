@@ -23,6 +23,11 @@ is full access to your account: never share it.
 version is installed with its dependencies; if they fail or the new version doesn't start, git rolls back and the
 bot keeps running.
 
+After the restart the new version is on trial until it is ready (modules loaded, commands accepted). If startup
+fails, or the bot doesn't get there in 2 starts (e.g. killed and restarted by systemd), the previous version is
+reinstalled and the bot restarts into it; a notice with the reason arrives in Saved Messages. The same applies to
+`.dev on` / `.dev off`. The trial marker is `data/update-pending.json`.
+
 - `.update channel beta`: every commit on the bot's branch (default); `master` is stable, `dev` is development;
 - `.update channel stable`: releases (tags) only;
 - `.update notify off`: no daily new-version notice.

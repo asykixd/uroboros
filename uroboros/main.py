@@ -11,7 +11,7 @@ import signal
 import subprocess
 import sys
 
-from . import __version__, guard, logs, migrations, utils, web
+from . import __version__, guard, healthcheck, logs, migrations, utils, web
 from .client import UroborosClient, login, make_client
 from .config import Config, get_data_dir, load_config
 from .database import Database
@@ -157,6 +157,7 @@ async def run(args: argparse.Namespace) -> None:
         await loader.load_all()
         dispatcher.install()
         handle_sigterm(client)
+        healthcheck.confirm(config.data_dir, healthy=loader.get_module("System") is not None)
 
         log.info("Готов. Префикс команд: %s", dispatcher.prefix)
         await client.run_until_disconnected()
@@ -203,14 +204,30 @@ def main() -> None:
         )
 
     logs.setup(data_dir / "uroboros.log")
+    # After .update/.dev this start is a trial: if it fails, the previous version comes back.
+    pending = healthcheck.begin(data_dir)
+    reason = None
+    rolled_back = False
     try:
-        asyncio.run(run(args))
+        if pending is not None and pending.attempts > healthcheck.MAX_ATTEMPTS:
+            reason = f"не дошла до готовности за {healthcheck.MAX_ATTEMPTS} запуска"
+        else:
+            asyncio.run(run(args))
     except KeyboardInterrupt:
         return
+    except Exception as e:
+        if pending is None or not healthcheck.is_pending(data_dir):
+            raise
+        log.exception("Новая версия не запустилась")
+        reason = f"{type(e).__name__}: {e}"
     finally:
+        if reason is not None:
+            rolled_back = healthcheck.rollback(data_dir, pending, reason)
         # До перезапуска: на Windows новый процесс стартует, пока жив старый.
         lock.release()
-    if utils.restart_requested():
+    if reason is not None and not rolled_back:
+        sys.exit(f"Новая версия не запустилась, а откатить её не удалось: {reason}. Подробности в uroboros.log")
+    if reason is not None or utils.restart_requested():
         log.info("Перезапуск...")
         utils.exec_restart()
 

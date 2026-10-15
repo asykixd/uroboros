@@ -8,7 +8,7 @@ import time
 import telethon
 
 import uroboros
-from uroboros import Module, command, logs, loop, updater, utils
+from uroboros import Module, command, healthcheck, logs, loop, updater, utils
 from uroboros.errors import InlineError
 
 CANCEL = {"text": "✖️ Отмена", "action": "close"}
@@ -17,11 +17,18 @@ DOCKER_UPDATE = "git pull &amp;&amp; docker compose up -d --build"
 RELEASES_HINT = '📰 Что нового — в <a href="https://github.com/asykixd/uroboros/releases">релизах на GitHub</a>'
 DEV_ARGS = {"on": "dev", "dev": "dev", "off": "master", "master": "master"}
 
+log = logging.getLogger(__name__)
+
 
 class System(Module):
     """Состояние, перезапуск и обновление"""
 
+    @property
+    def _data_dir(self):
+        return self.loader.modules_dir.parent  # modules/ lives in the data dir (Config.modules_dir)
+
     async def on_load(self):
+        await self._report_rollback()
         # Если перезапуск инициирован командой — отчитываемся в том же сообщении.
         pending = self.db.get("restart")
         if not pending or self.client is None:
@@ -35,6 +42,28 @@ class System(Module):
                 f"✅ <b>Uroboros перезапущен</b> · за <code>{time.time() - started:.1f} с</code>",
                 parse_mode="html",
             )
+
+    async def _report_rollback(self):
+        """Прошлое обновление не запустилось и было откачено (``healthcheck``): сообщаем в «Избранное»."""
+        if self.client is None:
+            return
+        notice = healthcheck.take_notice(self._data_dir)
+        if notice is None:
+            return
+        previous = utils.escape_html(notice.get("previous", "?"))
+        target = utils.escape_html(notice.get("target", "?"))
+        if notice.get("ok"):
+            title = "⚠️ <b>Обновление откачено</b>"
+            lines = [f"🆕 Не запустилось: <code>{target}</code>", f"↩️ Вернул версию <code>{previous}</code>"]
+        else:
+            title = "🚨 <b>Обновление не запустилось, откатить не удалось</b>"
+            lines = [f"🆕 Версия: <code>{target}</code>", f"↩️ Верните <code>{previous}</code> вручную"]
+        text = utils.card(title, lines)
+        text += "\n" + code_quote(notice.get("reason", "") + "\n" + notice.get("output", ""))
+        try:
+            await self.client.send_message("me", text, parse_mode="html")
+        except Exception:
+            log.exception("Не удалось сообщить об откате обновления")
 
     @command("ping", access="support", emoji="📡")
     async def ping(self, message):
@@ -188,7 +217,7 @@ class System(Module):
         action = (
             updater.install(update) if updater.is_git_checkout() else updater.install_pip(update, uroboros.__version__)
         )
-        await self._apply(action, report, message, "🔄 <b>Обновлено</b> · перезапуск...")
+        await self._apply(action, report, message, "🔄 <b>Обновлено</b> · перезапуск...", update.label)
 
     async def _check(self):
         """Обновление в текущем канале: из git, а если Uroboros поставлен через pip — с PyPI."""
@@ -196,10 +225,14 @@ class System(Module):
             return await updater.check(self._get_channel())
         return await updater.check_pip(self._get_channel(), uroboros.__version__)
 
-    async def _apply(self, action, report, message, done):
-        """Ждёт ``action`` (обновление или смену ветки) и перезапускается; ошибку показывает через ``report``."""
+    async def _apply(self, action, report, message, done, label):
+        """Ждёт ``action`` (обновление или смену ветки) и перезапускается; ошибку показывает через ``report``.
+
+        Перед перезапуском запоминает, как вернуть прежнюю версию: если новая не дойдёт до готовности,
+        ``main`` откатит её сам.
+        """
         try:
-            await action
+            rollback = await action
         except updater.InstallError as e:
             text = f"❌ <b>{utils.escape_html(e.stage)}</b>\n" + code_quote(e.output)
             if e.rolled_back:
@@ -213,6 +246,10 @@ class System(Module):
         except updater.UpdateError as e:
             await report(f"❌ <b>{utils.escape_html(e)}</b>")
             return
+        try:
+            healthcheck.arm(self._data_dir, rollback, uroboros.__version__, label)
+        except (OSError, ValueError):
+            log.exception("Не удалось подготовить откат: новая версия будет без проверки запуска")
         if message is not None:
             await self.restart(message)
         else:
@@ -318,12 +355,19 @@ class System(Module):
 
     async def _switch(self, target, report, message):
         async def action():
-            await (updater.switch(target) if updater.is_git_checkout() else updater.switch_pip(target))
+            rollback = await (updater.switch(target) if updater.is_git_checkout() else updater.switch_pip(target))
             if target.branch == "dev":
                 self.db.set("channel", "beta")  # stable — теги master, в dev их нет
+            return rollback
 
         await report(f"⏳ <b>Переключаюсь на {target.branch}</b> · ставлю зависимости...")
-        await self._apply(action(), report, message, f"🔄 <b>Ветка {target.branch}</b> · перезапуск...")
+        await self._apply(
+            action(),
+            report,
+            message,
+            f"🔄 <b>Ветка {target.branch}</b> · перезапуск...",
+            f"{target.branch} {target.version}",
+        )
 
     async def _channel(self, message, args):
         if args:
