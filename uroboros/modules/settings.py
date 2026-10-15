@@ -1,9 +1,11 @@
 from uroboros import Module, command, utils
 from uroboros.database import MAIN_OWNER
 
+EDIT_COMMANDS_KEY = "edit_commands"
+
 
 class Settings(Module):
-    """Префикс и алиасы команд"""
+    """Префикс, алиасы и запуск команд по правке"""
 
     def _aliases(self):
         return self.db.raw.get(MAIN_OWNER, "aliases", {})
@@ -76,3 +78,33 @@ class Settings(Module):
             for a, c in sorted(aliases.items())
         ]
         await utils.answer(message, utils.card(f"🏷 <b>Алиасы</b> · {len(aliases)}", lines))
+
+    @command("editcmd", access="owner", emoji="✏️")
+    async def editcmd(self, message):
+        """[on | off] — перезапускать команду, если её сообщение отредактировали"""
+        arg = utils.get_args_raw(message).strip().lower()
+        if arg not in ("", "on", "off"):
+            await utils.answer(
+                message, utils.card("❌ <b>Не понял</b>", hint="<code>editcmd on</code> или <code>editcmd off</code>")
+            )
+            return
+        if arg:
+            self.db.raw.set(MAIN_OWNER, EDIT_COMMANDS_KEY, arg == "on")
+        prefix = utils.escape_html(utils.get_prefix(self.db.raw))
+        if self.db.raw.get(MAIN_OWNER, EDIT_COMMANDS_KEY, True):
+            await utils.answer(
+                message,
+                utils.card(
+                    "✏️ <b>Команды по правке включены</b>",
+                    ["🔁 Исправили команду в сообщении — она выполнится заново"],
+                    hint=f"выключить: <code>{prefix}editcmd off</code>",
+                ),
+            )
+        else:
+            await utils.answer(
+                message,
+                utils.card(
+                    "✏️ <b>Команды по правке выключены</b>",
+                    hint=f"включить: <code>{prefix}editcmd on</code>",
+                ),
+            )
