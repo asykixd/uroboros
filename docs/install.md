@@ -114,6 +114,18 @@ docker compose logs -f
 The login link appears in the logs; the panel is reachable only from this machine (`127.0.0.1:8080`). Data is in
 `./data`. Update with `git pull && docker compose up -d --build` (`.update` doesn't work in Docker).
 
+**Prebuilt image.** Every release is published to GHCR for amd64 and arm64 as `ghcr.io/asykixd/uroboros:X.Y.Z`
+and `:latest`, so you don't need the source:
+
+```bash
+docker run -d --name uroboros --restart unless-stopped \
+  -v "$PWD/data:/data" -p 127.0.0.1:8080:8080 ghcr.io/asykixd/uroboros:latest
+docker logs -f uroboros
+```
+
+Update: `docker pull ghcr.io/asykixd/uroboros:latest`, then `docker rm -f uroboros` and the same `docker run`. Pass
+`-e UROBOROS_API_ID=... -e UROBOROS_API_HASH=...` to skip entering them in the panel.
+
 ## Windows
 
 1. Install [Python 3.10+](https://www.python.org/downloads/) (check "Add python.exe to PATH") and
