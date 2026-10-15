@@ -166,6 +166,10 @@ def source_hash(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
+def _reason(error: BaseException) -> str:
+    return str(error) if isinstance(error, LoadError) else repr(error)
+
+
 def make_stem(name: str) -> str:
     return re.sub(r"[^a-z0-9_]", "_", name.lower()) or "module"
 
@@ -210,6 +214,9 @@ class Loader:
         self.callback_handlers: list[CallbackHandler] = []
         self.libs: dict[str, LoadedLib] = {}  # url → библиотека
         self._sources: dict[str, tuple[str, str, str | None]] = {}  # stem → (исходник, origin, filename)
+        # For .doctor: why load_all skipped a file, and files edited outside Uroboros since install.
+        self.failures: dict[str, str] = {}
+        self.tampered: set[str] = set()
         self._counter = itertools.count()
 
     # --- поиск ---
@@ -236,22 +243,25 @@ class Loader:
                 continue
             try:
                 await self.load_source(path.read_text("utf-8"), origin="builtin", stem=path.stem, filename=str(path))
-            except Exception:
+            except Exception as e:
                 log.exception("Не удалось загрузить встроенный модуль %s", path.stem)
+                self.failures[path.stem] = _reason(e)
 
         hashes = self.db.get(LOADER_OWNER, "hashes", {})
         for stem, origin in self.installed().items():
             path = self.modules_dir / f"{stem}.py"
             if not path.exists():
                 log.warning("Файл модуля %s пропал, пропускаю", path)
+                self.failures[stem] = "файл модуля пропал"
                 continue
             try:
                 source = path.read_text("utf-8")
                 if not self._check_hash(stem, source, hashes):
                     continue
                 await self.load_source(source, origin=origin, stem=stem, filename=str(path))
-            except Exception:
+            except Exception as e:
                 log.exception("Не удалось загрузить модуль %s", stem)
+                self.failures[stem] = _reason(e)
         self.db.set(LOADER_OWNER, "hashes", hashes)
 
         log.info("Загружено модулей: %d, команд: %d", len(self.modules), len(self.commands))
@@ -260,8 +270,10 @@ class Loader:
         """Файл модуля изменили в обход Uroboros: с опасным кодом не грузим, иначе запоминаем новый хеш."""
         digest = source_hash(source)
         if hashes.get(stem, digest) != digest:
+            self.tampered.add(stem)
             report = scan.scan(source)
             if report.dangerous:
+                self.failures[stem] = f"файл изменён не через Uroboros, опасный код: {scan.summary(report.dangerous)}"
                 log.error(
                     "Файл модуля %s изменён не через Uroboros и содержит опасный код (%s), не загружаю. "
                     "Переустановите модуль: .dlm",
@@ -321,6 +333,7 @@ class Loader:
             hashes.pop(old_stem, None)
         hashes[stem] = source_hash(source)
         self.db.set(LOADER_OWNER, "hashes", hashes)
+        self.tampered.discard(stem)
         pins = self.db.get(LOADER_OWNER, "pins", {})
         for old_stem in replaced | {stem}:
             pins.pop(old_stem, None)
@@ -462,6 +475,7 @@ class Loader:
                 raise
             raise LoadError(f"Не удалось подключить модуль: {e!r}") from e
         self._sources[stem] = (source, origin, filename)
+        self.failures.pop(stem, None)
 
         for inst in instances:
             for task in inst._loops:
@@ -716,6 +730,8 @@ class Loader:
         pins.pop(stem, None)
         self.db.set(LOADER_OWNER, "pins", pins)
         self.guard.set_trusted(stem, False)
+        self.failures.pop(stem, None)
+        self.tampered.discard(stem)
         (self.modules_dir / f"{stem}.py").unlink(missing_ok=True)
         return removed
 

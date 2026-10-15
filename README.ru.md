@@ -68,6 +68,7 @@ curl -fsSL https://raw.githubusercontent.com/asykixd/uroboros/master/install.sh 
 | 🔐 `.security` | доступ, права команд, защита от флуда и защита модулей |
 | 💾 `.backup`, ♻️ `.restore` | бэкап базы и модулей и восстановление |
 | ℹ️ `.info`, 📡 `.ping`, 📝 `.logs` | состояние бота |
+| 🩺 `.doctor` | что не загрузилось и почему, inline-бот, изменённые файлы, замороженные модули |
 
 Все команды с уровнями доступа — в [справочнике](docs/commands.ru.md).
 
