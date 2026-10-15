@@ -19,6 +19,8 @@ Your own (outgoing) messages always. Commands in other people's messages run onl
 
 Each level includes the ones below it. Change a command's level with `.security <command> <level>`; reset with
 `.security <command> default`. `.security` alone shows groups, overridden permissions, frozen and trusted modules.
+With the inline bot running, it opens a menu: flood limits, module protection (removing it asks for confirmation),
+command permissions and unfreezing. The text subcommands keep working.
 
 ## Code scanning on install
 

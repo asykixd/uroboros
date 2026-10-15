@@ -143,3 +143,54 @@ def test_uplm_confirmation_button(env, monkeypatch):
     press(env.manager, "🔃 Обновить")
     assert last_text(env).startswith("✅ <b>Модули обновлены")
     assert "x = 1" in (env.loader.modules_dir / "remote.py").read_text(encoding="utf-8")
+
+
+def test_security_inline_menu(env):
+    asyncio.run(env.loader.install("from uroboros import Module\nclass Plain(Module):\n    pass\n", "file:p.py"))
+    message = run(env, ".security")
+    assert message.deleted and "🔐 <b>Доступ и защита</b>" in last_text(env)
+    unit = last_unit(env)
+    assert "🔥 Разморозить" not in button_texts(env.manager, unit)
+
+    press(env.manager, "❄️ Флуд")
+    press(env.manager, "🔴 Выключить")
+    assert env.loader.ratelimit.settings["enabled"] is False and "выключена" in last_text(env)
+    type_input(env.manager, unit, "10 20")
+    assert "Нужно три числа" in last_text(env)
+    type_input(env.manager, unit, "10 20 30")
+    settings = env.loader.ratelimit.settings
+    assert (settings["limit"], settings["window"], settings["freeze"], settings["enabled"]) == (10, 20, 30, True)
+
+    press(env.manager, "◀️ Назад")
+    press(env.manager, "🛡 Модули")
+    assert "🛡 <b>Plain</b> — под защитой" in last_text(env)
+    press(env.manager, "Plain")
+    press(env.manager, "⚠️ Снять защиту")
+    assert "Снять защиту с <b>Plain</b>?" in last_text(env) and env.loader.guard.trusted() == set()
+    press(env.manager, "✅ Да")
+    assert env.loader.guard.trusted() == {"plain"} and "⚠️ <b>Защита снята</b>" in last_text(env)
+    press(env.manager, "🛡 Вернуть защиту")
+    assert env.loader.guard.trusted() == set()
+
+    press(env.manager, "◀️ Назад")
+    press(env.manager, "◀️ Назад")
+    press(env.manager, "⌨️ Права команд")
+    assert "права по умолчанию" in last_text(env)
+    type_input(env.manager, unit, "ping everyone")
+    assert env.loader.security.overrides() == {"ping": "everyone"} and "Права изменены" in last_text(env)
+    type_input(env.manager, unit, "ping nobody")
+    assert "Формат" in last_text(env)
+
+
+def test_security_inline_unfreeze(env):
+    env.loader.ratelimit.frozen["Spammer"] = env.loader.ratelimit.clock() + 60
+    run(env, ".security")
+    press(env.manager, "🔥 Разморозить")
+    press(env.manager, "Spammer")
+    assert not env.loader.ratelimit.frozen and "Spammer разморожен" in last_text(env)
+    assert "🔥 Разморозить" not in button_texts(env.manager, last_unit(env))
+
+
+def test_security_with_arguments_is_text(env):
+    message = run(env, ".security flood")
+    assert not message.deleted and message.edits[-1].startswith("❄️")

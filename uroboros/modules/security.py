@@ -1,6 +1,7 @@
 import contextlib
 
 from uroboros import Module, command, utils
+from uroboros.errors import InlineError
 from uroboros.ratelimit import format_seconds
 from uroboros.security import GROUPS, LEVEL_NAMES, LEVELS
 
@@ -14,6 +15,11 @@ USAGE = (
     "<code>default</code></i>"
 )
 GROUP_ICONS = {"owner": "👑", "sudo": "🛡", "support": "🤝"}
+CLOSE = {"text": "✖️ Закрыть", "action": "close"}
+ROW_SIZE = 3
+TRUST_WARNING = (
+    "Защита во время работы его больше не ограничивает: он может читать сессию, завершать сеансы и менять пароль."
+)
 
 
 class Security(Module):
@@ -24,6 +30,12 @@ class Security(Module):
         """[команда уровень | flood ... | unfreeze модуль | trust/untrust модуль] — доступ, права команд и защита"""
         args = utils.get_args(message)
         if not args:
+            if self.inline.available:
+                try:
+                    await self.inline.form(message, *await self._root_view())
+                    return
+                except InlineError:
+                    pass  # например, в чате запрещены inline-боты — покажем текстом
             await utils.answer(message, await self._overview())
             return
         if args[0].lower() == "flood":
@@ -39,21 +51,21 @@ class Security(Module):
             await utils.answer(message, USAGE)
             return
 
-        name, level = args[0].lower().removeprefix(utils.get_prefix(self.db.raw)), args[1].lower()
+        await utils.answer(message, self._set_level(args[0], args[1]) or USAGE)
+
+    def _set_level(self, name, level):
+        """Меняет права команды; ответ для пользователя или None, если уровень непонятен."""
+        name, level = name.lower().removeprefix(utils.get_prefix(self.db.raw)), level.lower()
         cmd = self.loader.get_command(name)
         if cmd is None:
-            await utils.answer(message, f"❌ <b>Нет команды</b> <code>{utils.escape_html(name)}</code>")
-            return
+            return f"❌ <b>Нет команды</b> <code>{utils.escape_html(name)}</code>"
         if level not in (*LEVELS, "default"):
-            await utils.answer(message, USAGE)
-            return
+            return None
         security = self.loader.security
         security.set_required(cmd.name, None if level == "default" else level)
         required = security.required(cmd)
-        await utils.answer(
-            message,
-            f"🔐 <b>Права изменены</b> · <code>{cmd.name}</code> — {LEVEL_NAMES[required]}"
-            + (" (по умолчанию)" if required == cmd.info.access and level == "default" else ""),
+        return f"🔐 <b>Права изменены</b> · <code>{cmd.name}</code> — {LEVEL_NAMES[required]}" + (
+            " (по умолчанию)" if required == cmd.info.access and level == "default" else ""
         )
 
     async def _overview(self):
@@ -116,19 +128,18 @@ class Security(Module):
                 ),
             )
             return
-        s = limiter.settings
+        await utils.answer(message, self._flood_card())
+
+    def _flood_card(self):
+        s = self.loader.ratelimit.settings
         if not s["enabled"]:
-            await utils.answer(message, "⚠️ <b>Защита от флуда выключена</b>")
-            return
-        await utils.answer(
-            message,
-            utils.card(
-                "❄️ <b>Защита от флуда включена</b>",
-                [
-                    f"📨 Лимит: <code>{s['limit']}</code> запросов за <code>{s['window']} с</code>",
-                    f"🧊 Заморозка: <code>{s['freeze']} с</code>",
-                ],
-            ),
+            return "⚠️ <b>Защита от флуда выключена</b>"
+        return utils.card(
+            "❄️ <b>Защита от флуда включена</b>",
+            [
+                f"📨 Лимит: <code>{s['limit']}</code> запросов за <code>{s['window']} с</code>",
+                f"🧊 Заморозка: <code>{s['freeze']} с</code>",
+            ],
         )
 
     async def _unfreeze(self, message, name):
@@ -151,13 +162,165 @@ class Security(Module):
                 message,
                 utils.card(
                     f"⚠️ <b>Модулю {label} разрешено всё</b>",
-                    "Защита во время работы его больше не ограничивает: он может читать сессию, "
-                    "завершать сеансы и менять пароль.",
+                    TRUST_WARNING,
                     hint="вернуть защиту: <code>security untrust</code>",
                 ),
             )
         else:
             await utils.answer(message, f"🛡 <b>Модуль {label} снова под защитой</b>")
+
+    # --- inline: обзор → флуд, защита модулей, права команд, разморозка ---
+
+    @staticmethod
+    def _rows(buttons, size=ROW_SIZE):
+        return [buttons[i : i + size] for i in range(0, len(buttons), size)]
+
+    def _back(self):
+        return [{"text": "◀️ Назад", "callback": self._open_root}, CLOSE]
+
+    async def _root_view(self, status=""):
+        text = await self._overview()
+        if status:
+            text = status + "\n" + text
+        buttons = [
+            [
+                {"text": "❄️ Флуд", "callback": self._open_flood},
+                {"text": "🛡 Модули", "callback": self._open_modules},
+            ],
+            [{"text": "⌨️ Права команд", "callback": self._open_commands}],
+        ]
+        if self._frozen():
+            buttons.append([{"text": "🔥 Разморозить", "callback": self._open_frozen}])
+        return text, [*buttons, [CLOSE]]
+
+    def _frozen(self):
+        limiter = self.loader.ratelimit
+        return [name for name in list(limiter.frozen) if limiter.frozen_for(name)]
+
+    def _flood_view(self, status=""):
+        enabled = self.loader.ratelimit.settings["enabled"]
+        text = self._flood_card() + (f"\n{status}" if status else "")
+        toggle = "🔴 Выключить" if enabled else "🟢 Включить"
+        buttons = [
+            [{"text": toggle, "callback": self._toggle_flood, "args": (not enabled,)}],
+            [{"text": "✍️ Изменить лимиты", "input": "запросов секунд заморозка", "handler": self._input_flood}],
+            self._back(),
+        ]
+        return text, buttons
+
+    def _external(self):
+        modules = [m for m in self.loader.modules.values() if not m.is_builtin]
+        return sorted(modules, key=lambda m: m.name.lower())
+
+    def _modules_view(self):
+        modules = self._external()
+        if not modules:
+            return "🛡 <b>Сторонних модулей нет</b>", [self._back()]
+        trusted = self.loader.guard.trusted()
+        lines = [
+            f"⚠️ <b>{utils.escape_html(m.name)}</b> — без защиты"
+            if m._stem in trusted
+            else f"🛡 <b>{utils.escape_html(m.name)}</b> — под защитой"
+            for m in modules
+        ]
+        text = utils.card("🛡 <b>Защита модулей</b>", lines, hint="выберите модуль кнопкой", expandable=len(lines) > 10)
+        names = [{"text": m.name, "callback": self._open_module, "args": (m.name,)} for m in modules]
+        return text, [*self._rows(names), self._back()]
+
+    def _module_view(self, module, status=""):
+        label = f"<b>{utils.escape_html(module.name)}</b>"
+        if module._stem in self.loader.guard.trusted():
+            text = utils.card(f"⚠️ {label} · без защиты", TRUST_WARNING)
+            action = {"text": "🛡 Вернуть защиту", "callback": self._set_trust, "args": (module.name, False)}
+        else:
+            text = utils.card(f"🛡 {label} · под защитой", "Опасные действия этого модуля блокируются.")
+            action = {
+                "text": "⚠️ Снять защиту",
+                "callback": self._set_trust,
+                "args": (module.name, True),
+                "confirm": f"🚨 <b>Снять защиту с {label}?</b>\n" + utils.quote(TRUST_WARNING),
+            }
+        if status:
+            text += "\n" + status
+        return text, [[action], [{"text": "◀️ Назад", "callback": self._open_modules}, CLOSE]]
+
+    def _commands_view(self, status=""):
+        overrides = sorted(self.loader.security.overrides().items())
+        items = [f"▸ <code>{utils.escape_html(n)}</code> — {LEVEL_NAMES.get(lv, lv)}" for n, lv in overrides]
+        text = utils.card(
+            "⌨️ <b>Права команд</b>",
+            items or "▸ у всех команд права по умолчанию",
+            hint="уровни: <code>owner</code>, <code>sudo</code>, <code>support</code>, <code>everyone</code>, "
+            "<code>default</code>",
+            expandable=len(items) > 10,
+        )
+        if status:
+            text += "\n" + status
+        buttons = [
+            [{"text": "✍️ Изменить права", "input": "команда уровень", "handler": self._input_level}],
+            self._back(),
+        ]
+        return text, buttons
+
+    def _frozen_view(self):
+        names = self._frozen()
+        if not names:
+            return "🧊 <b>Замороженных модулей нет</b>", [self._back()]
+        buttons = [{"text": name, "callback": self._unfreeze_button, "args": (name,)} for name in names]
+        return "🔥 <b>Какой модуль разморозить?</b>", [*self._rows(buttons), self._back()]
+
+    def _find_external(self, name):
+        module = self.loader.get_module(name)
+        if module is None or module.is_builtin:
+            raise InlineError("Модуль уже выгружен")
+        return module
+
+    async def _open_root(self, call):
+        await call.edit(*await self._root_view())
+
+    async def _open_flood(self, call):
+        await call.edit(*self._flood_view())
+
+    async def _open_modules(self, call):
+        await call.edit(*self._modules_view())
+
+    async def _open_module(self, call, name):
+        await call.edit(*self._module_view(self._find_external(name)))
+
+    async def _open_commands(self, call):
+        await call.edit(*self._commands_view())
+
+    async def _open_frozen(self, call):
+        await call.edit(*self._frozen_view())
+
+    async def _toggle_flood(self, call, enabled):
+        self.loader.ratelimit.configure(enabled=enabled)
+        await call.edit(*self._flood_view())
+
+    async def _input_flood(self, call, text):
+        args = text.split()
+        if len(args) != 3 or not all(a.isdigit() and int(a) > 0 for a in args):
+            error = "❌ <b>Нужно три числа:</b> запросов, секунд, заморозка (например <code>60 30 300</code>)"
+            await call.edit(*self._flood_view(error))
+            return
+        limit, window, freeze = map(int, args)
+        self.loader.ratelimit.configure(limit=limit, window=window, freeze=freeze, enabled=True)
+        await call.edit(*self._flood_view("✅ <b>Сохранено</b>"))
+
+    async def _set_trust(self, call, name, trusted):
+        module = self._find_external(name)
+        self.loader.guard.set_trusted(module._stem, trusted)
+        status = "⚠️ <b>Защита снята</b>" if trusted else "🛡 <b>Защита возвращена</b>"
+        await call.edit(*self._module_view(module, status))
+
+    async def _input_level(self, call, text):
+        args = text.split()
+        reply = self._set_level(*args) if len(args) == 2 else None
+        await call.edit(*self._commands_view(reply or "❌ <b>Формат:</b> <code>команда уровень</code>"))
+
+    async def _unfreeze_button(self, call, name):
+        self.loader.ratelimit.unfreeze(name)
+        await call.edit(*await self._root_view(f"🔥 <b>Модуль {utils.escape_html(name)} разморожен</b>"))
 
     async def _user(self, user_id):
         if self.client is not None:
