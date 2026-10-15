@@ -6,39 +6,39 @@ Built-in Uroboros commands. The default prefix is a dot; change it with `.setpre
 
 ## Backup
 
-Бэкап и восстановление БД и модулей
+Back up and restore the database and modules
 
 | Command | Description | Access |
 |---|---|---|
-| 💾 `.backup` | бэкап БД и модулей в «Избранное» (без сессии); автобэкап — .cfg backup | owners |
-| ♻️ `.restore [-f] (ответом на бэкап)` | восстановить БД и модули и перезапуститься; -f — чужой бэкап или опасный код | owners |
+| 💾 `.backup` | back up the DB and modules to Saved Messages (no session); auto backup — .cfg backup | owners |
+| ♻️ `.restore [-f] (reply to a backup)` | restore the DB and modules and restart; -f — foreign backup or dangerous code | owners |
 
 ## Config
 
-Настройки модулей
+Module settings
 
 | Command | Description | Access |
 |---|---|---|
-| ⚙️ `.cfg [модуль] [ключ] [значение]` (`.config`) | посмотреть или изменить настройки | owners |
-| ↩️ `.rcfg <модуль> <ключ>` | сбросить настройку на значение по умолчанию | owners |
+| ⚙️ `.cfg [module] [key] [value]` (`.config`) | view or change settings | owners |
+| ↩️ `.rcfg <module> <key>` | reset a setting to its default | owners |
 
 ## Diagnostics
 
-Диагностика: что не загрузилось и почему, статистика команд
+Diagnostics: what failed to load and why, command statistics
 
 | Command | Description | Access |
 |---|---|---|
-| 🩺 `.doctor` | что не загрузилось, состояние inline-бота, изменённые файлы, замороженные модули | owners |
-| 📊 `.stats [модуль \| reset]` | вызовы и время команд, ошибки, заморозки за флуд с момента запуска | owners |
+| 🩺 `.doctor` | what failed to load, inline bot state, changed files, frozen modules | owners |
+| 📊 `.stats [module \| reset]` | command calls and timings, errors, flood freezes since start | owners |
 
 ## Eval
 
-Выполнение Python-кода и shell-команд
+Run Python code and shell commands
 
 | Command | Description | Access |
 |---|---|---|
-| 🐍 `.e <код>` (`.eval`) | выполнить Python-код (доступны client, message, reply, db, loader) | owners |
-| 💻 `.t <команда>` (`.terminal`) | выполнить shell-команду | owners |
+| 🐍 `.e <code>` (`.eval`) | run Python code (client, message, reply, db, loader are available) | owners |
+| 💻 `.t <command>` (`.terminal`) | run a shell command | owners |
 
 ## Help
 
@@ -50,11 +50,11 @@ Help on modules and commands
 
 ## InlineBot
 
-Inline-бот: кнопки и формы
+Inline bot: buttons and forms
 
 | Command | Description | Access |
 |---|---|---|
-| 🤖 `.inlinebot [токен \| new \| on \| off]` | состояние inline-бота, свой токен, новый бот, включить или выключить | owners |
+| 🤖 `.inlinebot [token \| new \| on \| off]` | inline bot state, your own token, a new bot, turn on or off | owners |
 
 ## Loader
 

@@ -69,3 +69,14 @@ def test_hikka_strings_follow_language(builtin_loader):
     run(loader, ".lang en")
     assert demo.strings("hello") == "Hello, <b>{}</b>!" and demo.strings("missing").startswith("Unknown strings")
     assert demo.name == "Demo"
+
+
+def test_builtin_modules_answer_in_english(builtin_loader):
+    loader = builtin_loader
+    run(loader, ".lang en")
+    assert run(loader, ".doctor").startswith("🩺 <b>Diagnostics</b> · all good")
+    assert run(loader, ".stats").startswith("📊 <b>Statistics</b>")
+    assert run(loader, ".cfg backup").startswith("⚙️ <b>Backup</b> · settings")
+    assert "Auto backup every this many hours" in run(loader, ".cfg backup interval")
+    assert run(loader, ".inlinebot") == "❌ <b>The inline bot is unavailable</b>"
+    assert run(loader, ".aliases").startswith("🏷 <b>No aliases</b>")

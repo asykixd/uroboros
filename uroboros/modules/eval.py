@@ -11,7 +11,7 @@ from uroboros import Module, command, utils
 
 
 async def aeval(code, env):
-    """Выполняет код с поддержкой top-level await. Возвращает значение выражения или None."""
+    """Runs code with top-level await support. Returns the expression value or None."""
     flags = ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
     try:
         compiled = compile(code, "<eval>", "eval", flags=flags)
@@ -24,14 +24,40 @@ async def aeval(code, env):
 
 
 class Eval(Module):
-    """Выполнение Python-кода и shell-команд"""
+    """Run Python code and shell commands"""
+
+    strings = {
+        "no_code": "❌ <b>Which code to run?</b>",
+        "code": "🐍 <b>Code</b>",
+        "output": "📤 <b>Output</b>",
+        "error": "❌ <b>Error</b>",
+        "result": "✅ <b>Result</b>",
+        "no_cmd": "❌ <b>Which command to run?</b>",
+        "running": "⏳ <b>Running</b> <code>{cmd}</code>",
+        "empty": "(empty)",
+        "exit_code": "Exit code",
+    }
+    strings_ru = {
+        "_cls_doc": "Выполнение Python-кода и shell-команд",
+        "_cmd_doc_e": "<код> — выполнить Python-код (доступны client, message, reply, db, loader)",
+        "_cmd_doc_t": "<команда> — выполнить shell-команду",
+        "no_code": "❌ <b>Какой код выполнить?</b>",
+        "code": "🐍 <b>Код</b>",
+        "output": "📤 <b>Вывод</b>",
+        "error": "❌ <b>Ошибка</b>",
+        "result": "✅ <b>Результат</b>",
+        "no_cmd": "❌ <b>Какую команду выполнить?</b>",
+        "running": "⏳ <b>Выполняю</b> <code>{cmd}</code>",
+        "empty": "(пусто)",
+        "exit_code": "Код выхода",
+    }
 
     @command("e", aliases=["eval"], access="owner", emoji="🐍")
     async def e(self, message):
-        """<код> — выполнить Python-код (доступны client, message, reply, db, loader)"""
+        """<code> — run Python code (client, message, reply, db, loader are available)"""
         code = utils.get_args_raw(message)
         if not code:
-            await utils.answer(message, utils.card("❌ <b>Какой код выполнить?</b>", hint="<code>e 2 + 2</code>"))
+            await utils.answer(message, utils.card(self.strings("no_code"), hint="<code>e 2 + 2</code>"))
             return
 
         reply = await message.get_reply_message()
@@ -51,35 +77,36 @@ class Eval(Module):
         try:
             with contextlib.redirect_stdout(stdout):
                 result = await aeval(code, env)
-            title, output = "Результат", "" if result is None else repr(result)
+            failed, output = False, "" if result is None else repr(result)
         except Exception:
-            title, output = "Ошибка", traceback.format_exc(limit=-3)
+            failed, output = True, traceback.format_exc(limit=-3)
 
-        text = f'🐍 <b>Код</b>\n<pre><code class="language-python">{utils.escape_html(code)}</code></pre>'
+        text = self.strings("code") + f'\n<pre><code class="language-python">{utils.escape_html(code)}</code></pre>'
         if stdout.getvalue():
-            text += f"\n📤 <b>Вывод</b>\n<pre>{utils.escape_html(stdout.getvalue())}</pre>"
-        if title == "Ошибка":
-            text += "\n❌ <b>Ошибка</b>\n" + utils.quote(f"<code>{utils.escape_html(output)}</code>", expandable=True)
+            text += "\n" + self.strings("output") + f"\n<pre>{utils.escape_html(stdout.getvalue())}</pre>"
+        if failed:
+            text += "\n" + self.strings("error") + "\n"
+            text += utils.quote(f"<code>{utils.escape_html(output)}</code>", expandable=True)
         elif output or not stdout.getvalue():
-            text += f"\n✅ <b>Результат</b>\n<pre>{utils.escape_html(output or 'None')}</pre>"
+            text += "\n" + self.strings("result") + f"\n<pre>{utils.escape_html(output or 'None')}</pre>"
         await utils.answer(message, text)
 
     @command("t", aliases=["terminal"], access="owner", emoji="💻")
     async def t(self, message):
-        """<команда> — выполнить shell-команду"""
+        """<command> — run a shell command"""
         cmd = utils.get_args_raw(message)
         if not cmd:
-            await utils.answer(message, utils.card("❌ <b>Какую команду выполнить?</b>", hint="<code>t uptime</code>"))
+            await utils.answer(message, utils.card(self.strings("no_cmd"), hint="<code>t uptime</code>"))
             return
-        await utils.answer(message, f"⏳ <b>Выполняю</b> <code>{utils.escape_html(cmd)}</code>")
+        await utils.answer(message, self.strings("running", cmd=cmd))
         proc = await asyncio.create_subprocess_shell(
             cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
         output, _ = await proc.communicate()
-        text = output.decode(errors="replace").strip() or "(пусто)"
+        text = output.decode(errors="replace").strip() or self.strings("empty")
         status = "✅" if proc.returncode == 0 else "❌"
         await utils.answer(
             message,
             f"💻 <code>{utils.escape_html(cmd)}</code>\n<pre>{utils.escape_html(text)}</pre>\n"
-            f"{status} Код выхода: <code>{proc.returncode}</code>",
+            f"{status} {self.strings('exit_code')}: <code>{proc.returncode}</code>",
         )
