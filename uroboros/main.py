@@ -11,7 +11,7 @@ import signal
 import subprocess
 import sys
 
-from . import __version__, guard, logs, utils, web
+from . import __version__, dashboard, guard, logs, utils, web
 from .client import UroborosClient, login, make_client
 from .config import Config, get_data_dir, load_config
 from .database import Database
@@ -111,6 +111,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=int(os.environ.get("UROBOROS_WEB_PORT", web.DEFAULT_PORT)),
         help="порт веб-панели (по умолчанию 8080)",
     )
+    parser.add_argument(
+        "--dashboard",
+        action="store_true",
+        default=os.environ.get("UROBOROS_DASHBOARD", "").lower() in ("1", "true", "yes", "on"),
+        help="панель состояния в браузере после входа (только чтение, ссылка с токеном в консоли)",
+    )
+    parser.add_argument(
+        "--dashboard-host",
+        default=os.environ.get("UROBOROS_DASHBOARD_HOST", dashboard.DEFAULT_HOST),
+        help="адрес панели состояния (по умолчанию 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--dashboard-port",
+        type=int,
+        default=int(os.environ.get("UROBOROS_DASHBOARD_PORT", dashboard.DEFAULT_PORT)),
+        help="порт панели состояния (по умолчанию 8081)",
+    )
     return parser.parse_args(argv)
 
 
@@ -145,6 +162,7 @@ async def run(args: argparse.Namespace) -> None:
     inline = InlineManager(client, db)
     inline.loader = loader
     loader.inline = inline
+    panel = None
     try:
         await login(client)
         me = await client.get_me()
@@ -156,10 +174,14 @@ async def run(args: argparse.Namespace) -> None:
         await loader.load_all()
         dispatcher.install()
         handle_sigterm(client)
+        if args.dashboard:
+            panel = await dashboard.start(loader, args.dashboard_host, args.dashboard_port)
 
         log.info("Готов. Префикс команд: %s", dispatcher.prefix)
         await client.run_until_disconnected()
     finally:
+        if panel is not None:
+            await panel.cleanup()
         await shutdown(loader)
         await inline.stop()
         await client.disconnect()

@@ -13,6 +13,8 @@ is full access to your account: never share it.
 |---|---|
 | `--cli` | log in from the console instead of the web panel |
 | `--host`, `--port` | web panel address (default `127.0.0.1:8080`), or `UROBOROS_WEB_HOST`, `UROBOROS_WEB_PORT` |
+| `--dashboard` | read-only status page after login: modules, load problems, inline bot, recent logs. Off by default, or `UROBOROS_DASHBOARD=1`; the link with a random token is printed to the console on every start |
+| `--dashboard-host`, `--dashboard-port` | status page address (default `127.0.0.1:8081`), or `UROBOROS_DASHBOARD_HOST`, `UROBOROS_DASHBOARD_PORT`. The page shows logs: keep it on localhost and use an SSH tunnel |
 | `UROBOROS_DATA` | data directory (default `./data`) |
 | `UROBOROS_API_ID`, `UROBOROS_API_HASH` | Telegram app credentials instead of `config.json` |
 | `UROBOROS_BOT_TOKEN` | your own inline bot instead of an auto-created one |

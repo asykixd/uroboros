@@ -162,7 +162,7 @@ class FakeInline:
         pass
 
 
-def run_main(monkeypatch, tmp_path, seen, fail_on=None):
+def run_main(monkeypatch, tmp_path, seen, fail_on=None, argv=()):
     events = seen.setdefault("events", [])
     client = seen["client"] = RunClient(events, fail_on)
     config = main.Config(api_id=1, api_hash="0" * 32, data_dir=tmp_path)
@@ -195,7 +195,7 @@ def run_main(monkeypatch, tmp_path, seen, fail_on=None):
         seen["commands"] = set(self.commands)
 
     monkeypatch.setattr(main.Loader, "load_all", load_all)
-    asyncio.run(main.run(main.parse_args([])))
+    asyncio.run(main.run(main.parse_args(list(argv))))
 
 
 def test_run_wires_components_in_order(monkeypatch, tmp_path):
@@ -227,6 +227,30 @@ def test_run_cleans_up_when_connection_drops(monkeypatch, tmp_path):
     with pytest.raises(ConnectionError):
         run_main(monkeypatch, tmp_path, seen, fail_on="run")
     assert seen["events"][-4:] == ["run", "shutdown", "inline.stop", "disconnect"]
+
+
+def test_dashboard_is_off_by_default_and_stopped_on_exit(monkeypatch, tmp_path):
+    monkeypatch.delenv("UROBOROS_DASHBOARD", raising=False)
+    args = main.parse_args([])
+    assert not args.dashboard and args.dashboard_host == "127.0.0.1" and args.dashboard_port == 8081
+    monkeypatch.setenv("UROBOROS_DASHBOARD", "1")
+    assert main.parse_args([]).dashboard
+
+    seen = {}
+
+    class Panel:
+        async def cleanup(self):
+            seen["events"].append("dashboard.stop")
+
+    async def fake_start(loader, host, port):
+        seen["events"].append(("dashboard.start", host, port))
+        return Panel()
+
+    monkeypatch.setattr(main.dashboard, "start", fake_start)
+    run_main(monkeypatch, tmp_path, seen, argv=["--dashboard-port", "9001"])
+    events = seen["events"]
+    assert events.index(("dashboard.start", "127.0.0.1", 9001)) < events.index("run")
+    assert events[events.index("run") + 1 :][:2] == ["dashboard.stop", "shutdown"]
 
 
 def prepare_main(monkeypatch, tmp_path, run):
