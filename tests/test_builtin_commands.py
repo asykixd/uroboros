@@ -68,7 +68,31 @@ def test_dlm_asks_before_installing_from_unknown_source(builtin_loader, monkeypa
     asyncio.run(loader.uninstall("Demo"))
 
     loader.get_module("loader").db.set("repos", ["Someone/Mods"])
-    assert run_command(loader, ".dlm someone/mods/demo").startswith("✅")
+    assert "Первый модуль из репозитория Someone/Mods" in run_command(loader, ".dlm someone/mods/demo")
+
+
+def test_dlm_asks_before_first_install_from_connected_repo(builtin_loader, monkeypatch):
+    loader = builtin_loader
+    loader_module = loader.get_module("loader")
+
+    async def fake_download(u):
+        return V1.encode()
+
+    monkeypatch.setattr(download, "download", fake_download)
+    loader_module.db.set("repos", ["Someone/Mods"])
+
+    text = run_command(loader, ".dlm demo")
+    assert "Установить модуль?" in text and "Первый модуль из репозитория Someone/Mods" in text
+    assert "dlm -f demo" in text and loader.get_command("one") is None
+
+    assert run_command(loader, ".dlm -f demo").startswith("✅")
+    asyncio.run(loader.uninstall("Demo"))
+    assert run_command(loader, ".dlm demo").startswith("✅")  # the repo is approved now
+    asyncio.run(loader.uninstall("Demo"))
+
+    run_command(loader, ".delrepo someone/mods")
+    run_command(loader, ".addrepo someone/mods")
+    assert "Первый модуль из репозитория" in run_command(loader, ".dlm demo")
 
 
 def test_search_in_connected_repos(builtin_loader, monkeypatch):
@@ -114,7 +138,7 @@ def test_dlm_and_uplm_pin_github_commit(builtin_loader, monkeypatch):
     monkeypatch.setattr(download, "download", fake_download)
     monkeypatch.setattr(github, "resolve_commit", lambda repo, ref: state["sha"])
 
-    assert run_command(loader, ".dlm someone/mods/demo").startswith("✅")
+    assert run_command(loader, ".dlm -f someone/mods/demo").startswith("✅")
     assert downloads == [f"{base}/{sha1}/demo.py"]
     assert loader.installed()["demo"] == f"{base}/HEAD/demo.py"  # обновления — с HEAD
     assert loader.pins()["demo"] == f"{base}/{sha1}/demo.py"

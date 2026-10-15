@@ -44,6 +44,8 @@ undeclared usage triggers a warning. See [Writing modules](modules.md#file-heade
 
 - Modules download over https only; redirects to http are rejected.
 - A module from an unconnected source needs confirmation showing its origin and line count.
+- So does the first module from each connected repo (the official one included). After that, clean modules from
+  that repo install without a question. `.delrepo` forgets the approval.
 - GitHub modules and libraries are pinned to a commit: the file is fetched by SHA, and the confirmation shows
   which commit.
 - `.uplm` shows each module's and library's diff and updates after confirmation.

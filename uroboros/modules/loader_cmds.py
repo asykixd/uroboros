@@ -75,9 +75,24 @@ class Loader(Module):
     def _repos(self):
         return self.db.get("repos", list(DEFAULT_REPOS))
 
-    def _trusted(self, url):
+    def _connected_repo(self, url):
+        """The connected repo the URL points into, or None."""
         repo = github.repo_of(url)
-        return repo is not None and repo.lower() in (r.lower() for r in self._repos())
+        if repo is None:
+            return None
+        return next((r for r in self._repos() if r.lower() == repo.lower()), None)
+
+    def _approved(self, repo):
+        """A module from this repo was installed with the user's consent before (or is installed now)."""
+        approved = {r.lower() for r in self.db.get("approved_repos", [])}
+        approved |= {(github.repo_of(origin) or "").lower() for origin in self.loader.installed().values()}
+        return repo.lower() in approved
+
+    def _approve(self, origin):
+        repo = self._connected_repo(origin)
+        approved = self.db.get("approved_repos", [])
+        if repo is not None and repo.lower() not in (r.lower() for r in approved):
+            self.db.set("approved_repos", [*approved, repo])
 
     @command("dlm", access="owner", emoji="📥")
     async def dlm(self, message):
@@ -111,10 +126,12 @@ class Loader(Module):
         if url is None:
             url, data = await self._find_in_repos(spec)
         candidate = await fetch_candidate(url, data)
-        if force or (self._trusted(url) and not candidate.report.dangerous):
+        repo = self._connected_repo(url)
+        # A connected repo is trusted only after the user confirmed one module from it.
+        if force or (repo and self._approved(repo) and not candidate.report.dangerous):
             await self._install(message, candidate, force=force)
         else:
-            await self._confirm(message, candidate, f"dlm -f {spec}")
+            await self._confirm(message, candidate, f"dlm -f {spec}", repo=repo)
 
     async def _find_in_repos(self, name):
         repos = self._repos()
@@ -223,8 +240,11 @@ class Loader(Module):
         else:
             await self._confirm(message, candidate, "lm -f")
 
-    async def _confirm(self, message, candidate, force_hint):
-        """Спросить перед установкой: источник не из подключённых репозиториев или в модуле опасный код."""
+    async def _confirm(self, message, candidate, force_hint, repo=None):
+        """Спросить перед установкой: источник не из подключённых репозиториев или в модуле опасный код.
+
+        ``repo``: the module comes from this connected repo, but nothing from it was installed before.
+        """
         report = candidate.report
         info = [f"🔗 Источник: <code>{utils.escape_html(candidate.origin)}</code>"]
         if candidate.pin:
@@ -242,11 +262,16 @@ class Loader(Module):
             )
             button = "⚠️ Установить всё равно"
         else:
+            source = (
+                f"Первый модуль из репозитория {utils.escape_html(repo)}: следующие из него будут ставиться без "
+                "вопроса."
+                if repo
+                else "Источник не из подключённых репозиториев."
+            )
             text = (
                 utils.card("📦 <b>Установить модуль?</b>", info)
                 + findings_text(report)
-                + "\n💡 <i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
-                "ставьте только те, которым доверяете</i>"
+                + f"\n💡 <i>{source} Модуль получит полный доступ к аккаунту — ставьте только те, которым доверяете</i>"
             )
             button = "📥 Установить"
         if self.inline.available:
@@ -268,10 +293,12 @@ class Loader(Module):
         except LoadError as e:
             await call.edit(utils.card("❌ <b>Модуль не установлен</b>", utils.escape_html(e)))
             return
+        self._approve(candidate.origin)
         await call.edit(self._installed_text(instances) + findings_text(candidate.report))
 
     async def _install(self, message, candidate, *, force=False):
         instances = await self.loader.install(candidate.source, candidate.origin, force=force, pin=candidate.pin)
+        self._approve(candidate.origin)
         await utils.answer(message, self._installed_text(instances) + findings_text(candidate.report))
 
     def _installed_text(self, instances):
@@ -479,6 +506,8 @@ class Loader(Module):
             await utils.answer(message, "❌ <b>Такой репозиторий не подключён</b>")
             return
         self.db.set("repos", kept)
+        # Reconnecting the repo later asks again, unless modules from it are still installed.
+        self.db.set("approved_repos", [r for r in self.db.get("approved_repos", []) if r.lower() != repo.lower()])
         await utils.answer(message, f"✂️ <b>Репозиторий {utils.escape_html(repo)} отключён</b>")
 
     @command("repos", emoji="📚")
