@@ -41,7 +41,7 @@ Comments at the top of the file are read before the code runs:
 | Line | Effect |
 |---|---|
 | `# meta <key>: <value>` | metadata; `developer` and `version` show in `.help module` |
-| `# meta permissions: network, files` | what the module needs: `network`, `files`, `env` (environment variables), `processes` (shell commands), `exec` (executing code from strings), or `none`. Shown before install; undeclared usage triggers a warning |
+| `# meta permissions: network, files` | what the module needs: `network`, `files`, `env` (environment variables), `processes` (shell commands), `exec` (executing code from strings), or `none`. Shown before install; undeclared usage triggers a warning. At runtime undeclared `network`, `files` and `processes` are blocked ([details](security.md#declared-permissions)). Without the header nothing is limited. `# permissions:` works too |
 | `# requires_uroboros: 0.2` | minimum core version. On older versions the module won't load and the user is told to update |
 | `# requires: package ...` | pip packages, installed only if an import fails, one attempt |
 | `# requires_module: owner/repo/name ...` | other modules this one needs (`owner/repo/path` or an https URL). `.dlm` and `.lm` download the missing ones and install them first, with the same scan and confirmation rules; a cycle is an error. Matching ignores the GitHub branch or commit |
@@ -245,6 +245,8 @@ async def on_load(self):
   functions works).
 - A library is loaded once and shared. It's unloaded with the last module that imported it.
 - Source is cached on disk, so restarts don't need the network. `import_lib(url, reload=True)` re-downloads.
+- GitHub libraries are fetched by commit SHA, like modules. `.uplm` also checks cached libraries: it shows
+  each library's diff and, after confirmation, reloads the modules that use it.
 - A library has `self.client`, `self.loader` and its own `self.db`.
 - Library source is scanned on every load. A library with dangerous code loads only for a trusted module.
 
@@ -408,6 +410,17 @@ GitHub modules are fetched by commit SHA; the confirmation and `.uplm` show whic
 module's diff and updates only after confirmation. Installed files are hash-protected: if a file changed outside
 Uroboros and now has dangerous code, it won't load at startup.
 
+A module repo can publish `manifest.json` in its root with the sha256 of each file:
+
+```json
+{"modules": {"weather.py": "<file sha256>", "tools/notes.py": {"sha256": "<file sha256>"}}}
+```
+
+`.dlm` and `.uplm` fetch the manifest from the same commit as the module and check the downloaded file against it.
+A mismatch cancels the install; a match is marked 🔏 in the reply. Files the manifest doesn't list install as before,
+without the mark. A manifest that exists but can't be read also cancels the install. Compute a hash with
+`sha256sum weather.py`.
+
 At runtime third-party modules are restricted too: they can't read `self.client.session`, open the session,
 `config.json` or `uroboros.db`, send account takeover requests (terminating sessions, changing password or phone, QR
 login, logout, spending stars), or pass session files to shell commands. Attempts raise `PermissionError` and notify
@@ -415,3 +428,13 @@ Saved Messages. Restrictions are lifted if the user confirmed the dangerous code
 `.security trust <module>`.
 
 If your module really needs any of this, explain why in its description: the user sees the warning and decides.
+
+## Publishing a repo
+
+Keep your modules in a GitHub repo: `.dlm owner/repo` lists its root `.py` files, and after `.addrepo owner/repo`
+they install by name. A ready-to-copy layout is in
+[`templates/modules-repo/`](https://github.com/asykixd/uroboros/tree/master/templates/modules-repo): an example
+module, a README, a `manifest.json` placeholder and a GitHub Actions workflow. The workflow installs
+`uroboros-userbot` from PyPI and runs `tools/check_modules.py`, which scans and loads every module the way `.dlm`
+does: dangerous code or a load error fails the check. Copy the directory into a new repo and replace `hello.py`
+with your modules.

@@ -6,6 +6,8 @@ import time
 from uroboros import ConfigValue, Module, ModuleConfig, backup, command, loop, scan, utils, validators
 
 log = logging.getLogger(__name__)
+MAX_TRACKED = 100
+SENT_KEY = "auto_sent"  # [[chat, message id], ...] of autobackups this bot sent, oldest first
 
 
 def chat_value(value):
@@ -18,7 +20,7 @@ def chat_value(value):
     raise validators.ValidationError("me / chat id")
 
 
-chat_value.doc = "me / chat id"
+chat_value.doc = "me / chat id"  # type: ignore[attr-defined]  # .cfg reads it as the value hint
 
 
 class Backup(Module):
@@ -27,6 +29,22 @@ class Backup(Module):
     strings = {
         "_cfg_doc_interval": "Auto backup every this many hours, 0 — off",
         "_cfg_doc_chat": "Where to send auto backups",
+        "_cfg_doc_keep": "How many latest auto backups to keep in the chat, 0 — all",
+        "auto_bad": "❌ <b>Didn't understand the auto backup setting</b>",
+        "auto_daily": "⏱ <code>{prefix}backup auto 24</code> — once a day",
+        "auto_keep": "🗂 <code>{prefix}backup auto 24 7</code> — and keep the latest 7",
+        "auto_stop": "🛑 <code>{prefix}backup auto off</code> — turn off",
+        "auto_off": "💾 <b>Auto backup is off</b>",
+        "auto_on_hint": "once a day: <code>{prefix}backup auto 24</code>",
+        "saved_messages": "Saved Messages",
+        "chat": "chat <code>{chat}</code>",
+        "auto_on": "💾 <b>Auto backup is on</b>",
+        "every": "⏱ Every <code>{hours}</code> h",
+        "where": "💬 Where: {where}",
+        "keep_last": "🗂 Keep: the latest <code>{keep}</code>",
+        "keep_all": "🗂 Keep: all",
+        "own_chat_only": "⚠️ Contains the inline bot token: send it only to your own chat",
+        "auto_hint": "chat — <code>{prefix}cfg backup chat</code> · turn off — <code>{prefix}backup auto off</code>",
         "contents": "🗄 Database and modules",
         "no_session": "🔒 No session and config.json",
         "token_inside": "⚠️ Contains the inline bot token: don't forward it",
@@ -53,12 +71,30 @@ class Backup(Module):
     }
     strings_ru = {
         "_cls_doc": "Бэкап и восстановление БД и модулей",
-        "_cmd_doc_backup": "— бэкап БД и модулей в «Избранное» (без сессии); автобэкап — .cfg backup",
+        "_cmd_doc_backup": (
+            "[auto [часы | off] [сколько хранить]] — бэкап БД и модулей в «Избранное»; auto — по расписанию"
+        ),
         "_cmd_doc_restore": (
             "[-f] (ответом на бэкап) — восстановить БД и модули и перезапуститься; -f — чужой бэкап или опасный код"
         ),
         "_cfg_doc_interval": "Автобэкап раз в столько часов, 0 — выключен",
         "_cfg_doc_chat": "Куда отправлять автобэкап",
+        "_cfg_doc_keep": "Сколько последних автобэкапов хранить в чате, 0 — все",
+        "auto_bad": "❌ <b>Не понял настройку автобэкапа</b>",
+        "auto_daily": "⏱ <code>{prefix}backup auto 24</code> — раз в сутки",
+        "auto_keep": "🗂 <code>{prefix}backup auto 24 7</code> — и хранить последние 7",
+        "auto_stop": "🛑 <code>{prefix}backup auto off</code> — выключить",
+        "auto_off": "💾 <b>Автобэкап выключен</b>",
+        "auto_on_hint": "включить раз в сутки: <code>{prefix}backup auto 24</code>",
+        "saved_messages": "«Избранное»",
+        "chat": "чат <code>{chat}</code>",
+        "auto_on": "💾 <b>Автобэкап включён</b>",
+        "every": "⏱ Раз в <code>{hours}</code> ч",
+        "where": "💬 Куда: {where}",
+        "keep_last": "🗂 Хранить: последние <code>{keep}</code>",
+        "keep_all": "🗂 Хранить: все",
+        "own_chat_only": "⚠️ Внутри токен inline-бота: отправляйте только в свой чат",
+        "auto_hint": "чат — <code>{prefix}cfg backup chat</code> · выключить — <code>{prefix}backup auto off</code>",
         "contents": "🗄 База данных и модули",
         "no_session": "🔒 Без сессии и config.json",
         "token_inside": "⚠️ Внутри токен inline-бота: не пересылайте",
@@ -93,6 +129,12 @@ class Backup(Module):
                 validators.Integer(minimum=0, maximum=24 * 30),
             ),
             ConfigValue("chat", "me", "Where to send auto backups", chat_value),
+            ConfigValue(
+                "keep",
+                5,
+                "How many latest auto backups to keep in the chat, 0 — all",
+                validators.Integer(minimum=0, maximum=100),
+            ),
         )
 
     async def _send(self, chat, title_key):
@@ -100,7 +142,7 @@ class Backup(Module):
         file = io.BytesIO(data)
         file.name = backup.file_name()
         prefix = utils.get_prefix(self.db.raw)
-        await self.client.send_file(
+        return await self.client.send_file(
             chat,
             file,
             caption=utils.card(
@@ -113,9 +155,53 @@ class Backup(Module):
 
     @command("backup", access="owner", emoji="💾")
     async def backup_cmd(self, message):
-        """— back up the DB and modules to Saved Messages (no session); auto backup — .cfg backup"""
+        """[auto [hours | off] [keep]] — back up the DB and modules to Saved Messages; auto — on a schedule"""
+        args = utils.get_args(message)
+        if args and args[0].lower() == "auto":
+            await self._auto(message, args[1:])
+            return
         await self._send("me", "manual_title")
         await utils.answer(message, self.strings("sent"))
+
+    async def _auto(self, message, args):
+        prefix = utils.get_prefix(self.db.raw)
+        if args:
+            try:
+                hours = 0 if args[0].lower() == "off" else validators.Integer(minimum=1, maximum=24 * 30)(args[0])
+                keep = validators.Integer(minimum=0, maximum=100)(args[1]) if len(args) > 1 else None
+            except validators.ValidationError:
+                await utils.answer(
+                    message,
+                    utils.card(
+                        self.strings("auto_bad"),
+                        [
+                            self.strings("auto_daily", prefix=prefix),
+                            self.strings("auto_keep", prefix=prefix),
+                            self.strings("auto_stop", prefix=prefix),
+                        ],
+                    ),
+                )
+                return
+            self.config["interval"] = hours
+            if keep is not None:
+                self.config["keep"] = keep
+        await utils.answer(message, self._auto_card(prefix))
+
+    def _auto_card(self, prefix):
+        hours, chat, keep = self.config["interval"], self.config["chat"], self.config["keep"]
+        if not hours:
+            return utils.card(self.strings("auto_off"), hint=self.strings("auto_on_hint", prefix=prefix))
+        where = self.strings("saved_messages") if chat == "me" else self.strings("chat", chat=chat)
+        return utils.card(
+            self.strings("auto_on"),
+            [
+                self.strings("every", hours=hours),
+                self.strings("where", where=utils.Html(where)),
+                self.strings("keep_last", keep=keep) if keep else self.strings("keep_all"),
+                self.strings("own_chat_only"),
+            ],
+            hint=self.strings("auto_hint", prefix=prefix),
+        )
 
     @loop(interval=600, wait_before=True)
     async def autobackup(self):
@@ -126,10 +212,28 @@ class Backup(Module):
         if time.time() - self.db.get("last_auto", 0) < hours * 3600:
             return
         self.db.set("last_auto", time.time())
+        chat = self.config["chat"]
         try:
-            await self._send(self.config["chat"], "auto_title")
+            sent = await self._send(chat, "auto_title")
         except Exception:
-            log.exception("Автобэкап не отправлен в %s", self.config["chat"])
+            log.exception("Автобэкап не отправлен в %s", chat)
+            return
+        if getattr(sent, "id", None) is not None:
+            await self._rotate([*self.db.get(SENT_KEY, []), [chat, sent.id]])
+
+    async def _rotate(self, sent):
+        """Deletes autobackups beyond ``keep``: only ones this bot sent, so manual backups stay."""
+        keep = self.config["keep"]
+        old, sent = (sent[:-keep], sent[-keep:]) if keep and len(sent) > keep else ([], sent)
+        self.db.set(SENT_KEY, sent[-MAX_TRACKED:])
+        by_chat = {}
+        for chat, message_id in old:
+            by_chat.setdefault(chat, []).append(message_id)
+        for chat, ids in by_chat.items():
+            try:
+                await self.client.delete_messages(chat, ids)
+            except Exception:
+                log.exception("Старые автобэкапы в %s не удалены", chat)
 
     @command("restore", access="owner", emoji="♻️")
     async def restore_cmd(self, message):

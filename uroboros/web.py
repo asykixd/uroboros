@@ -80,6 +80,7 @@ class LoginFlow:
                 from .client import make_client
 
                 self.client_factory = make_client
+            assert self.config is not None  # the api step comes first
             self.client = self.client_factory(self.config)
             await self.client.connect()
         return self.client
@@ -398,8 +399,9 @@ DENIED = _page(
 
 
 def make_app(flow: LoginFlow, token: str) -> web.Application:
-    def allowed(given: str | None) -> bool:
-        return given is not None and hmac.compare_digest(given, token)
+    def allowed(given: object) -> bool:
+        # A form field may be a file upload, not a string.
+        return isinstance(given, str) and hmac.compare_digest(given, token)
 
     def page(text: str, status: int = 200) -> web.Response:
         return web.Response(
@@ -483,4 +485,5 @@ async def first_login(
             flow.qr_task.cancel()
         await runner.cleanup()
     log.info("Вход выполнен, веб-панель выключена")
+    assert flow.config is not None and flow.client is not None  # done is set only after login
     return flow.config, flow.client

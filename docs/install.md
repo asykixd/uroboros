@@ -25,6 +25,11 @@ is full access to your account: never share it.
 version is installed with its dependencies; if they fail or the new version doesn't start, git rolls back and the
 bot keeps running.
 
+After the restart the new version is on trial until it is ready (modules loaded, commands accepted). If startup
+fails, or the bot doesn't get there in 2 starts (e.g. killed and restarted by systemd), the previous version is
+reinstalled and the bot restarts into it; a notice with the reason arrives in Saved Messages. The same applies to
+`.dev on` / `.dev off`. The trial marker is `data/update-pending.json`.
+
 - `.update channel beta`: every commit on the bot's branch (default); `master` is stable, `dev` is development;
 - `.update channel stable`: releases (tags) only;
 - `.update notify off`: no daily new-version notice.
@@ -115,6 +120,18 @@ docker compose logs -f
 
 The login link appears in the logs; the panel is reachable only from this machine (`127.0.0.1:8080`). Data is in
 `./data`. Update with `git pull && docker compose up -d --build` (`.update` doesn't work in Docker).
+
+**Prebuilt image.** Every release is published to GHCR for amd64 and arm64 as `ghcr.io/asykixd/uroboros:X.Y.Z`
+and `:latest`, so you don't need the source:
+
+```bash
+docker run -d --name uroboros --restart unless-stopped \
+  -v "$PWD/data:/data" -p 127.0.0.1:8080:8080 ghcr.io/asykixd/uroboros:latest
+docker logs -f uroboros
+```
+
+Update: `docker pull ghcr.io/asykixd/uroboros:latest`, then `docker rm -f uroboros` and the same `docker run`. Pass
+`-e UROBOROS_API_ID=... -e UROBOROS_API_HASH=...` to skip entering them in the panel.
 
 ## Windows
 

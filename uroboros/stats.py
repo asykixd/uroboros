@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 
 
@@ -20,7 +21,7 @@ class CommandStats:
 
 
 class Stats:
-    def __init__(self, clock=time.perf_counter):
+    def __init__(self, clock: Callable[[], float] = time.perf_counter) -> None:
         self.clock = clock
         self.commands: dict[tuple[str, str], CommandStats] = {}  # (module, command) → stats
         self.watcher_errors: Counter[str] = Counter()  # module → errors in its watchers

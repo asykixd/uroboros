@@ -1,4 +1,5 @@
 import contextlib
+import time
 
 from uroboros import Module, command, utils
 from uroboros.errors import InlineError
@@ -8,6 +9,7 @@ from uroboros.security import GROUPS, LEVELS
 GROUP_ICONS = {"owner": "👑", "sudo": "🛡", "support": "🤝"}
 ROW_SIZE = 3
 LEVELS_HINT = "<code>owner</code>, <code>sudo</code>, <code>support</code>, <code>everyone</code>, <code>default</code>"
+LOG_SHOWN = 30  # the DB keeps more; a reply must fit one message
 
 
 class Security(Module):
@@ -19,7 +21,8 @@ class Security(Module):
             "<blockquote>🔐 <code>security</code> — overview\n"
             "⌨️ <code>security command level</code> — command permissions\n"
             "❄️ <code>security flood ...</code> — flood protection\n"
-            "🛡 <code>security trust|untrust module</code> — module protection</blockquote>\n"
+            "🛡 <code>security trust|untrust module</code> — module protection\n"
+            "📜 <code>security log [clear]</code> — block log</blockquote>\n"
             "💡 <i>levels: " + LEVELS_HINT + "</i>"
         ),
         "levels_hint": "levels: " + LEVELS_HINT,
@@ -27,6 +30,11 @@ class Security(Module):
         "level_sudo": "sudo",
         "level_support": "support",
         "level_everyone": "everyone",
+        "log_cleared": "🗑 <b>Block log cleared</b>",
+        "no_blocks": "🛡 <b>No blocks so far</b>",
+        "blocks": "🛡 <b>Protection blocks</b> · {count}",
+        "blocks_latest": ", latest {count}",
+        "log_clear_hint": "clear: <code>security log clear</code>",
         "no_command": "❌ <b>No command</b> <code>{name}</code>",
         "level_changed": "🔐 <b>Permissions changed</b> · <code>{name}</code> — {level}",
         "by_default": " (default)",
@@ -109,7 +117,7 @@ class Security(Module):
     strings_ru = {
         "_cls_doc": "Доступ: владельцы, sudo, support и права на команды",
         "_cmd_doc_security": (
-            "[команда уровень | flood ... | unfreeze модуль | trust/untrust модуль] — доступ, права команд и защита"
+            "[команда уровень | flood ... | unfreeze модуль | trust/untrust модуль | log] — доступ, права и защита"
         ),
         "_cmd_doc_owner": "[add | del] [пользователь] — владельцы: полный доступ, как у этого аккаунта",
         "_cmd_doc_sudo": "[add | del] [пользователь] — sudo: все команды, кроме команд владельца",
@@ -119,7 +127,8 @@ class Security(Module):
             "<blockquote>🔐 <code>security</code> — обзор\n"
             "⌨️ <code>security команда уровень</code> — права команды\n"
             "❄️ <code>security flood ...</code> — защита от флуда\n"
-            "🛡 <code>security trust|untrust модуль</code> — защита модуля</blockquote>\n"
+            "🛡 <code>security trust|untrust модуль</code> — защита модуля\n"
+            "📜 <code>security log [clear]</code> — журнал блокировок</blockquote>\n"
             "💡 <i>уровни: " + LEVELS_HINT + "</i>"
         ),
         "levels_hint": "уровни: " + LEVELS_HINT,
@@ -127,6 +136,11 @@ class Security(Module):
         "level_sudo": "sudo",
         "level_support": "support",
         "level_everyone": "все",
+        "log_cleared": "🗑 <b>Журнал блокировок очищен</b>",
+        "no_blocks": "🛡 <b>Блокировок не было</b>",
+        "blocks": "🛡 <b>Блокировки защиты</b> · {count}",
+        "blocks_latest": ", последние {count}",
+        "log_clear_hint": "очистить: <code>security log clear</code>",
         "no_command": "❌ <b>Нет команды</b> <code>{name}</code>",
         "level_changed": "🔐 <b>Права изменены</b> · <code>{name}</code> — {level}",
         "by_default": " (по умолчанию)",
@@ -212,7 +226,7 @@ class Security(Module):
 
     @command("security", access="owner", emoji="🔐")
     async def security(self, message):
-        """[command level | flood ... | unfreeze module | trust/untrust module] — access, permissions, protection"""
+        """[command level | flood ... | unfreeze module | trust/untrust module | log] — access and protection"""
         args = utils.get_args(message)
         if not args:
             if self.inline.available:
@@ -225,6 +239,9 @@ class Security(Module):
             return
         if args[0].lower() == "flood":
             await self._flood(message, args[1:])
+            return
+        if args[0].lower() == "log" and len(args) <= 2:
+            await self._log(message, args[1:])
             return
         if args[0].lower() == "unfreeze" and len(args) == 2:
             await self._unfreeze(message, args[1])
@@ -311,6 +328,33 @@ class Security(Module):
                 self.strings("flood_limit", limit=s["limit"], window=s["window"]),
                 self.strings("flood_freeze", freeze=s["freeze"]),
             ],
+        )
+
+    async def _log(self, message, args):
+        guard = self.loader.guard
+        if args and args[0].lower() == "clear":
+            guard.clear_blocks()
+            await utils.answer(message, self.strings("log_cleared"))
+            return
+        if args:
+            await utils.answer(message, self.strings("usage"))
+            return
+        blocks = guard.blocks()
+        if not blocks:
+            await utils.answer(message, self.strings("no_blocks"))
+            return
+        shown = blocks[-LOG_SHOWN:][::-1]
+        lines = [
+            f"▸ <code>{time.strftime('%d.%m %H:%M', time.localtime(entry['time']))}</code> "
+            f"<b>{utils.escape_html(entry['module'])}</b> — {utils.escape_html(entry['action'])}"
+            for entry in shown
+        ]
+        title = self.strings("blocks", count=len(blocks))
+        if len(blocks) > len(shown):
+            title += self.strings("blocks_latest", count=len(shown))
+        await utils.answer(
+            message,
+            utils.card(title, lines, hint=self.strings("log_clear_hint"), expandable=len(lines) > 10),
         )
 
     async def _unfreeze(self, message, name):

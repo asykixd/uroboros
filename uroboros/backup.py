@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import __version__
+from . import __version__, migrations
 from .database import LOADER_OWNER, Database
 from .errors import LoadError
 
@@ -126,6 +126,9 @@ def parse(data: bytes) -> Archive:
     missing = set(installed) - set(modules)
     if missing:
         raise BackupError(f"В архиве нет файлов модулей: {', '.join(sorted(missing))}")
+    # An older schema is migrated on the restart after restoring; a newer one this version can't read.
+    if migrations.dump_version(dump) > migrations.LATEST:
+        raise BackupError("Бэкап сделан более новой версией Uroboros: сначала обновитесь (.update)")
     owner = manifest.get("owner") if isinstance(manifest, dict) else None
     return Archive(dump, modules, owner if isinstance(owner, int) and not isinstance(owner, bool) else None)
 

@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
+import urllib.error
 import urllib.request
+
+from .errors import LoadError
 
 log = logging.getLogger(__name__)
 
 RAW = "https://raw.githubusercontent.com"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+MANIFEST = "manifest.json"
+MANIFEST_SIZE = 256 * 1024
 _NAME = r"[A-Za-z0-9_.-]+"
 
 _REPO_URL_RE = re.compile(rf"^(?:https?://)?(?:www\.)?github\.com/({_NAME})/({_NAME}?)(?:\.git)?/?$")
@@ -111,6 +118,65 @@ def commit_link(pinned_url: str) -> str | None:
 def module_url(repo: str, name: str) -> str:
     name = name if name.endswith(".py") else f"{name}.py"
     return f"{RAW}/{repo}/HEAD/{name}"
+
+
+def fetch_manifest(repo: str, ref: str) -> bytes | None:
+    """``manifest.json`` from the repo root at ``ref``; None if the repo has none (sync, call via to_thread)."""
+    request = urllib.request.Request(f"{RAW}/{repo}/{ref}/{MANIFEST}", headers={"User-Agent": "Uroboros"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            data = response.read(MANIFEST_SIZE + 1)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+    if len(data) > MANIFEST_SIZE:
+        raise ValueError(f"{MANIFEST} больше {MANIFEST_SIZE // 1024} КБ")
+    return data
+
+
+def parse_manifest(data: bytes) -> dict[str, str]:
+    """``{"modules": {"weather.py": "<sha256>"}}`` → path → sha256. A value may also be ``{"sha256": ...}``."""
+    manifest = json.loads(data)
+    modules = manifest.get("modules") if isinstance(manifest, dict) else None
+    if not isinstance(modules, dict):
+        raise ValueError('нет словаря "modules"')
+    hashes = {}
+    for path, value in modules.items():
+        digest = value.get("sha256") if isinstance(value, dict) else value
+        if not isinstance(digest, str) or not SHA256_RE.match(digest.lower()):
+            raise ValueError(f"неверный sha256 у {path}")
+        hashes[str(path).lstrip("/")] = digest.lower()
+    return hashes
+
+
+async def manifest_hash(url: str) -> str | None:
+    """sha256 the repo's ``manifest.json`` (same commit as ``url``) lists for this file.
+
+    None: not a GitHub link, the repo has no manifest, or the file isn't listed. A manifest that can't be fetched
+    or parsed raises ``LoadError``: a repo that publishes hashes must not silently lose that check.
+    """
+    parts = split_raw(url)
+    if parts is None:
+        return None
+    repo, ref, path = parts
+    try:
+        data = await asyncio.to_thread(fetch_manifest, repo, ref)
+        if data is None:
+            return None
+        hashes = parse_manifest(data)
+    except Exception as e:
+        raise LoadError(f"Не удалось прочитать {MANIFEST} репозитория {repo}: {e}") from e
+    return hashes.get(path) or hashes.get(path.removesuffix(".py"))
+
+
+def verify(data: bytes, expected: str) -> None:
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != expected:
+        raise LoadError(
+            f"Файл не совпадает с {MANIFEST} репозитория: sha256 {actual[:12]}…, ожидался {expected[:12]}…. "
+            "Модуль подменён или манифест устарел"
+        )
 
 
 def list_modules(repo: str) -> list[str]:

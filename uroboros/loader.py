@@ -117,6 +117,12 @@ def check_requires(source: str) -> None:
         )
 
 
+def parse_permissions(source: str) -> set[str] | None:
+    """Known permissions from ``# meta permissions``; None if the module has no such header."""
+    parsed = scan.parse_permissions(source)
+    return None if parsed is None else parsed[0] & set(scan.PERMISSIONS)
+
+
 def parse_meta(source: str) -> dict[str, str]:
     """``# meta developer: @me`` → ``{"developer": "@me"}``."""
     return {key.lower(): value for key, value in META_RE.findall(source)}
@@ -177,6 +183,7 @@ class PendingModule:
     name: str
     _stem: str | None
     is_builtin: bool = False
+    _permissions: set[str] | None = None  # declared with # meta permissions; None: no header
 
 
 @dataclass
@@ -275,7 +282,7 @@ class Loader:
     def apply_language(self) -> None:
         """Re-resolves ``self.strings`` of loaded modules after ``.lang`` changed the language."""
         for inst in self.modules.values():
-            inst.strings = type(inst.strings)(self._localized(inst))
+            inst.strings = type(inst.strings)(self._localized(inst))  # type: ignore[misc]  # per-instance wrapper
 
     def command_doc(self, command: Command) -> str:
         """Command description in the current language: ``_cmd_doc_<name>`` from strings, else the docstring."""
@@ -437,6 +444,7 @@ class Loader:
         check_core_version(source)
         check_requires(source)
         meta = parse_meta(source)
+        permissions = parse_permissions(source)
         try:
             code = compile(source, filename or f"<{origin}>", "exec")
         except SyntaxError as e:
@@ -444,7 +452,9 @@ class Loader:
 
         trusted = builtin or trusted or (stem is not None and stem in self.guard.trusted())
         # Код модуля на верхнем уровне и в __init__ ограничен так же, как его команды.
-        with module_context(None if trusted else PendingModule(stem or modname.rsplit(".", 1)[-1], stem)):
+        with module_context(
+            None if trusted else PendingModule(stem or modname.rsplit(".", 1)[-1], stem, _permissions=permissions)
+        ):
             pymod = await self._exec(code, modname, source, package)
             if package is not None:
                 meta = {**hikka.module_meta(pymod), **meta}
@@ -512,8 +522,9 @@ class Loader:
                 inst._stem = stem
                 inst._origin = origin
                 inst._meta = meta
+                inst._permissions = permissions
                 inst._strings_base = dict(inst.strings)
-                inst.strings = Strings(self._localized(inst))
+                inst.strings = Strings(self._localized(inst))  # type: ignore[misc]  # per-instance wrapper
                 inst.client = self.client
                 inst.loader = self
                 inst.db = ModuleDB(self.db, inst.name)
@@ -602,7 +613,7 @@ class Loader:
                 raise
 
     @staticmethod
-    def _collect(inst: Module, attr: str) -> list[tuple[Any, Handler]]:
+    def _collect(inst: Module, attr: str) -> list[tuple[Any, Callable[..., Awaitable[Any]]]]:
         found = []
         for name in dir(type(inst)):
             func = getattr(type(inst), name, None)
@@ -658,18 +669,64 @@ class Loader:
         self.libs[url] = LoadedLib(obj, modname, users)
         return obj
 
+    def lib_cache(self) -> dict[str, str]:
+        """Downloaded libraries: url → cache file name in ``libs_dir``."""
+        return self.db.get(LOADER_OWNER, "libs", {})
+
+    def lib_pins(self) -> dict[str, str]:
+        """Libraries from GitHub: url → link to the cached version in a specific commit."""
+        return self.db.get(LOADER_OWNER, "lib_pins", {})
+
+    def lib_path(self, url: str) -> Path:
+        return self.libs_dir / self.lib_cache().get(url, lib_file_name(url))
+
     async def _lib_source(self, url: str, *, refresh: bool) -> str:
-        cache = self.db.get(LOADER_OWNER, "libs", {})
-        path = self.libs_dir / cache.get(url, lib_file_name(url))
+        path = self.lib_path(url)
         if path.exists() and not refresh:
             return path.read_bytes().decode("utf-8")
-        source = await download.download_source(url)
+        # Downloaded by commit, like modules: the cached file then matches a known version.
+        pinned = await github.pin(url)
+        source = await download.download_source(pinned[0] if pinned else url)
+        self._store_lib(url, source, pinned[0] if pinned else None)
+        return source
+
+    def _store_lib(self, url: str, source: str, pin: str | None) -> None:
+        path = self.lib_path(url)
         self.libs_dir.mkdir(parents=True, exist_ok=True)
         path.write_bytes(source.encode("utf-8"))
+        cache = self.lib_cache()
         cache[url] = path.name
+        pins = self.lib_pins()
+        pins.pop(url, None)
+        if pin:
+            pins[url] = pin
         with module_context(None):  # служебная запись ядра, хотя библиотеку подключает модуль
             self.db.set(LOADER_OWNER, "libs", cache)
-        return source
+            self.db.set(LOADER_OWNER, "lib_pins", pins)
+
+    def lib_users(self, url: str) -> set[str]:
+        """Stems of loaded modules that use the library."""
+        entry = self.libs.get(url)
+        return set(entry.users) if entry else set()
+
+    async def update_lib(self, url: str, source: str, pin: str | None = None) -> dict[str, str]:
+        """Replaces the cached library and reloads the modules that use it.
+
+        Returns the modules that failed to load with the new version: stem → error.
+        """
+        self._store_lib(url, source, pin)
+        stems = sorted(self.lib_users(url))
+        previous = {stem: self._sources[stem] for stem in stems if stem in self._sources}
+        for stem in stems:
+            await self.unload_stem(stem)
+        errors = {}
+        for stem, (old_source, origin, filename) in previous.items():
+            try:
+                await self._load(old_source, origin=origin, stem=stem, filename=filename)
+            except Exception as e:
+                log.exception("Не удалось перезагрузить модуль %s с новой версией библиотеки", stem)
+                errors[stem] = str(e) if isinstance(e, LoadError) else repr(e)
+        return errors
 
     async def _load_lib(self, source: str, url: str) -> tuple[Any, str]:
         package = None

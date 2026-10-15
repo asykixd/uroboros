@@ -23,6 +23,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev,docs]'   # dev install
 .venv/bin/python -m pytest                                        # all tests
 .venv/bin/python -m pytest tests/test_core.py::test_install_and_uninstall   # one test
 .venv/bin/ruff check . && .venv/bin/ruff format --check .        # lint and format (same as CI)
+.venv/bin/mypy                                                    # type check uroboros/ (hikka/ excluded; config in pyproject.toml)
 .venv/bin/mkdocs build --strict                                   # docs site
 ```
 
@@ -104,8 +105,9 @@ live in memory and are removed on stem unload. The bot answers only the owner an
 
 **DB (`database.py`).** Synchronous key-value on `sqlite3` with an in-memory cache (like Hikka's sync
 `db.get`/`db.set`). `get` returns a deepcopy; values go through JSON (tuple → list). System owners: `uroboros.main`
-(prefix, aliases), `uroboros.loader` (installed, hashes = sha256 of files, pins = commit-pinned GitHub URLs),
-`uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands).
+(prefix, aliases), `uroboros.loader` (installed, hashes = sha256 of files, pins = commit-pinned GitHub URLs,
+libs/lib_pins = library cache files and their pinned URLs),
+`uroboros.inline` (token, configured, disabled), `uroboros.security` (owner, sudo, support, commands, blocks = last 100 guard blocks for `.security log`).
 
 **GitHub (`github.py`).** Converts blob URLs and short `owner/repo/path` into
 `raw.githubusercontent.com/.../HEAD/...`, lists repo modules via the contents API. `.dlm` resolution order:
@@ -155,7 +157,9 @@ are shown in replies. Built-ins aren't scanned. The loader stores sha256 of thir
 `UroborosClient.__call__` blocks dangerous requests (`BLOCKED_REQUESTS`), the `UroborosClient.session` property hides
 the session from code in `uroboros.ext.*`/`uroboros.lib.*`/Hikka modules (via `sys._getframe`), and an audit hook
 (`guard.activate`, installed in `main.run`) prevents opening/deleting the session, `config.json` and `uroboros.db`
-or passing them to commands while `current_module` is set. `Guard.check_db` (hooked into `Database._check`) blocks
+or passing them to commands while `current_module` is set. The same hook enforces declared permissions
+(`# meta permissions`, `inst._permissions`): `network`/`files`/`processes` events are attributed to the nearest module
+or core frame on the stack (`guard._caused_by_module`). `Guard.check_db` (hooked into `Database._check`) blocks
 writes to `uroboros.*` owners and reads of the bot token or the whole DB; core code writing on a module's behalf
 wraps it in `module_context(None)`. Module top-level code and `__init__` run under `PendingModule` so they are
 restricted too; libraries are scanned on every load. Blocking raises `ModuleBlocked` (`LoadError` and

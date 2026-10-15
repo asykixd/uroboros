@@ -54,6 +54,14 @@ class InstallError(UpdateError):
 
 
 @dataclass
+class Rollback:
+    """How to return to the version installed before an update (see ``healthcheck``)."""
+
+    kind: str  # "git" or "pip"
+    ref: str  # git: commit SHA or branch; pip: what to reinstall
+
+
+@dataclass
 class Update:
     target: str  # что ставим: origin/<ветка> или тег
     label: str  # как показать пользователю
@@ -78,6 +86,7 @@ async def run_process(*args: str) -> tuple[int, str]:
         env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},  # git не должен ждать логин в консоли
     )
     output, _ = await proc.communicate()
+    assert proc.returncode is not None  # set once communicate() returns
     return proc.returncode, output.decode(errors="replace").strip()
 
 
@@ -136,13 +145,14 @@ async def check(channel: str) -> Update | None:
     return Update(target=target, label=label, sha=sha, commits=[line for line in log.splitlines() if line])
 
 
-async def install(update: Update) -> None:
+async def install(update: Update) -> Rollback:
     """Перематывает на ``update`` и ставит зависимости. При ошибке откатывает git и бросает ``UpdateError``."""
     old = await _git_ok("rev-parse", "HEAD")
     code, output = await git("merge", "--ff-only", update.sha)
     if code != 0:
         raise UpdateError(f"Не удалось обновиться: {output[-500:]}")
     await _finish(("reset", "--keep", old))
+    return Rollback("git", old)
 
 
 @dataclass
@@ -177,7 +187,7 @@ async def prepare_switch(branch: str, current_version: str) -> Switch:
     return Switch(branch, previous, match[1] if match else "?", current_version)
 
 
-async def switch(target: Switch) -> None:
+async def switch(target: Switch) -> Rollback:
     """Переходит на ветку и ставит зависимости. При ошибке возвращает прежнюю ветку и бросает ``UpdateError``."""
     code, _ = await git("rev-parse", "--verify", "--quiet", f"refs/heads/{target.branch}")
     if code == 0:
@@ -194,6 +204,7 @@ async def switch(target: Switch) -> None:
     else:
         await _git_ok("switch", "--track", "-c", target.branch, f"origin/{target.branch}")
     await _finish(("switch", target.previous))
+    return Rollback("git", target.previous)
 
 
 async def _finish(rollback: tuple[str, ...]) -> None:
@@ -209,8 +220,8 @@ async def _finish(rollback: tuple[str, ...]) -> None:
     if code == 0:
         return
 
-    rollback, rollback_output = await git(*rollback)
-    raise InstallError(stage, output[-2000:], rolled_back=rollback == 0, rollback_output=rollback_output)
+    rollback_code, rollback_output = await git(*rollback)
+    raise InstallError(stage, output[-2000:], rolled_back=rollback_code == 0, rollback_output=rollback_output)
 
 
 # --- установка через pip ---
@@ -341,14 +352,17 @@ async def check_pip(channel: str, current: str) -> Update | None:
     if installed:
         return await _dev_update(installed)  # ветка dev: следим за её коммитами, а не за PyPI
     latest = latest_release(await _releases(dist), channel)
-    if latest is None or (version_key(current) or (0, 0, 0, 0)) >= version_key(latest):
+    # latest_release returns only versions version_key can parse.
+    if latest is None or (version_key(current) or (0, 0, 0, 0)) >= (version_key(latest) or (0, 0, 0, 0)):
         return None
     return Update(target=f"{dist}=={latest}", label=f"PyPI {latest}", sha=latest)
 
 
-async def install_pip(update: Update, current: str) -> None:
+async def install_pip(update: Update, current: str) -> Rollback:
     """Ставит версию с PyPI или архив dev. Если она не встала или не запускается — возвращает ``current``."""
-    await _pip_replace(update.target, _current_spec(_require_dist(), current))
+    previous = _current_spec(_require_dist(), current)
+    await _pip_replace(update.target, previous)
+    return Rollback("pip", previous)
 
 
 async def prepare_switch_pip(branch: str, current_version: str) -> Switch:
@@ -370,9 +384,11 @@ async def prepare_switch_pip(branch: str, current_version: str) -> Switch:
     return Switch(branch, previous, version, current_version, spec=f"{dist}=={version}")
 
 
-async def switch_pip(target: Switch) -> None:
+async def switch_pip(target: Switch) -> Rollback:
     """Ставит ветку через pip. При ошибке возвращает прежнюю версию и бросает ``InstallError``."""
-    await _pip_replace(target.spec, _current_spec(_require_dist(), target.current_version))
+    previous = _current_spec(_require_dist(), target.current_version)
+    await _pip_replace(target.spec, previous)
+    return Rollback("pip", previous)
 
 
 def _pip_steps(spec: str) -> list[tuple[str, ...]]:

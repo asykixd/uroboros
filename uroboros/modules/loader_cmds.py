@@ -23,6 +23,7 @@ class Candidate:
     origin: str  # where updates come from
     pin: str | None  # the same version at a specific commit (GitHub)
     report: scan.Report
+    verified: bool = False  # sha256 matches the repo's manifest.json
     deps: list["Candidate"] = field(default_factory=list)  # from # requires_module:, deepest first
 
     @property
@@ -52,14 +53,20 @@ async def resolve_deps(loader, candidate, strings):
 
 
 async def fetch_candidate(url, data=None):
-    """Downloads a module; from GitHub by a commit link, to know which version is installed."""
+    """Downloads a module; from GitHub by a commit link, to know which version is installed.
+
+    If the repo publishes ``manifest.json``, a file that doesn't match its sha256 is refused.
+    """
     pinned = await github.pin(url)
     if pinned is not None:
         data = await download.download(pinned[0])
     elif data is None:
         data = await download.download(url)
+    expected = await github.manifest_hash(pinned[0] if pinned else url)
+    if expected is not None:
+        github.verify(data, expected)
     source = download.decode(data)
-    return Candidate(source, url, pinned[0] if pinned else None, scan.scan(source))
+    return Candidate(source, url, pinned[0] if pinned else None, scan.scan(source), expected is not None)
 
 
 def commit_html(pin):
@@ -73,6 +80,7 @@ class PendingUpdate:
     label: str  # module name as HTML
     old: str
     candidate: Candidate
+    lib: bool = False  # a library: candidate.origin is its URL
 
     @property
     def report(self):
@@ -132,10 +140,14 @@ class Loader(Module):
         "harmful_hint": "💡 <i>Install only if you trust the author and understand why the module needs this</i>",
         "install_anyway": "⚠️ Install anyway",
         "install_question": "📦 <b>Install the module?</b>",
-        "install_hint": (
-            "💡 <i>The source isn't a connected repo. The module gets full access to the account — "
-            "install only ones you trust</i>"
-        ),
+        "install_hint": "💡 <i>{source} The module gets full access to the account — install only ones you trust</i>",
+        "first_from_repo": "The first module from the {repo} repo: further ones from it install without asking.",
+        "not_connected_source": "The source isn't a connected repo.",
+        "verified": "🔏 Matches the repo's <code>{manifest}</code>",
+        "verified_note": "🔏 <i>The file matches the repo's <code>{manifest}</code></i>",
+        "lib_label": "<b>{name}</b> (library)",
+        "lib_updated": "✅ {label} — updated ({stat})",
+        "lib_broke": "❌ <b>{stem}</b> — didn't start with the new version: {error}",
         "install": "📥 Install",
         "install_command": "\n📥 Install: <code>{command}</code>",
         "installing": "⏳ <b>Installing the module...</b>",
@@ -231,9 +243,15 @@ class Loader(Module):
         "install_anyway": "⚠️ Установить всё равно",
         "install_question": "📦 <b>Установить модуль?</b>",
         "install_hint": (
-            "💡 <i>Источник не из подключённых репозиториев. Модуль получит полный доступ к аккаунту — "
-            "ставьте только те, которым доверяете</i>"
+            "💡 <i>{source} Модуль получит полный доступ к аккаунту — ставьте только те, которым доверяете</i>"
         ),
+        "first_from_repo": "Первый модуль из репозитория {repo}: следующие из него будут ставиться без вопроса.",
+        "not_connected_source": "Источник не из подключённых репозиториев.",
+        "verified": "🔏 Совпадает с <code>{manifest}</code> репозитория",
+        "verified_note": "🔏 <i>Файл совпадает с <code>{manifest}</code> репозитория</i>",
+        "lib_label": "<b>{name}</b> (библиотека)",
+        "lib_updated": "✅ {label} — обновлена ({stat})",
+        "lib_broke": "❌ <b>{stem}</b> — не запустился с новой версией: {error}",
         "install": "📥 Установить",
         "install_command": "\n📥 Установить: <code>{command}</code>",
         "installing": "⏳ <b>Устанавливаю модуль...</b>",
@@ -293,9 +311,29 @@ class Loader(Module):
     def _repos(self):
         return self.db.get("repos", list(DEFAULT_REPOS))
 
-    def _trusted(self, url):
+    def _connected_repo(self, url):
+        """The connected repo the URL points into, or None."""
         repo = github.repo_of(url)
-        return repo is not None and repo.lower() in (r.lower() for r in self._repos())
+        if repo is None:
+            return None
+        return next((r for r in self._repos() if r.lower() == repo.lower()), None)
+
+    def _approved(self, repo):
+        """A module from this repo was installed with the user's consent before (or is installed now)."""
+        approved = {r.lower() for r in self.db.get("approved_repos", [])}
+        approved |= {(github.repo_of(origin) or "").lower() for origin in self.loader.installed().values()}
+        return repo.lower() in approved
+
+    def _auto_install(self, candidate):
+        """Installs without asking: from a connected repo the user already approved, and no dangerous code."""
+        repo = self._connected_repo(candidate.origin)
+        return bool(repo and self._approved(repo) and not candidate.report.dangerous)
+
+    def _approve(self, origin):
+        repo = self._connected_repo(origin)
+        approved = self.db.get("approved_repos", [])
+        if repo is not None and repo.lower() not in (r.lower() for r in approved):
+            self.db.set("approved_repos", [*approved, repo])
 
     @command("dlm", access="owner", emoji="📥")
     async def dlm(self, message):
@@ -325,10 +363,12 @@ class Loader(Module):
         if url is None:
             url, data = await self._find_in_repos(spec)
         candidate = await resolve_deps(self.loader, await fetch_candidate(url, data), self.strings)
-        if force or all(self._trusted(c.origin) and not c.report.dangerous for c in candidate.everything):
+        repo = self._connected_repo(url)
+        # A connected repo is trusted only after the user confirmed one module from it; dependencies too.
+        if force or all(self._auto_install(c) for c in candidate.everything):
             await self._install(message, candidate, force=force)
         else:
-            await self._confirm(message, candidate, f"dlm -f {spec}")
+            await self._confirm(message, candidate, f"dlm -f {spec}", repo=repo)
 
     async def _find_in_repos(self, name):
         repos = self._repos()
@@ -430,12 +470,17 @@ class Loader(Module):
         else:
             await self._confirm(message, candidate, "lm -f")
 
-    async def _confirm(self, message, candidate, force_hint):
-        """Ask before installing: the source isn't a connected repo or the module has dangerous code."""
+    async def _confirm(self, message, candidate, force_hint, repo=None):
+        """Ask before installing: the source isn't a connected repo or the module has dangerous code.
+
+        ``repo``: the module comes from this connected repo, but nothing from it was installed before.
+        """
         report = candidate.report
         info = [self.strings("source", origin=candidate.origin)]
         if candidate.pin:
             info.append(self.strings("commit", commit=utils.Html(commit_html(candidate.pin))))
+        if candidate.verified:
+            info.append(self.strings("verified", manifest=github.MANIFEST))
         if report.declared is not None:
             names = scan.permission_names(report.declared) or self.strings("not_needed")
             info.append(self.strings("permissions", names=utils.Html(names)))
@@ -449,7 +494,13 @@ class Loader(Module):
             text = utils.card(self.strings("harmful"), info) + details + "\n" + self.strings("harmful_hint")
             button = self.strings("install_anyway")
         else:
-            text = utils.card(self.strings("install_question"), info) + details + "\n" + self.strings("install_hint")
+            source = self.strings("first_from_repo", repo=repo) if repo else self.strings("not_connected_source")
+            text = (
+                utils.card(self.strings("install_question"), info)
+                + details
+                + "\n"
+                + self.strings("install_hint", source=utils.Html(source))
+            )
             button = self.strings("install")
         if self.inline.available:
             buttons = [[{"text": button, "callback": self._install_confirmed, "args": (candidate,)}, self._cancel]]
@@ -468,17 +519,27 @@ class Loader(Module):
         except LoadError as e:
             await call.edit(utils.card(self.strings("not_installed"), utils.escape_html(e)))
             return
-        await call.edit(self._installed_text(instances) + findings_text(candidate.report, self.strings))
+        await call.edit(
+            self._installed_text(instances)
+            + verified_text(candidate, self.strings)
+            + findings_text(candidate.report, self.strings)
+        )
 
     async def _install(self, message, candidate, *, force=False):
         instances = await self._install_all(candidate, force=force)
-        await utils.answer(message, self._installed_text(instances) + findings_text(candidate.report, self.strings))
+        await utils.answer(
+            message,
+            self._installed_text(instances)
+            + verified_text(candidate, self.strings)
+            + findings_text(candidate.report, self.strings),
+        )
 
     async def _install_all(self, candidate, *, force):
         """Dependencies first, then the module: the core won't install a module before them."""
         instances = []
         for item in candidate.everything:
             instances += await self.loader.install(item.source, item.origin, force=force, pin=item.pin)
+            self._approve(item.origin)
         return instances
 
     def _installed_text(self, instances):
@@ -528,6 +589,7 @@ class Loader(Module):
                 lines.append(self.strings("unchanged", label=label))
                 continue
             updates.append(PendingUpdate(label, old, candidate))
+        failed = await self._lib_updates(set(installed) if name else None, updates, lines) or failed
 
         if not updates:
             title = self.strings("not_all_checked") if failed else self.strings("no_updates")
@@ -553,6 +615,29 @@ class Loader(Module):
         hint = f"{self._prefix()}uplm -f {name}".rstrip()
         await utils.answer(message, text + self.strings("update_command", command=hint))
 
+    async def _lib_updates(self, stems, updates, lines):
+        """Libraries whose new version differs from the cached one; ``stems`` limits them to those modules' libs."""
+        failed = False
+        for url in sorted(self.loader.lib_cache()):
+            if stems is not None and not self.loader.lib_users(url) & stems:
+                continue
+            path = self.loader.lib_path(url)
+            if not path.exists():
+                continue
+            label = utils.Html(self.strings("lib_label", name=url.rstrip("/").rsplit("/", 1)[-1]))
+            try:
+                candidate = await fetch_candidate(url)
+            except LoadError as e:
+                failed = True
+                lines.append(self.strings("error_line", label=label, error=e))
+                continue
+            old = path.read_bytes().decode("utf-8", errors="replace")
+            if old == candidate.source:
+                lines.append(self.strings("unchanged", label=label))
+                continue
+            updates.append(PendingUpdate(label, old, candidate, lib=True))
+        return failed
+
     async def _uplm_confirmed(self, call, updates, lines, failed):
         await call.edit(self.strings("updating"), None)
         await call.edit(await self._apply_updates(updates, lines, failed), None)
@@ -561,8 +646,14 @@ class Loader(Module):
         """Installs confirmed updates (dangerous code included: the user has seen it)."""
         lines = list(lines)
         for update in updates:
+            new = update.candidate
+            if update.lib:
+                errors = await self.loader.update_lib(new.origin, new.source, new.pin)
+                failed = failed or bool(errors)
+                lines.append(self.strings("lib_updated", label=utils.Html(update.label), stat=update.stat))
+                lines += [self.strings("lib_broke", stem=stem, error=error) for stem, error in errors.items()]
+                continue
             try:
-                new = update.candidate
                 await self.loader.install(new.source, new.origin, force=True, pin=new.pin)
             except LoadError as e:
                 failed = True
@@ -653,6 +744,8 @@ class Loader(Module):
             await utils.answer(message, self.strings("repo_not_connected"))
             return
         self.db.set("repos", kept)
+        # Reconnecting the repo later asks again, unless modules from it are still installed.
+        self.db.set("approved_repos", [r for r in self.db.get("approved_repos", []) if r.lower() != repo.lower()])
         await utils.answer(message, self.strings("repo_removed", repo=repo))
 
     @command("repos", emoji="📚")
@@ -664,6 +757,12 @@ class Loader(Module):
             return
         lines = [f'▸ <a href="https://github.com/{r}">{utils.escape_html(r)}</a>' for r in repos]
         await utils.answer(message, utils.card(self.strings("repos", count=len(repos)), lines))
+
+
+def verified_text(candidate, strings):
+    if not candidate.verified:
+        return ""
+    return "\n" + strings("verified_note", manifest=github.MANIFEST)
 
 
 def findings_text(report, strings):
@@ -698,6 +797,8 @@ def updates_text(updates, lines, strings):
         if more > 0:
             shown += strings["more_lines"].format(count=more)
         commit = f" · 📌 {commit_html(update.candidate.pin)}" if update.candidate.pin else ""
+        if update.candidate.verified:
+            commit += f" · 🔏 <code>{github.MANIFEST}</code>"
         parts.append(
             f"🧩 {update.label} · {update.stat}{commit}"
             + findings_text(update.report, strings)

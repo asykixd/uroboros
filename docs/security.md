@@ -46,8 +46,13 @@ undeclared usage triggers a warning. See [Writing modules](modules.md#file-heade
 
 - Modules download over https only; redirects to http are rejected.
 - A module from an unconnected source needs confirmation showing its origin and line count.
-- GitHub modules are pinned to a commit: the file is fetched by SHA, and the confirmation shows which commit.
-- `.uplm` shows each module's diff and updates after confirmation.
+- So does the first module from each connected repo (the official one included). After that, clean modules from
+  that repo install without a question. `.delrepo` forgets the approval.
+- GitHub modules and libraries are pinned to a commit: the file is fetched by SHA, and the confirmation shows
+  which commit.
+- `.uplm` shows each module's and library's diff and updates after confirmation.
+- A repo can publish `manifest.json` with the sha256 of each module. A downloaded file that doesn't match is
+  refused; verified modules are marked 🔏. See [Writing modules](modules.md#install-time-scan).
 - Uroboros stores sha256 of installed module files. If a file was changed outside Uroboros and now contains
   dangerous code, it won't load at startup.
 - `# requires:` accepts only package names with versions: no URLs or pip options.
@@ -64,10 +69,29 @@ A third-party module can't:
 
 This covers the module's top-level code and `__init__` too, and libraries it loads with `self.import_lib`.
 The attempt raises `PermissionError`, nothing happens, and Saved Messages gets a notice naming the module and
-the action.
+the action. The last 100 blocks are also kept in the database: `.security log` shows them, newest first,
+`.security log clear` empties the log.
 
 Restrictions are lifted for a module whose dangerous code you confirmed on install, and for one you trust
 explicitly: `.security trust <module>`. Revert with `.security untrust <module>`.
+
+### Declared permissions
+
+A module with a `# meta permissions:` header (or the short `# permissions:`) is held to it at runtime:
+
+| Permission | Blocked when not declared |
+| --- | --- |
+| `network` | opening sockets: `socket.connect`, `sendto`, `bind` (so `aiohttp`, `requests`, `urllib` too) |
+| `files` | opening, creating, deleting, renaming and listing files. Reading Python's own files (stdlib, site-packages, time zones) and imports are allowed |
+| `processes` | starting processes: `subprocess`, `os.system`, `os.exec*`, `os.fork` |
+
+`env` and `exec` are only checked by the install scan: Python has no reliable runtime hook for them.
+
+What the core does for the module doesn't count: Telegram traffic through `self.client`, the inline bot,
+downloading libraries, `# requires:` installs. Files a module sends through Telethon (`send_file` with a path) do
+count. Modules without the header behave as before, and trusted modules aren't limited. It's a heuristic like the
+rest of the runtime protection: code run in threads or in tasks spawned by libraries may be attributed to nobody, in
+which case network access is allowed and file and process access is blocked.
 
 ## Flood protection
 
@@ -81,6 +105,10 @@ Telegram requests from third-party modules are counted. A module that sends too 
 The session, `config.json` (api_id and api_hash) and the database live in `data/`. That's access to your account:
 never publish or share this folder. `.backup` saves the database and modules, but not the session or `config.json`.
 A backup does contain the inline bot token and module settings, so don't forward it.
+
+`.backup auto <hours> [keep]` sends a backup on a schedule (off by default) to Saved Messages, or to the chat set
+in `.cfg backup chat`: pick only a chat nobody else can read. The bot deletes its own autobackups beyond the last
+`keep` (5 by default, 0 keeps all); backups sent by hand are never deleted.
 
 A backup records the account it was made on. `.restore` of a backup from another account (or from an older
 version without that record) asks for confirmation (`.restore -f`) and keeps your access levels, trusted modules

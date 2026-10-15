@@ -25,6 +25,11 @@ Uroboros работает везде, где есть Python 3.10+. При пе�
 Новая версия ставится вместе с зависимостями; если они не встали или новая версия не запускается, git
 возвращается на прежнюю версию, и бот работает дальше.
 
+После перезапуска новая версия работает «на испытании», пока не будет готова (модули загружены, команды
+принимаются). Если запуск упал или бот не дошёл до готовности за 2 запуска (например, его убили и перезапустил
+systemd), ставится прежняя версия и бот перезапускается в неё; причина приходит в «Избранное». То же для
+`.dev on` / `.dev off`. Метка испытания — `data/update-pending.json`.
+
 - `.update channel beta` — каждый коммит в ветке, на которой стоит бот (по умолчанию): `master` — стабильная,
   `dev` — разработка;
 - `.update channel stable` — только релизы (теги);
@@ -120,6 +125,18 @@ docker compose logs -f
 
 Ссылка на панель входа появится в логах; панель доступна только с этой машины (`127.0.0.1:8080`).
 Данные — в `./data`. Обновление: `git pull && docker compose up -d --build` (`.update` в Docker не работает).
+
+**Готовый образ.** Каждый релиз публикуется в GHCR для amd64 и arm64 как `ghcr.io/asykixd/uroboros:X.Y.Z` и
+`:latest`, исходники не нужны:
+
+```bash
+docker run -d --name uroboros --restart unless-stopped \
+  -v "$PWD/data:/data" -p 127.0.0.1:8080:8080 ghcr.io/asykixd/uroboros:latest
+docker logs -f uroboros
+```
+
+Обновление: `docker pull ghcr.io/asykixd/uroboros:latest`, затем `docker rm -f uroboros` и тот же `docker run`.
+Чтобы не вводить api_id и api_hash в панели, добавьте `-e UROBOROS_API_ID=... -e UROBOROS_API_HASH=...`.
 
 ## Windows
 

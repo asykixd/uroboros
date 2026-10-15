@@ -79,3 +79,33 @@ def test_pin_falls_back_when_api_fails():
 
     # conftest подменяет resolve_commit ошибкой сети
     assert asyncio.run(github.pin(f"{RAW}/o/r/HEAD/mod.py")) is None
+
+
+def test_manifest_hash_and_verify(monkeypatch):
+    import asyncio
+    import hashlib
+    import json
+
+    import pytest
+
+    from uroboros import github
+    from uroboros.errors import LoadError
+
+    digest = hashlib.sha256(b"code").hexdigest()
+    manifests = {
+        ("o/r", SHA): json.dumps({"modules": {"mod.py": digest.upper(), "dir/x.py": {"sha256": digest}}}).encode(),
+        ("o/bad", SHA): b'{"modules": {"mod.py": "nope"}}',
+    }
+    monkeypatch.setattr(github, "fetch_manifest", lambda repo, ref: manifests.get((repo, ref)))
+
+    assert asyncio.run(github.manifest_hash(f"{RAW}/o/r/{SHA}/mod.py")) == digest
+    assert asyncio.run(github.manifest_hash(f"{RAW}/o/r/{SHA}/dir/x.py")) == digest
+    assert asyncio.run(github.manifest_hash(f"{RAW}/o/r/{SHA}/other.py")) is None
+    assert asyncio.run(github.manifest_hash(f"{RAW}/o/none/{SHA}/mod.py")) is None
+    assert asyncio.run(github.manifest_hash("https://example.com/mod.py")) is None
+    with pytest.raises(LoadError, match=r"manifest\.json"):
+        asyncio.run(github.manifest_hash(f"{RAW}/o/bad/{SHA}/mod.py"))
+
+    github.verify(b"code", digest)
+    with pytest.raises(LoadError, match="не совпадает"):
+        github.verify(b"evil", digest)

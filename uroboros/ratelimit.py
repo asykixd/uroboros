@@ -12,7 +12,7 @@ import contextvars
 import logging
 import time
 from collections import Counter, deque
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any
 
 from .errors import LoadError
@@ -54,7 +54,8 @@ class RateLimiter:
         self._requests: dict[str, deque[float]] = {}
         self.frozen: dict[str, float] = {}  # имя модуля → до какого момента (по clock)
         self.hits: Counter[str] = Counter()  # module → freezes and requests rejected while frozen (.stats)
-        self.on_freeze = None  # async-функция(name, seconds): уведомить пользователя
+        # async-функция(name, seconds): уведомить пользователя
+        self.on_freeze: Callable[[str, Any], object] | None = None
 
     @property
     def settings(self) -> dict[str, Any]:

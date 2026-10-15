@@ -10,7 +10,7 @@ Back up and restore the database and modules
 
 | Command | Description | Access |
 |---|---|---|
-| 💾 `.backup` | back up the DB and modules to Saved Messages (no session); auto backup — .cfg backup | owners |
+| 💾 `.backup [auto [hours \| off] [keep]]` | back up the DB and modules to Saved Messages; auto — on a schedule | owners |
 | ♻️ `.restore [-f] (reply to a backup)` | restore the DB and modules and restart; -f — foreign backup or dangerous code | owners |
 
 ## Config
@@ -79,18 +79,19 @@ Access: owners, sudo, support and command permissions
 | Command | Description | Access |
 |---|---|---|
 | 👑 `.owner [add \| del] [user]` | owners: full access, like this account | owners |
-| 🔐 `.security [command level \| flood ... \| unfreeze module \| trust/untrust module]` | access, permissions, protection | owners |
+| 🔐 `.security [command level \| flood ... \| unfreeze module \| trust/untrust module \| log]` | access and protection | owners |
 | 🛡 `.sudo [add \| del] [user]` | sudo: all commands except owner commands | owners |
 | 🤝 `.support [add \| del] [user]` | support: only support-level commands | owners |
 
 ## Settings
 
-Prefix, command aliases and the bot language
+Prefix, aliases, re-running edited commands and the bot language
 
 | Command | Description | Access |
 |---|---|---|
 | 🏷 `.alias <alias> <command>` | add an alias | owners |
 | 🏷 `.aliases` | list aliases | sudo |
+| ✏️ `.editcmd [on \| off]` | re-run a command when its message is edited | owners |
 | 🌐 `.lang [ru \| en]` | bot interface language | owners |
 | ⌨️ `.setprefix <prefix>` | change the command prefix | owners |
 | 🗑 `.unalias <alias>` | remove an alias | owners |

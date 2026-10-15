@@ -116,6 +116,8 @@ class Module:
     _stem: str
     _origin: str
     _meta: dict[str, str]  # из шапки файла: # meta developer: ..., # meta version: ...
+    _strings_base: dict[str, str]  # strings before strings_<lang> is applied (.lang)
+    _permissions: set[str] | None  # declared with # meta permissions; None: no header
     _loops: list[Loop]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:

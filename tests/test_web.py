@@ -3,6 +3,7 @@ import json
 import re
 from types import SimpleNamespace
 
+import aiohttp
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from telethon import errors
@@ -160,6 +161,9 @@ def test_http_requires_token(tmp_path):
             assert (await http.get("/?token=bad")).status == 403
             denied = await http.post("/", data={"token": "bad", "action": "phone", "phone": "+79000000000"})
             assert denied.status == 403 and flow.state == "phone"
+            form = aiohttp.FormData({"action": "phone", "phone": "+79000000000"})
+            form.add_field("token", token.encode(), filename="token.txt")  # a file field, not a string
+            assert (await http.post("/", data=form)).status == 403 and flow.state == "phone"
 
             page = await (await http.get(f"/?token={token}")).text()
             assert 'name="phone"' in page and f'value="{token}"' in page

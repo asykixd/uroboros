@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 from pathlib import Path
 from typing import IO
 
@@ -49,7 +50,8 @@ class InstanceLock:
             return None
 
 
-if os.name == "nt":
+# sys.platform rather than os.name: type checkers narrow platform-specific modules only on it.
+if sys.platform == "win32":
     import msvcrt
 
     def _lock(file: IO[str]) -> None:

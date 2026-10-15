@@ -1,11 +1,12 @@
 from uroboros import Module, command, utils
 from uroboros.database import MAIN_OWNER
 
+EDIT_COMMANDS_KEY = "edit_commands"
 LANGUAGE_NAMES = {"ru": "🇷🇺 Русский", "en": "🇬🇧 English"}
 
 
 class Settings(Module):
-    """Prefix, command aliases and the bot language"""
+    """Prefix, aliases, re-running edited commands and the bot language"""
 
     strings = {
         "bad_prefix": "❌ <b>Not suitable</b>",
@@ -25,9 +26,17 @@ class Settings(Module):
         "language": "🌐 <b>Language</b> · {name}",
         "language_hint": "change: {options}",
         "unknown_language": "❌ <b>No such language</b>",
+        "unknown": "❌ <b>Didn't understand</b>",
+        "editcmd_usage": "<code>editcmd on</code> or <code>editcmd off</code>",
+        "editcmd_on": "✏️ <b>Re-running edited commands is on</b>",
+        "editcmd_on_note": "🔁 Fix a command in its message and it runs again",
+        "editcmd_off_hint": "turn off: <code>{prefix}editcmd off</code>",
+        "editcmd_off": "✏️ <b>Re-running edited commands is off</b>",
+        "editcmd_on_hint": "turn on: <code>{prefix}editcmd on</code>",
     }
     strings_ru = {
-        "_cls_doc": "Префикс, алиасы команд и язык бота",
+        "_cls_doc": "Префикс, алиасы, запуск команд по правке и язык бота",
+        "_cmd_doc_editcmd": "[on | off] — перезапускать команду, если её сообщение отредактировали",
         "_cmd_doc_setprefix": "<префикс> — сменить префикс команд",
         "_cmd_doc_alias": "<алиас> <команда> — добавить алиас",
         "_cmd_doc_unalias": "<алиас> — удалить алиас",
@@ -50,6 +59,13 @@ class Settings(Module):
         "language": "🌐 <b>Язык</b> · {name}",
         "language_hint": "сменить: {options}",
         "unknown_language": "❌ <b>Нет такого языка</b>",
+        "unknown": "❌ <b>Не понял</b>",
+        "editcmd_usage": "<code>editcmd on</code> или <code>editcmd off</code>",
+        "editcmd_on": "✏️ <b>Команды по правке включены</b>",
+        "editcmd_on_note": "🔁 Исправили команду в сообщении — она выполнится заново",
+        "editcmd_off_hint": "выключить: <code>{prefix}editcmd off</code>",
+        "editcmd_off": "✏️ <b>Команды по правке выключены</b>",
+        "editcmd_on_hint": "включить: <code>{prefix}editcmd on</code>",
     }
 
     def _aliases(self):
@@ -130,3 +146,23 @@ class Settings(Module):
         prefix = utils.escape_html(utils.get_prefix(self.db.raw))
         options = ", ".join(f"<code>{prefix}lang {code}</code>" for code in utils.LANGUAGES)
         return utils.card(title, hint=self.strings("language_hint", options=utils.Html(options)))
+
+    @command("editcmd", access="owner", emoji="✏️")
+    async def editcmd(self, message):
+        """[on | off] — re-run a command when its message is edited"""
+        arg = utils.get_args_raw(message).strip().lower()
+        if arg not in ("", "on", "off"):
+            await utils.answer(message, utils.card(self.strings("unknown"), hint=self.strings("editcmd_usage")))
+            return
+        if arg:
+            self.db.raw.set(MAIN_OWNER, EDIT_COMMANDS_KEY, arg == "on")
+        prefix = utils.get_prefix(self.db.raw)
+        if self.db.raw.get(MAIN_OWNER, EDIT_COMMANDS_KEY, True):
+            card = utils.card(
+                self.strings("editcmd_on"),
+                [self.strings("editcmd_on_note")],
+                hint=self.strings("editcmd_off_hint", prefix=prefix),
+            )
+        else:
+            card = utils.card(self.strings("editcmd_off"), hint=self.strings("editcmd_on_hint", prefix=prefix))
+        await utils.answer(message, card)

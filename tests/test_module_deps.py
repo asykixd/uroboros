@@ -31,6 +31,12 @@ def serve(monkeypatch, files):
     return downloads
 
 
+def approve_repo(loader):
+    """Connected, and one module from it was already confirmed: further ones install without asking."""
+    loader.get_module("loader").db.set("repos", ["someone/mods"])
+    loader.get_module("loader").db.set("approved_repos", ["someone/mods"])
+
+
 def run_command(loader, text):
     message = FakeMessage(text)
     asyncio.run(loader.get_command(text.split()[0][1:]).func(message))
@@ -69,7 +75,7 @@ def test_core_refuses_module_with_missing_dependency(builtin_loader):
 
 def test_dlm_installs_dependency_chain(builtin_loader, monkeypatch):
     loader = builtin_loader
-    loader.get_module("loader").db.set("repos", ["someone/mods"])
+    approve_repo(loader)
     downloads = serve(
         monkeypatch,
         {
@@ -92,7 +98,7 @@ def test_dlm_installs_dependency_chain(builtin_loader, monkeypatch):
 
 def test_dlm_rejects_dependency_cycle(builtin_loader, monkeypatch):
     loader = builtin_loader
-    loader.get_module("loader").db.set("repos", ["someone/mods"])
+    approve_repo(loader)
     serve(
         monkeypatch,
         {
@@ -107,7 +113,7 @@ def test_dlm_rejects_dependency_cycle(builtin_loader, monkeypatch):
 
 def test_untrusted_dependency_needs_confirmation(builtin_loader, monkeypatch):
     loader = builtin_loader
-    loader.get_module("loader").db.set("repos", ["someone/mods"])
+    approve_repo(loader)
     stranger = "https://example.com/helper.py"
     serve(
         monkeypatch,
@@ -125,3 +131,14 @@ def test_untrusted_dependency_needs_confirmation(builtin_loader, monkeypatch):
 
     assert run_command(loader, ".dlm -f someone/mods/top").startswith("✅")
     assert list(loader.installed()) == ["helper", "top"]
+
+
+def test_first_module_from_repo_asks_even_with_dependencies(builtin_loader, monkeypatch):
+    loader = builtin_loader
+    loader.get_module("loader").db.set("repos", ["someone/mods"])
+    serve(monkeypatch, {f"{RAW}/top.py": module("top", "someone/mods/base"), f"{RAW}/base.py": module("base")})
+    text = run_command(loader, ".dlm someone/mods/top")
+    assert "Первый модуль из репозитория someone/mods" in text and "Зависимостей: <code>1</code>" in text
+    assert loader.installed() == {}
+    assert run_command(loader, ".dlm -f someone/mods/top").startswith("✅")
+    assert loader.get_module("loader").db.get("approved_repos") == ["someone/mods"]

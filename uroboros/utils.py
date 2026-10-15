@@ -29,6 +29,10 @@ T = TypeVar("T")
 START_TIME = time.time()
 LANGUAGES = ("ru", "en")  # bot UI languages; the first one is the default
 MAX_MESSAGE_LENGTH = 4096
+_OWN_EDITS_LIMIT = 512
+# Texts the bot itself put into messages: the dispatcher re-runs edited commands and must not mistake
+# a reply edited into the command message for the user's edit.
+_own_edits: dict[tuple[Any, Any], str] = {}
 
 _restart_requested = False
 
@@ -128,10 +132,31 @@ async def answer(message: Message, text: str, **kwargs) -> Message:
         from telethon.errors import MessageNotModifiedError
 
         try:
-            return await message.edit(text, **kwargs)
+            result = await message.edit(text, **kwargs)
         except MessageNotModifiedError:
             return message
+        _remember_own_edit(result)
+        return result
     return await message.reply(text, **kwargs)
+
+
+def _message_key(message: Any) -> tuple[Any, Any]:
+    return getattr(message, "chat_id", None), getattr(message, "id", None)
+
+
+def _remember_own_edit(message: Any) -> None:
+    text = getattr(message, "raw_text", None)
+    if text is None:
+        return
+    key = _message_key(message)
+    _own_edits.pop(key, None)
+    _own_edits[key] = text
+    while len(_own_edits) > _OWN_EDITS_LIMIT:
+        del _own_edits[next(iter(_own_edits))]
+
+
+def _is_own_edit(message: Any) -> bool:
+    return _own_edits.get(_message_key(message)) == getattr(message, "raw_text", None)
 
 
 async def answer_file(message: Message, file: Any, caption: str | None = None, **kwargs) -> Message:
